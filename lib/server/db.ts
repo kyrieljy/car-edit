@@ -42,6 +42,7 @@ import type {
   Subscription,
   WorkflowConfig,
   WorkflowMode,
+  WorkflowNodeConfig,
 } from "../types"
 
 const DB_PATH = path.join(process.cwd(), "data", "car_mod_effect.sqlite")
@@ -3034,7 +3035,7 @@ function mergeWorkflowOverride(seed: WorkflowConfig, row?: Row): WorkflowConfig 
       maxRetries: Number.isFinite(Number(source.maxRetries)) ? Math.max(0, Number(source.maxRetries)) : seedNode.maxRetries,
       config: { ...seedNode.config, ...(source.config ?? {}) },
     }
-  })
+  }).map(normalizeBillableWorkflowNode)
   return {
     ...seed,
     enabled: override.enabled,
@@ -3236,7 +3237,7 @@ function normalizeChatWorkflowConfig(workflow: WorkflowConfig, workflows: Workfl
       maxRetries: Number.isFinite(Number(source?.maxRetries)) ? Math.max(0, Number(source?.maxRetries)) : seedNode.maxRetries,
       config: { ...seedNode.config, ...(source?.config ?? {}) },
     }
-  })
+  }).map(normalizeBillableWorkflowNode)
 
   return {
     ...workflow,
@@ -3251,6 +3252,24 @@ function normalizeChatWorkflowConfig(workflow: WorkflowConfig, workflows: Workfl
     edges: seed.edges,
   }
 }
+
+function normalizeBillableWorkflowNode(node: WorkflowNodeConfig): WorkflowNodeConfig {
+  if (node.type !== "image_generation") return node
+  if (!billableSubmitProviderIds.has(node.providerId)) return node
+  return {
+    ...node,
+    failureStrategy: "stop",
+    config: {
+      ...node.config,
+      callFailurePolicy: "stop",
+    },
+  }
+}
+
+const billableSubmitProviderIds = new Set<ProviderId>([
+  "provider_302_nano_banana2_async_edit",
+  "provider_302_gpt_image2_edit",
+])
 
 function membershipPlans(): MembershipPlan[] {
   const rows = database().prepare("SELECT * FROM membership_plans ORDER BY sort_order ASC").all() as Row[]
