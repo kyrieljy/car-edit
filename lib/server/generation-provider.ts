@@ -1095,8 +1095,13 @@ function formatBytes(value: number) {
 
 async function readImageSource(url: string) {
   if (/^https?:\/\//i.test(url)) {
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`参考图下载失败：${url}，HTTP ${response.status}`)
+    let response: Response
+    try {
+      response = await fetch(url)
+    } catch (error) {
+      throw new Error(`Input image fetch failed before provider request. source=${safeSourceUrl(url)}; ${transportErrorSummary(error)}`, { cause: error })
+    }
+    if (!response.ok) throw new Error(`Input image fetch failed before provider request. source=${safeSourceUrl(url)}; HTTP ${response.status}`)
     const mime = response.headers.get("content-type")?.split(";")[0] || mimeFromPath(url)
     return {
       bytes: new Uint8Array(await response.arrayBuffer()),
@@ -1122,6 +1127,16 @@ async function readImageSource(url: string) {
     bytes: new Uint8Array(bytes),
     mime: mimeFromPath(absolutePath),
     fileName: path.basename(absolutePath),
+  }
+}
+
+function safeSourceUrl(value: string) {
+  try {
+    const parsed = new URL(value)
+    if (parsed.search) parsed.search = "?..."
+    return parsed.toString().slice(0, 240)
+  } catch {
+    return value.slice(0, 240)
   }
 }
 
