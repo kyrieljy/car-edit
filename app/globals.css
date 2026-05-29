@@ -18609,6 +18609,25 @@ a {
 
 /* Mobile runtime guard: keep the H5 surface scrollable and its fixed layers deterministic in production builds. */
 @media (max-width: 760px) {
+  body :where(button, a, label, input, textarea, select, summary, [role="button"], [role="tab"]) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body :where(button, a, [role="button"], [role="tab"]):focus:not(:focus-visible) {
+    outline: none !important;
+  }
+
+  .auth-backdrop,
+  .auth-mobile-screen,
+  .auth-mobile-screen *,
+  .account-panel-backdrop,
+  .account-panel,
+  .subscribe-mobile-screen,
+  .pricing-backdrop {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   html:has(.mobile-studio-app[data-overlay-open="false"]),
   body:has(.mobile-studio-app[data-overlay-open="false"]) {
     height: auto !important;
