@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { startTransition, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { 
   ArrowDownToLine,
@@ -49,6 +49,8 @@ const fallbackPrompts = [
   "Add carbon front lip and rear wing",
   "Install red brake calipers while preserving the original garage background",
 ]
+
+const MOBILE_HISTORY_DRAWER_EXIT_MS = 230
 
 const chatCopy = {
   en: {
@@ -336,6 +338,7 @@ export function ChatMode({
   const partInputRef = useRef<HTMLInputElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const requestAbortRef = useRef<AbortController | null>(null)
+  const sessionLoadSeqRef = useRef(0)
   const chatCacheKey = `${mobileVariant ? "mobile" : "desktop"}:${authUser?.id ?? "guest"}`
   const cachedChatState = chatModeCache.get(chatCacheKey)
   const [hydratedChatCacheKey, setHydratedChatCacheKey] = useState(chatCacheKey)
@@ -500,6 +503,7 @@ export function ChatMode({
       return
     }
     if (!response.ok) return
+    sessionLoadSeqRef.current += 1
     const session = (await response.json()) as ChatSession
     setSessions((items) => [session, ...items])
     setActiveSessionId(session.id)
@@ -509,23 +513,38 @@ export function ChatMode({
     setMobileSidebarOpen(false)
   }
 
-  const selectSession = async (id: string) => {
+  const selectSession = (id: string) => {
     if (mobileLoginBlocked) {
       blockMobileAccess()
       return
     }
+    const loadSeq = ++sessionLoadSeqRef.current
+    const shouldDeferRender = mobileVariant && mobileSidebarOpen
     setActiveSessionId(id)
     setPendingContextChoice(null)
     setPendingPartColorPolicyChoice(null)
-    setMobileSidebarOpen(false)
-    const response = await fetch(`/api/chat/sessions/${id}`)
-    if (response.status === 401) {
-      onAuthRequired?.()
-      return
+    if (mobileSidebarOpen) setMobileSidebarOpen(false)
+
+    const loadSelectedSession = async () => {
+      const responsePromise = fetch(`/api/chat/sessions/${id}`)
+      if (shouldDeferRender) {
+        await new Promise((resolve) => window.setTimeout(resolve, MOBILE_HISTORY_DRAWER_EXIT_MS))
+      }
+      const response = await responsePromise
+      if (loadSeq !== sessionLoadSeqRef.current) return
+      if (response.status === 401) {
+        onAuthRequired?.()
+        return
+      }
+      if (!response.ok) return
+      const body = (await response.json()) as { messages: ChatMessage[] }
+      if (loadSeq !== sessionLoadSeqRef.current) return
+      startTransition(() => {
+        setMessages(body.messages)
+      })
     }
-    if (!response.ok) return
-    const body = (await response.json()) as { messages: ChatMessage[] }
-    setMessages(body.messages)
+
+    void loadSelectedSession()
   }
 
   const togglePinSession = async (session: ChatSession) => {
@@ -1300,7 +1319,7 @@ function ChatHistorySidebar({
     <motion.aside
       className={effectiveCollapsed ? "chat-history-sidebar collapsed" : "chat-history-sidebar"}
       initial={false}
-      animate={{ width: effectiveCollapsed ? 88 : 320 }}
+      animate={isMobileDrawer ? false : { width: effectiveCollapsed ? 88 : 320 }}
       transition={{ type: "spring", stiffness: 260, damping: 32, mass: 0.86 }}
     >
       <div className={effectiveCollapsed ? "chat-history-head collapsed" : "chat-history-head"}>
@@ -1369,7 +1388,14 @@ function ChatHistorySidebar({
         {mobileOpen && (
           <>
             <div className="chat-mobile-overlay" onClick={() => setMobileOpen(false)} />
-            <motion.div className="chat-mobile-drawer" initial={{ x: -340 }} animate={{ x: 0 }} exit={{ x: -340 }} transition={{ type: "spring", stiffness: 260, damping: 28 }}>
+            <motion.div
+              className="chat-mobile-drawer"
+              initial={{ x: "-105%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-105%" }}
+              transition={{ duration: 0.23, ease: [0.22, 1, 0.36, 1] }}
+              style={{ willChange: "transform" }}
+            >
               {sidebar}
             </motion.div>
           </>
@@ -1416,30 +1442,20 @@ function ChatSection({
       >
         <div className="history-section-body-inner">
           {sessions.length ? (
-            <AnimatePresence initial={false}>
-              {sessions.map((session) => (
-                <motion.div
-                  key={session.id}
-                  layout
-                  className={session.id === activeSessionId ? "chat-row active" : "chat-row"}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.16 }}
-                >
-                  <button className="chat-row-main" type="button" onClick={() => onSelect(session.id)}>
-                    <strong>{session.title}</strong>
-                    <span>{session.messageCount} messages</span>
-                  </button>
-                  <button className={session.pinned ? "chat-pin active" : "chat-pin"} type="button" onClick={() => onPin(session)} aria-label={session.pinned ? "Unpin chat" : "Pin chat"}>
-                    <Star size={14} />
-                  </button>
-                  <button className="chat-delete" type="button" onClick={() => onDelete(session)} aria-label={deleteLabel}>
-                    <X size={14} />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            sessions.map((session) => (
+              <div key={session.id} className={session.id === activeSessionId ? "chat-row active" : "chat-row"}>
+                <button className="chat-row-main" type="button" onClick={() => onSelect(session.id)}>
+                  <strong>{session.title}</strong>
+                  <span>{session.messageCount} messages</span>
+                </button>
+                <button className={session.pinned ? "chat-pin active" : "chat-pin"} type="button" onClick={() => onPin(session)} aria-label={session.pinned ? "Unpin chat" : "Pin chat"}>
+                  <Star size={14} />
+                </button>
+                <button className="chat-delete" type="button" onClick={() => onDelete(session)} aria-label={deleteLabel}>
+                  <X size={14} />
+                </button>
+              </div>
+            ))
           ) : (
             <div className="empty-history">{emptyText}</div>
           )}
