@@ -1,0 +1,3467 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: #050607;
+        color: #f7f8fb;
+        font-family: "IBM Plex Sans", "Noto Sans JP", system-ui, sans-serif;
+      }
+
+      #root {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 24% 16%, rgba(103, 255, 202, 0.18) 0, rgba(103, 255, 202, 0) 330px),
+          radial-gradient(circle at 74% 72%, rgba(243, 179, 49, 0.16) 0, rgba(243, 179, 49, 0) 420px),
+          linear-gradient(180deg, #090b0e 0%, #050607 54%, #030304 100%);
+      }
+
+      .garage-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.2;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.06) 1px, rgba(255, 255, 255, 0) 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, rgba(255, 255, 255, 0) 1px);
+        background-size: 72px 72px;
+        transform: perspective(1000px) rotateX(55deg) scale(1.45);
+        transform-origin: center bottom;
+      }
+
+      .amber-rack {
+        position: absolute;
+        left: -120px;
+        bottom: 114px;
+        width: 1320px;
+        height: 180px;
+        opacity: 0.18;
+        background:
+          repeating-linear-gradient(90deg, rgba(243, 179, 49, 0.76) 0 18px, rgba(243, 179, 49, 0.16) 18px 26px, rgba(243, 179, 49, 0) 26px 52px),
+          linear-gradient(180deg, rgba(243, 179, 49, 0), rgba(243, 179, 49, 0.68));
+        filter: blur(1px);
+      }
+
+      .headline {
+        position: absolute;
+        top: 72px;
+        left: 70px;
+        right: 70px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 30px;
+        z-index: 5;
+      }
+
+      .headline h1 {
+        font-family: "Archivo Black", "Arial Black", "Noto Sans JP", sans-serif;
+        font-size: 58px;
+        line-height: 0.98;
+        letter-spacing: 0.01em;
+      }
+
+      .headline p {
+        margin-top: 14px;
+        max-width: 620px;
+        color: #9aa3b2;
+        font-size: 24px;
+        line-height: 1.35;
+      }
+
+      .build-tag {
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 18px;
+        font-variant-numeric: tabular-nums;
+        text-transform: uppercase;
+      }
+
+      .phone-frame {
+        position: absolute;
+        left: 205px;
+        top: 214px;
+        width: 670px;
+        height: 1460px;
+        overflow: hidden;
+        border: 3px solid #343a46;
+        border-radius: 76px;
+        background: #050607;
+        box-shadow:
+          0 44px 110px rgba(0, 0, 0, 0.58),
+          inset 0 0 0 12px #0a0d11,
+          inset 0 0 0 14px rgba(255, 255, 255, 0.06);
+      }
+
+      .phone-glass {
+        position: absolute;
+        inset: 18px;
+        overflow: hidden;
+        border-radius: 58px;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08) 0, rgba(255, 255, 255, 0) 260px),
+          #06080b;
+      }
+
+      .notch {
+        position: absolute;
+        z-index: 9;
+        left: 50%;
+        top: 18px;
+        width: 168px;
+        height: 34px;
+        border-radius: 999px;
+        background: #050607;
+        transform: translateX(-50%);
+      }
+
+      .mobile-status {
+        position: absolute;
+        z-index: 8;
+        top: 28px;
+        left: 36px;
+        right: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #f7f8fb;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+      }
+
+      .theme-toggle {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        width: 184px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgba(5, 6, 7, 0.72);
+      }
+
+      .theme-toggle .theme-thumb-mini {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: calc(50% - 9px);
+        height: calc(100% - 12px);
+        border-radius: 999px;
+        background: #f7f8fb;
+      }
+
+      .theme-toggle span {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        min-height: 36px;
+        color: #9aa3b2;
+        font-size: 15px;
+        font-weight: 900;
+      }
+
+      .theme-toggle span.active {
+        color: #050607;
+      }
+
+      .auth-surface,
+      .subscribe-surface {
+        position: absolute;
+        inset: 0;
+        z-index: 16;
+        overflow: hidden;
+        border-radius: 58px;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(103, 255, 202, 0.18), rgba(103, 255, 202, 0) 300px),
+          linear-gradient(180deg, #090b0e 0%, #050607 74%, #030304 100%);
+        color: #f7f8fb;
+      }
+
+      .auth-surface {
+        padding: 0;
+      }
+
+      .auth-top,
+      .subscribe-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        display: grid;
+        gap: 6px;
+      }
+
+      .brand-mark strong {
+        font-family: "Archivo Black", "Arial Black", "Noto Sans JP", sans-serif;
+        font-size: 35px;
+        letter-spacing: 0.01em;
+      }
+
+      .brand-mark span {
+        color: #9aa3b2;
+        font-size: 16px;
+      }
+
+      .auth-hero {
+        margin-top: 50px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .auth-hero h2,
+      .subscribe-hero h2 {
+        font-size: 42px;
+        line-height: 1.08;
+        font-weight: 950;
+      }
+
+      .auth-hero p,
+      .subscribe-hero p {
+        color: #9aa3b2;
+        font-size: 19px;
+        line-height: 1.38;
+      }
+
+      .auth-form {
+        margin-top: 34px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .input-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 70px;
+        border: 1px solid #343a46;
+        border-radius: 24px;
+        background: #111317;
+        padding: 0 16px;
+      }
+
+      .input-row span {
+        color: #d7dce7;
+        font-size: 21px;
+        font-weight: 900;
+      }
+
+      .input-row button {
+        min-width: 116px;
+        height: 46px;
+        border: 1px solid rgba(103, 255, 202, 0.45);
+        border-radius: 16px;
+        background: #10201c;
+        color: #67ffca;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .auth-primary,
+      .subscribe-cta {
+        min-height: 72px;
+        border: 0;
+        border-radius: 24px;
+        background: #f7f8fb;
+        color: #050607;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .auth-secondary {
+        min-height: 64px;
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 19px;
+        font-weight: 900;
+      }
+
+      .auth-theme-card {
+        margin-top: 34px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 30px;
+        background: linear-gradient(135deg, #fffaf0, #f4f0e7);
+        color: #15171b;
+        padding: 20px;
+      }
+
+      .auth-theme-card strong {
+        display: block;
+        font-size: 22px;
+      }
+
+      .auth-theme-card span {
+        display: block;
+        margin-top: 8px;
+        color: rgba(21, 23, 27, 0.62);
+        font-size: 16px;
+        line-height: 1.3;
+      }
+
+      .auth-light-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0;
+        background:
+          radial-gradient(circle at 72% 12%, rgba(253, 199, 0, 0.28), rgba(253, 199, 0, 0) 260px),
+          radial-gradient(circle at 24% 46%, rgba(103, 255, 202, 0.18), rgba(103, 255, 202, 0) 300px),
+          linear-gradient(180deg, #fffaf0 0%, #f4f0e7 70%, #e8dfcf 100%);
+      }
+
+      .auth-surface::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, rgba(255, 255, 255, 0) 1px),
+          linear-gradient(rgba(255, 255, 255, 0.05) 1px, rgba(255, 255, 255, 0) 1px);
+        background-size: 42px 42px;
+        opacity: 0.24;
+        mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0) 78%);
+      }
+
+      .auth-surface > *:not(.auth-light-layer) {
+        position: relative;
+        z-index: 1;
+      }
+
+      .auth-page-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        border: 1px solid rgba(103, 255, 202, 0.34);
+        border-radius: 999px;
+        background: rgba(16, 32, 28, 0.74);
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 900;
+        padding: 0 12px;
+      }
+
+      .auth-top {
+        align-items: flex-start;
+      }
+
+      .auth-preview-stage {
+        position: relative;
+        margin-top: 28px;
+        height: 388px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 34px;
+        background:
+          radial-gradient(circle at 70% 16%, rgba(103, 255, 202, 0.2), rgba(103, 255, 202, 0) 230px),
+          #111317;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      .auth-preview-stage::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(5, 6, 7, 0.02), rgba(5, 6, 7, 0.72));
+        pointer-events: none;
+      }
+
+      .auth-preview {
+        position: absolute;
+        inset: 0;
+      }
+
+      .auth-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: brightness(0.72) saturate(0.88) contrast(1.08);
+      }
+
+      .auth-preview.light-preview {
+        background: #fffaf0;
+      }
+
+      .auth-preview.light-preview img {
+        filter: brightness(1.04) saturate(0.94) contrast(0.98);
+      }
+
+      .auth-preview-copy {
+        position: absolute;
+        z-index: 2;
+        left: 18px;
+        right: 18px;
+        bottom: 18px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .auth-preview-copy strong {
+        font-size: 25px;
+        font-weight: 950;
+      }
+
+      .auth-preview-copy span {
+        color: #d7dce7;
+        font-size: 16px;
+        line-height: 1.3;
+      }
+
+      .light-preview .auth-preview-copy strong {
+        color: #15171b;
+      }
+
+      .light-preview .auth-preview-copy span {
+        color: rgba(21, 23, 27, 0.66);
+      }
+
+      .auth-chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .auth-chips span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        background: rgba(5, 6, 7, 0.58);
+        color: #f7f8fb;
+        font-size: 13px;
+        font-weight: 900;
+        padding: 0 10px;
+      }
+
+      .light-preview .auth-chips span {
+        border-color: rgba(21, 23, 27, 0.16);
+        background: rgba(255, 250, 240, 0.82);
+        color: #15171b;
+      }
+
+      .auth-login-panel {
+        position: absolute;
+        left: 30px;
+        right: 30px;
+        bottom: 30px;
+        z-index: 2;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 34px;
+        background: rgba(14, 17, 22, 0.96);
+        box-shadow: 0 -26px 70px rgba(0, 0, 0, 0.46);
+        backdrop-filter: blur(18px);
+        padding: 22px;
+      }
+
+      .auth-panel-title {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 18px;
+      }
+
+      .auth-panel-title strong {
+        font-size: 31px;
+        font-weight: 950;
+      }
+
+      .auth-panel-title span {
+        color: #9aa3b2;
+        font-size: 16px;
+        line-height: 1.32;
+      }
+
+      .auth-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .auth-actions .auth-secondary {
+        min-height: 58px;
+      }
+
+      .auth-login-panel .auth-form {
+        margin-top: 0;
+      }
+
+      .auth-flow {
+        position: absolute;
+        inset: 0;
+        width: 200%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .auth-app-page,
+      .auth-login-route {
+        position: relative;
+        min-width: 0;
+        height: 100%;
+        overflow: hidden;
+        padding: 86px 30px 30px;
+      }
+
+      .auth-app-page {
+        background:
+          radial-gradient(circle at 50% 30%, rgba(103, 255, 202, 0.12), rgba(103, 255, 202, 0) 260px),
+          linear-gradient(180deg, #090b0e, #050607 72%);
+      }
+
+      .auth-app-top {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr) 58px;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .auth-mini-button {
+        display: grid;
+        place-items: center;
+        width: 58px;
+        height: 58px;
+        border: 1px solid #343a46;
+        border-radius: 20px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 24px;
+        font-weight: 950;
+      }
+
+      .auth-menu-lines {
+        width: 26px;
+        height: 14px;
+        border-top: 4px solid currentColor;
+        border-bottom: 4px solid currentColor;
+        border-radius: 2px;
+      }
+
+      .auth-app-title {
+        text-align: center;
+      }
+
+      .auth-app-title strong,
+      .auth-app-title span {
+        display: block;
+      }
+
+      .auth-app-title strong {
+        color: #f7f8fb;
+        font-size: 24px;
+        font-weight: 950;
+      }
+
+      .auth-app-title span {
+        margin-top: 4px;
+        color: #9aa3b2;
+        font-size: 14px;
+      }
+
+      .login-entry-banner {
+        margin: 22px -30px 0;
+        min-height: 68px;
+        display: grid;
+        place-items: center;
+        background: rgba(103, 255, 202, 0.08);
+        color: #67ffca;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .auth-avatar-orb {
+        width: 196px;
+        height: 196px;
+        margin: 54px auto 28px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.92), transparent 11%),
+          radial-gradient(circle at 45% 48%, rgba(103, 255, 202, 0.42), transparent 30%),
+          radial-gradient(circle at 58% 58%, rgba(111, 134, 255, 0.38), transparent 38%),
+          #1b1f26;
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      .auth-welcome-bubble {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        background: #111317;
+        color: #f7f8fb;
+        padding: 22px;
+        font-size: 23px;
+        line-height: 1.45;
+        font-weight: 850;
+      }
+
+      .auth-suggestion-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .auth-suggestion-grid button {
+        min-height: 52px;
+        border: 1px solid #343a46;
+        border-radius: 18px;
+        background: #111317;
+        color: #d7dce7;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .auth-login-route {
+        background: #ffffff;
+        color: #050607;
+      }
+
+      .auth-route-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .auth-route-back,
+      .auth-feedback {
+        border: 0;
+        background: transparent;
+        color: #050607;
+        font-size: 28px;
+        font-weight: 950;
+      }
+
+      .auth-route-back {
+        font-size: 46px;
+        line-height: 1;
+      }
+
+      .auth-login-content {
+        margin-top: 138px;
+        text-align: center;
+      }
+
+      .auth-login-content h2 {
+        font-size: 40px;
+        line-height: 1.1;
+        font-weight: 950;
+      }
+
+      .auth-mask-phone {
+        margin-top: 46px;
+        font-size: 48px;
+        line-height: 1;
+        font-weight: 950;
+        letter-spacing: 0.03em;
+      }
+
+      .auth-provider {
+        margin-top: 40px;
+        color: #707887;
+        font-size: 18px;
+        font-weight: 750;
+      }
+
+      .auth-route-actions {
+        display: grid;
+        gap: 14px;
+        margin-top: 118px;
+      }
+
+      .auth-route-primary,
+      .auth-route-secondary {
+        min-height: 72px;
+        border-radius: 24px;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .auth-route-primary {
+        border: 0;
+        background: #050607;
+        color: #ffffff;
+      }
+
+      .auth-route-secondary {
+        border: 1px solid rgba(5, 6, 7, 0.12);
+        background: #ffffff;
+        color: #050607;
+      }
+
+      .auth-terms {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        margin-top: 26px;
+        color: #707887;
+        font-size: 16px;
+        line-height: 1.45;
+        text-align: left;
+      }
+
+      .auth-check {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #050607;
+        color: #ffffff;
+        font-size: 21px;
+        font-weight: 950;
+      }
+
+      .auth-terms strong {
+        color: #050607;
+      }
+
+      .auth-provider-logo {
+        position: absolute;
+        left: 50%;
+        bottom: 96px;
+        display: grid;
+        place-items: center;
+        width: 76px;
+        height: 76px;
+        border: 1px solid rgba(5, 6, 7, 0.08);
+        border-radius: 50%;
+        background: #ffffff;
+        color: #050607;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        transform: translateX(-50%);
+        font-size: 30px;
+        font-weight: 950;
+      }
+
+      .subscribe-surface {
+        z-index: 15;
+        padding: 82px 30px 30px;
+        background:
+          radial-gradient(circle at 68% 7%, rgba(243, 179, 49, 0.18), rgba(243, 179, 49, 0) 300px),
+          linear-gradient(180deg, #090b0e 0%, #050607 72%, #030304 100%);
+      }
+
+      .subscribe-surface .back-button {
+        width: 48px;
+        height: 48px;
+        border: 1px solid #343a46;
+        border-radius: 18px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 24px;
+      }
+
+      .subscribe-hero {
+        margin-top: 34px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .plan-tabs {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .plan-tabs button {
+        min-height: 54px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #9aa3b2;
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .plan-tabs button.active {
+        background: #f7f8fb;
+        color: #050607;
+      }
+
+      .membership-card {
+        margin-top: 22px;
+        border: 1px solid rgba(243, 179, 49, 0.34);
+        border-radius: 32px;
+        background:
+          linear-gradient(145deg, rgba(243, 179, 49, 0.18), rgba(103, 255, 202, 0.05)),
+          #111317;
+        padding: 22px;
+      }
+
+      .membership-card strong {
+        display: block;
+        font-size: 28px;
+      }
+
+      .membership-card p {
+        margin-top: 8px;
+        color: #d7dce7;
+        font-size: 18px;
+        line-height: 1.34;
+      }
+
+      .benefit-list {
+        margin-top: 18px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .benefit-list span {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        background: rgba(5, 6, 7, 0.38);
+        color: #f7f8fb;
+        padding: 0 14px;
+        font-size: 17px;
+        font-weight: 850;
+      }
+
+      .price-row {
+        margin-top: 22px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .price-option {
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #111317;
+        padding: 16px;
+      }
+
+      .price-option.selected {
+        border-color: rgba(103, 255, 202, 0.65);
+        background: #10201c;
+      }
+
+      .price-option strong {
+        display: block;
+        color: #f7f8fb;
+        font-size: 22px;
+      }
+
+      .price-option span {
+        display: block;
+        margin-top: 6px;
+        color: #9aa3b2;
+        font-size: 15px;
+      }
+
+      .subscribe-cta {
+        position: absolute;
+        left: 30px;
+        right: 30px;
+        bottom: 30px;
+        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+      }
+
+      .screen-panels {
+        position: absolute;
+        top: 68px;
+        left: 0;
+        width: 200%;
+        height: calc(100% - 68px);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .mobile-screen {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        padding: 24px 28px 28px;
+      }
+
+      .screen-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 62px;
+      }
+
+      .screen-title span {
+        display: block;
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 16px;
+        text-transform: uppercase;
+      }
+
+      .screen-title strong {
+        display: block;
+        margin-top: 5px;
+        color: #f7f8fb;
+        font-size: 32px;
+        font-weight: 900;
+      }
+
+      .mini-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .mini-actions button,
+      .icon-button {
+        width: 42px;
+        height: 42px;
+        border: 1px solid #343a46;
+        border-radius: 16px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 18px;
+      }
+
+      .mode-switch {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-top: 18px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: rgba(5, 6, 7, 0.78);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+      }
+
+      .mode-thumb {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: calc(50% - 9px);
+        height: calc(100% - 12px);
+        border: 1px solid rgba(103, 255, 202, 0.52);
+        border-radius: 999px;
+        background: #10201c;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+      }
+
+      .mode-switch button {
+        position: relative;
+        z-index: 1;
+        height: 58px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #7f8795;
+        font-size: 21px;
+        font-weight: 900;
+      }
+
+      .mode-switch button.active {
+        color: #67ffca;
+      }
+
+      .media-card {
+        position: relative;
+        margin-top: 22px;
+        height: 450px;
+        overflow: hidden;
+        border: 1px solid #343a46;
+        border-radius: 34px;
+        background: #111317;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      .media-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: contrast(1.05) saturate(0.92) brightness(0.78);
+      }
+
+      .media-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(5, 6, 7, 0.08) 0%, rgba(5, 6, 7, 0.05) 48%, rgba(5, 6, 7, 0.78) 100%),
+          radial-gradient(circle at 82% 16%, rgba(103, 255, 202, 0.2), rgba(103, 255, 202, 0) 220px);
+      }
+
+      .recognition-badge,
+      .elapsed-badge {
+        position: absolute;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        background: rgba(5, 6, 7, 0.64);
+        color: #f7f8fb;
+        backdrop-filter: blur(10px);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 16px;
+        padding: 10px 14px;
+      }
+
+      .recognition-badge {
+        left: 18px;
+        top: 18px;
+      }
+
+      .elapsed-badge {
+        right: 18px;
+        bottom: 18px;
+      }
+
+      .view-tabs {
+        position: absolute;
+        z-index: 3;
+        left: 18px;
+        right: 18px;
+        bottom: 74px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+
+      .view-tabs button {
+        height: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 14px;
+        background: rgba(5, 6, 7, 0.52);
+        color: #d7dce7;
+        font-size: 17px;
+        font-weight: 850;
+      }
+
+      .view-tabs button.active {
+        border-color: rgba(103, 255, 202, 0.64);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .config-summary {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 16px;
+        margin-top: 16px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 24px;
+        background: #111317;
+      }
+
+      .config-summary strong {
+        display: block;
+        font-size: 21px;
+      }
+
+      .config-summary span {
+        display: block;
+        margin-top: 4px;
+        color: #9aa3b2;
+        font-size: 17px;
+        line-height: 1.25;
+      }
+
+      .summary-meter {
+        display: grid;
+        place-items: center;
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background:
+          conic-gradient(#67ffca 0 78%, #272d38 78% 100%);
+        color: #050607;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .summary-meter span {
+        display: grid;
+        place-items: center;
+        width: 58px;
+        height: 58px;
+        margin: 0;
+        border-radius: 50%;
+        background: #050607;
+        color: #67ffca;
+      }
+
+      .dock {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .dock button {
+        min-height: 76px;
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .dock button.active {
+        border-color: rgba(103, 255, 202, 0.55);
+        background: linear-gradient(180deg, rgba(103, 255, 202, 0.16), rgba(103, 255, 202, 0.045));
+        color: #67ffca;
+      }
+
+      .control-sheet {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 28px;
+        height: 1010px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 34px;
+        background: rgba(14, 17, 22, 0.96);
+        box-shadow: 0 -28px 70px rgba(0, 0, 0, 0.52);
+        backdrop-filter: blur(18px);
+        padding: 22px;
+      }
+
+      .sheet-handle {
+        width: 82px;
+        height: 6px;
+        margin: 0 auto 18px;
+        border-radius: 999px;
+        background: #343a46;
+      }
+
+      .sheet-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .sheet-head h2 {
+        font-size: 27px;
+      }
+
+      .sheet-head span {
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 16px;
+      }
+
+      .parts-selector-block {
+        margin-top: 18px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .parts-select-trigger {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 70px;
+        border: 1px solid #343a46;
+        border-radius: 24px;
+        background: #111317;
+        color: #f7f8fb;
+        padding: 0 16px;
+        text-align: left;
+      }
+
+      .parts-select-trigger span {
+        display: block;
+        color: #9aa3b2;
+        font-size: 14px;
+        line-height: 1.2;
+      }
+
+      .parts-select-trigger strong {
+        display: block;
+        margin-top: 5px;
+        min-width: 0;
+        overflow: hidden;
+        color: #f7f8fb;
+        font-size: 19px;
+        line-height: 1.16;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .parts-select-trigger em {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 66px;
+        height: 40px;
+        border-radius: 999px;
+        background: #10201c;
+        color: #67ffca;
+        font-size: 15px;
+        font-style: normal;
+        font-weight: 950;
+      }
+
+      .parts-dropdown {
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 26px;
+        background: rgba(5, 6, 7, 0.38);
+      }
+
+      .parts-dropdown-inner {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .parts-search {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        align-items: center;
+        min-height: 54px;
+        border: 1px solid #343a46;
+        border-radius: 18px;
+        background: #111317;
+        padding: 0 12px;
+      }
+
+      .parts-search span {
+        color: #67ffca;
+        font-size: 20px;
+      }
+
+      .parts-search input {
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: #f7f8fb;
+        font-size: 17px;
+        font-weight: 850;
+      }
+
+      .parts-accordion {
+        display: grid;
+        gap: 8px;
+      }
+
+      .accordion-card {
+        overflow: hidden;
+        border: 1px solid #343a46;
+        border-radius: 20px;
+        background: #111317;
+      }
+
+      .accordion-card.expanded {
+        border-color: rgba(103, 255, 202, 0.56);
+        background: linear-gradient(180deg, rgba(103, 255, 202, 0.08), rgba(17, 19, 23, 0.98));
+      }
+
+      .accordion-trigger {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 58px;
+        border: 0;
+        background: transparent;
+        color: #f7f8fb;
+        padding: 0 12px;
+        text-align: left;
+      }
+
+      .accordion-mark {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 12px;
+        background: #1b1f26;
+        color: #67ffca;
+        font-size: 19px;
+        font-weight: 950;
+      }
+
+      .accordion-copy strong,
+      .accordion-copy small {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .accordion-copy strong {
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .accordion-copy small {
+        margin-top: 4px;
+        color: #9aa3b2;
+        font-size: 13px;
+      }
+
+      .selected-check {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid rgba(103, 255, 202, 0.66);
+        border-radius: 50%;
+        background: #10201c;
+        color: #67ffca;
+        font-size: 16px;
+        font-weight: 950;
+      }
+
+      .accordion-content {
+        display: grid;
+        gap: 10px;
+        padding: 0 12px 12px;
+      }
+
+      .brand-filter-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .brand-filter-row span {
+        display: grid;
+        place-items: center;
+        min-height: 34px;
+        border: 1px solid #343a46;
+        border-radius: 999px;
+        color: #9aa3b2;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .brand-filter-row span.active {
+        border-color: rgba(103, 255, 202, 0.55);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .asset-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .parts-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .asset-card {
+        position: relative;
+        min-height: 142px;
+        overflow: hidden;
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #1b1f26;
+        padding: 12px;
+      }
+
+      .asset-card.selected {
+        border-color: rgba(103, 255, 202, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(103, 255, 202, 0.28), 0 16px 32px rgba(0, 0, 0, 0.25);
+      }
+
+      .asset-card img {
+        width: 100%;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 16px;
+        filter: saturate(0.86) contrast(1.08);
+      }
+
+      .asset-card strong {
+        display: block;
+        margin-top: 10px;
+        color: #f7f8fb;
+        font-size: 16px;
+        line-height: 1.15;
+      }
+
+      .asset-card small {
+        display: block;
+        margin-top: 4px;
+        color: #9aa3b2;
+        font-size: 13px;
+        line-height: 1.15;
+      }
+
+      .parts-dropdown .asset-card {
+        min-height: 114px;
+        border-radius: 18px;
+        padding: 10px;
+      }
+
+      .parts-dropdown .asset-card img {
+        height: 54px;
+        border-radius: 13px;
+      }
+
+      .policy-card,
+      .paint-card,
+      .stance-card {
+        margin-top: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.035);
+        padding: 12px;
+      }
+
+      .policy-card h3,
+      .paint-card h3,
+      .stance-card h3 {
+        color: #f7f8fb;
+        font-size: 20px;
+      }
+
+      .color-policy-segment,
+      .stance-preset-options {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .color-policy-segment {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .color-policy-button,
+      .stance-preset-button {
+        min-width: 0;
+        min-height: 48px;
+        border: 1px solid #343a46;
+        border-radius: 18px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .color-policy-button.selected,
+      .stance-preset-button.selected {
+        border-color: rgba(103, 255, 202, 0.72);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .color-dots {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        margin-top: 14px;
+      }
+
+      .color-dots button {
+        width: 38px;
+        height: 38px;
+        border: 2px solid #343a46;
+        border-radius: 50%;
+        background: #222;
+      }
+
+      .color-dots button.selected {
+        border-color: #f7f8fb;
+        box-shadow: 0 0 0 5px rgba(103, 255, 202, 0.18);
+      }
+
+      .gradient-strip {
+        margin-top: 14px;
+        height: 40px;
+        border: 1px solid #343a46;
+        border-radius: 16px;
+        background: linear-gradient(90deg, #fdc700, #ff6a00);
+      }
+
+      .stance-preset-options {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .generate-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 166px;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .generate-bar button {
+        min-height: 58px;
+        border: 1px solid rgba(103, 255, 202, 0.68);
+        border-radius: 22px;
+        background: #050607;
+        color: #67ffca;
+        font-size: 20px;
+        font-weight: 950;
+      }
+
+      .generate-bar button.secondary {
+        border: 1px solid #343a46;
+        background: #111317;
+        color: #f7f8fb;
+      }
+
+      .progress-layer {
+        position: absolute;
+        z-index: 6;
+        left: 18px;
+        right: 18px;
+        top: 314px;
+        display: grid;
+        gap: 12px;
+        border: 1px solid rgba(103, 255, 202, 0.36);
+        border-radius: 24px;
+        background: rgba(5, 6, 7, 0.82);
+        padding: 18px;
+        backdrop-filter: blur(12px);
+      }
+
+      .progress-layer strong {
+        color: #67ffca;
+        font-size: 20px;
+      }
+
+      .progress-line {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #272d38;
+      }
+
+      .progress-fill {
+        width: 72%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #67ffca, #f3b331);
+      }
+
+      .chat-main {
+        position: relative;
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        gap: 14px;
+      }
+
+      .chat-head {
+        grid-template-columns: 58px minmax(0, 1fr) 58px;
+        align-items: center;
+      }
+
+      .chat-menu-button,
+      .chat-action-button,
+      .library-collapse {
+        min-width: 0;
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #111317;
+        color: #f7f8fb;
+        font-size: 22px;
+        font-weight: 900;
+      }
+
+      .chat-menu-button,
+      .chat-action-button {
+        display: grid;
+        place-items: center;
+        width: 58px;
+        height: 58px;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+      }
+
+      .chat-action-button {
+        justify-self: end;
+      }
+
+      .chat-menu-button span {
+        display: block;
+        width: 26px;
+        height: 14px;
+        border-top: 4px solid currentColor;
+        border-bottom: 4px solid currentColor;
+        border-radius: 2px;
+      }
+
+      .chat-title-pill {
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        max-width: 100%;
+        min-height: 58px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.045);
+        color: #f7f8fb;
+        padding: 0 22px;
+        font-size: 24px;
+        font-weight: 950;
+        white-space: nowrap;
+      }
+
+      .chat-library-sheet {
+        position: absolute;
+        top: -68px;
+        bottom: -28px;
+        left: -28px;
+        z-index: 12;
+        width: 510px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-left: 0;
+        border-radius: 0 34px 34px 0;
+        background: rgba(14, 17, 22, 0.98);
+        box-shadow: 34px 0 70px rgba(0, 0, 0, 0.56);
+        backdrop-filter: blur(18px);
+        padding: 86px 18px 18px 28px;
+      }
+
+      .library-sheet-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 74px;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .library-sheet-head strong,
+      .library-sheet-head span {
+        display: block;
+        min-width: 0;
+      }
+
+      .library-sheet-head strong {
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .library-sheet-head span {
+        margin-top: 4px;
+        overflow: hidden;
+        color: #9aa3b2;
+        font-size: 14px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .library-collapse {
+        min-height: 42px;
+        color: #d7dce7;
+      }
+
+      .library-tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: rgba(5, 6, 7, 0.52);
+      }
+
+      .library-tabs button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #9aa3b2;
+        font-size: 17px;
+        font-weight: 950;
+      }
+
+      .library-tabs button.active {
+        background: #f7f8fb;
+        color: #050607;
+      }
+
+      .library-list {
+        margin-top: 12px;
+        display: grid;
+        gap: 10px;
+        max-height: 520px;
+        overflow: hidden;
+      }
+
+      .library-card {
+        display: grid;
+        grid-template-columns: 64px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 82px;
+        border: 1px solid #343a46;
+        border-radius: 22px;
+        background: #111317;
+        padding: 10px;
+      }
+
+      .library-card.favorite {
+        border-color: rgba(243, 179, 49, 0.48);
+        background: linear-gradient(180deg, rgba(243, 179, 49, 0.08), rgba(17, 19, 23, 0.98));
+      }
+
+      .library-card img {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 16px;
+        filter: saturate(0.88) contrast(1.04);
+      }
+
+      .library-copy {
+        min-width: 0;
+      }
+
+      .library-copy strong,
+      .library-copy span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .library-copy strong {
+        color: #f7f8fb;
+        font-size: 17px;
+        font-weight: 950;
+      }
+
+      .library-copy span {
+        margin-top: 5px;
+        color: #9aa3b2;
+        font-size: 13px;
+      }
+
+      .library-tag {
+        display: grid;
+        place-items: center;
+        min-width: 48px;
+        height: 34px;
+        border-radius: 999px;
+        background: #1b1f26;
+        color: #f3b331;
+        font-size: 14px;
+        font-weight: 950;
+      }
+
+      .chat-thread {
+        position: relative;
+        display: grid;
+        min-height: 0;
+      }
+
+      .chat-empty-state {
+        height: 100%;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 20px;
+        padding: 18px 0 30px;
+        text-align: center;
+      }
+
+      .particle-orb {
+        width: 142px;
+        height: 142px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.98) 0 5px, transparent 6px),
+          radial-gradient(circle, rgba(255, 255, 255, 0.94) 1.4px, transparent 2px);
+        background-size: 100% 100%, 11px 11px;
+        filter: drop-shadow(0 0 42px rgba(103, 255, 202, 0.18));
+        -webkit-mask-image: radial-gradient(circle, #000 0 62%, transparent 64%);
+        mask-image: radial-gradient(circle, #000 0 62%, transparent 64%);
+        animation: orb-spin 22s linear infinite;
+      }
+
+      @keyframes orb-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .chat-empty-state h2 {
+        max-width: 500px;
+        color: #f7f8fb;
+        font-size: 36px;
+        line-height: 1.08;
+        font-weight: 950;
+      }
+
+      .chat-empty-state p {
+        max-width: 492px;
+        color: #9aa3b2;
+        font-size: 18px;
+        line-height: 1.38;
+      }
+
+      .starter-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+        max-width: 492px;
+        margin-top: 4px;
+      }
+
+      .starter-chip {
+        min-height: 58px;
+        border: 1px solid #343a46;
+        border-radius: 20px;
+        background: #111317;
+        color: #d7dce7;
+        font-size: 17px;
+        font-weight: 900;
+      }
+
+      .starter-chip.primary {
+        border-color: rgba(103, 255, 202, 0.5);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .chat-message-list {
+        display: grid;
+        align-content: end;
+        gap: 14px;
+        height: 100%;
+      }
+
+      .message {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+      }
+
+      .message.user {
+        grid-template-columns: minmax(0, 1fr) 44px;
+      }
+
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        background: #1b1f26;
+        color: #67ffca;
+        font-size: 18px;
+      }
+
+      .bubble {
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 24px;
+        background: #111317;
+        color: #f7f8fb;
+        padding: 15px;
+        font-size: 19px;
+        line-height: 1.36;
+      }
+
+      .message.user .bubble {
+        border-color: rgba(103, 255, 202, 0.4);
+        background: #10201c;
+        color: #f7f8fb;
+      }
+
+      .context-choice-inline {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .context-choice-inline button {
+        min-height: 48px;
+        border: 1px solid #343a46;
+        border-radius: 16px;
+        background: #1b1f26;
+        color: #f7f8fb;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .context-choice-inline button.selected {
+        border-color: rgba(103, 255, 202, 0.66);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .ref-rail {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .ref-rail img {
+        width: 100%;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 14px;
+        filter: saturate(0.84);
+      }
+
+      .choice-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .choice-row button {
+        min-height: 50px;
+        border: 1px solid #343a46;
+        border-radius: 16px;
+        background: #1b1f26;
+        color: #f7f8fb;
+        font-size: 17px;
+        font-weight: 900;
+      }
+
+      .choice-row button.selected {
+        border-color: rgba(103, 255, 202, 0.68);
+        background: #10201c;
+        color: #67ffca;
+      }
+
+      .composer {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 58px;
+        gap: 10px;
+        align-items: end;
+        border: 1px solid #343a46;
+        border-radius: 28px;
+        background: #111317;
+        padding: 12px;
+      }
+
+      .composer span {
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        color: #d7dce7;
+        font-size: 18px;
+        line-height: 1.25;
+      }
+
+      .send-button {
+        width: 58px;
+        height: 58px;
+        border: 1px solid rgba(243, 179, 49, 0.68);
+        border-radius: 20px;
+        background: #1f1809;
+        color: #f3b331;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .annotation-stack {
+        position: absolute;
+        right: 70px;
+        top: 316px;
+        width: 180px;
+        display: grid;
+        gap: 12px;
+        z-index: 4;
+      }
+
+      .annotation {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        background: rgba(17, 19, 23, 0.82);
+        color: #d7dce7;
+        padding: 12px;
+        font-size: 16px;
+        line-height: 1.25;
+      }
+
+      .annotation strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+      }
+
+      .final-notes {
+        position: absolute;
+        z-index: 12;
+        left: 70px;
+        right: 70px;
+        bottom: 74px;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+      }
+
+      .note-card {
+        min-height: 132px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 26px;
+        background: rgba(17, 19, 23, 0.86);
+        padding: 20px;
+      }
+
+      .note-card strong {
+        display: block;
+        color: #f7f8fb;
+        font-size: 22px;
+      }
+
+      .note-card span {
+        display: block;
+        margin-top: 8px;
+        color: #9aa3b2;
+        font-size: 17px;
+        line-height: 1.3;
+      }
+
+      .wipe {
+        position: absolute;
+        z-index: 20;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .wipe span {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        height: 25%;
+        background: #f3b331;
+        transform: scaleX(0);
+        transform-origin: left center;
+      }
+
+      .wipe span:nth-child(1) {
+        top: 0;
+      }
+
+      .wipe span:nth-child(2) {
+        top: 25%;
+        background: #67ffca;
+      }
+
+      .wipe span:nth-child(3) {
+        top: 50%;
+      }
+
+      .wipe span:nth-child(4) {
+        top: 75%;
+        background: #67ffca;
+      }
+
+      .theme-cutover {
+        position: absolute;
+        inset: 0;
+        z-index: 26;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 280px),
+          linear-gradient(180deg, rgba(5, 6, 7, 0.94), rgba(5, 6, 7, 0.98));
+        color: #f7f8fb;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .theme-cutover-card {
+        width: 520px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 34px;
+        background: rgba(17, 19, 23, 0.88);
+        padding: 30px;
+        text-align: center;
+        backdrop-filter: blur(20px);
+      }
+
+      .theme-cutover-card span {
+        color: #67ffca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 16px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .theme-cutover-card strong {
+        display: block;
+        margin-top: 14px;
+        font-size: 38px;
+        line-height: 1.08;
+      }
+
+      .theme-cutover-card p {
+        margin-top: 14px;
+        color: #9aa3b2;
+        font-size: 20px;
+        line-height: 1.35;
+      }
+
+      .light-pass {
+        position: absolute;
+        inset: 0;
+        z-index: 28;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 22% 18%, rgba(103, 255, 202, 0.18), rgba(103, 255, 202, 0) 310px),
+          radial-gradient(circle at 78% 74%, rgba(253, 199, 0, 0.18), rgba(253, 199, 0, 0) 420px),
+          linear-gradient(180deg, #ffffff 0%, #f6f7f9 58%, #eef0f4 100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .light-pass-title {
+        position: absolute;
+        top: 72px;
+        left: 70px;
+        right: 70px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        color: #101114;
+      }
+
+      .light-pass-title h2 {
+        font-family: "Archivo Black", "Arial Black", "Noto Sans JP", sans-serif;
+        font-size: 52px;
+        line-height: 1;
+      }
+
+      .light-pass-title span {
+        color: #707887;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .light-phone-frame {
+        position: absolute;
+        left: 205px;
+        top: 214px;
+        width: 670px;
+        height: 1460px;
+        overflow: hidden;
+        border: 3px solid rgba(16, 17, 20, 0.12);
+        border-radius: 76px;
+        background: #f9fafb;
+        box-shadow:
+          0 44px 110px rgba(15, 23, 42, 0.18),
+          inset 0 0 0 12px #ffffff,
+          inset 0 0 0 14px rgba(15, 23, 42, 0.06);
+      }
+
+      .light-phone-glass {
+        position: absolute;
+        inset: 18px;
+        overflow: hidden;
+        border-radius: 58px;
+        background: #fbfbfb;
+        color: #101114;
+      }
+
+      .light-status {
+        position: absolute;
+        z-index: 12;
+        top: 28px;
+        left: 36px;
+        right: 36px;
+        display: flex;
+        justify-content: space-between;
+        color: #101114;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+      }
+
+      .light-scene {
+        position: absolute;
+        inset: 68px 0 0;
+        padding: 24px 28px 28px;
+        background: #fbfbfb;
+      }
+
+      .light-topbar {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr) 58px;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .light-circle-button,
+      .light-send {
+        display: grid;
+        place-items: center;
+        width: 58px;
+        height: 58px;
+        border: 1px solid rgba(15, 23, 42, 0.07);
+        border-radius: 50%;
+        background: #ffffff;
+        color: #101114;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+        font-size: 25px;
+        font-weight: 950;
+      }
+
+      .light-menu-lines {
+        width: 26px;
+        height: 14px;
+        border-top: 4px solid currentColor;
+        border-bottom: 4px solid currentColor;
+        border-radius: 2px;
+      }
+
+      .light-title-pill {
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        min-height: 58px;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #101114;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+        padding: 0 26px;
+        font-size: 28px;
+        font-weight: 950;
+      }
+
+      .light-login-card,
+      .light-config-card,
+      .light-subscribe-card {
+        margin-top: 28px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 34px;
+        background: #ffffff;
+        box-shadow: 0 22px 56px rgba(15, 23, 42, 0.08);
+        padding: 22px;
+      }
+
+      .light-login-flow {
+        position: absolute;
+        inset: 0;
+        width: 200%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .light-login-app-page,
+      .light-phone-login-route {
+        min-width: 0;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 24px 28px 28px;
+      }
+
+      .light-login-banner {
+        margin: 22px -28px 0;
+        min-height: 70px;
+        display: grid;
+        place-items: center;
+        background: #f0f4ff;
+        color: #165dff;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .light-avatar-orb {
+        width: 190px;
+        height: 190px;
+        margin: 54px auto 30px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 48% 38%, rgba(16, 17, 20, 0.22), transparent 14%),
+          radial-gradient(circle at 45% 48%, rgba(103, 255, 202, 0.28), transparent 30%),
+          radial-gradient(circle at 58% 58%, rgba(111, 134, 255, 0.26), transparent 38%),
+          #e7f0ff;
+      }
+
+      .light-welcome-bubble {
+        border-radius: 30px;
+        background: #ffffff;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07);
+        color: #101114;
+        padding: 22px;
+        font-size: 23px;
+        line-height: 1.45;
+        font-weight: 850;
+      }
+
+      .light-phone-login-route {
+        position: relative;
+        overflow: hidden;
+        background: #ffffff;
+        color: #050607;
+      }
+
+      .light-route-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .light-route-head button {
+        border: 0;
+        background: transparent;
+        color: #050607;
+        font-size: 28px;
+        font-weight: 950;
+      }
+
+      .light-route-head button:first-child {
+        font-size: 46px;
+        line-height: 1;
+      }
+
+      .light-phone-login-route h3 {
+        margin-top: 92px;
+        text-align: center;
+        font-size: 40px;
+        line-height: 1.1;
+      }
+
+      .light-phone-input {
+        margin-top: 82px;
+        min-height: 82px;
+        display: grid;
+        grid-template-columns: 110px minmax(0, 1fr);
+        align-items: center;
+        border-radius: 24px;
+        background: #f5f5f5;
+        color: #101114;
+        padding: 0 24px;
+        font-size: 23px;
+        font-weight: 950;
+      }
+
+      .light-phone-input span:last-child {
+        color: #c7c9cf;
+        font-weight: 800;
+      }
+
+      .light-login-terms {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        margin-top: 34px;
+        color: #888d97;
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      .light-login-terms strong {
+        color: #050607;
+      }
+
+      .light-disabled-next {
+        width: 100%;
+        min-height: 72px;
+        margin-top: 94px;
+        border: 0;
+        border-radius: 24px;
+        background: #b8b8b8;
+        color: #ffffff;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .light-keypad {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        background: #d9dbe2;
+        padding: 76px 10px 28px;
+      }
+
+      .light-keypad span {
+        min-height: 86px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #101114;
+        font-size: 36px;
+        box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
+      }
+
+      .light-keypad span.done {
+        grid-row: span 3;
+        background: #28c98b;
+        color: #ffffff;
+        font-size: 28px;
+        font-weight: 950;
+      }
+
+      .light-login-card img,
+      .light-config-card img {
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        border-radius: 26px;
+        filter: brightness(1.04) saturate(0.92);
+      }
+
+      .light-login-card h3,
+      .light-config-card h3,
+      .light-subscribe-card h3 {
+        margin-top: 18px;
+        font-size: 31px;
+        line-height: 1.1;
+      }
+
+      .light-login-card p,
+      .light-config-card p,
+      .light-subscribe-card p {
+        margin-top: 9px;
+        color: #707887;
+        font-size: 18px;
+        line-height: 1.38;
+      }
+
+      .light-input {
+        margin-top: 18px;
+        min-height: 62px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 22px;
+        background: #f6f7f9;
+        color: #101114;
+        padding: 0 16px;
+        font-size: 19px;
+        font-weight: 900;
+      }
+
+      .light-primary {
+        margin-top: 14px;
+        width: 100%;
+        min-height: 66px;
+        border: 0;
+        border-radius: 22px;
+        background: #101114;
+        color: #ffffff;
+        font-size: 21px;
+        font-weight: 950;
+      }
+
+      .light-mode-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-top: 18px;
+        padding: 6px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 999px;
+        background: #f6f7f9;
+      }
+
+      .light-mode-switch button {
+        min-height: 54px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #707887;
+        font-size: 19px;
+        font-weight: 950;
+      }
+
+      .light-mode-switch button.active {
+        background: #ffffff;
+        color: #101114;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+      }
+
+      .light-control-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .light-control-grid span {
+        min-height: 54px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 18px;
+        background: #f6f7f9;
+        color: #101114;
+        font-size: 17px;
+        font-weight: 900;
+      }
+
+      .light-subscribe-card .benefit-list span {
+        background: #f6f7f9;
+        border-color: rgba(15, 23, 42, 0.08);
+        color: #101114;
+      }
+
+      .light-chat-scene {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 20px;
+      }
+
+      .light-chat-empty {
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 24px;
+        text-align: center;
+      }
+
+      .light-orb {
+        width: 148px;
+        height: 148px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 45% 42%, rgba(253, 199, 0, 0.32), transparent 22%),
+          radial-gradient(circle at 56% 58%, rgba(103, 255, 202, 0.3), transparent 28%),
+          radial-gradient(circle at 50% 50%, rgba(111, 134, 255, 0.28), transparent 58%),
+          #f8f0ff;
+        filter: blur(0.2px) drop-shadow(0 0 48px rgba(111, 134, 255, 0.16));
+        animation: orb-spin 18s linear infinite;
+      }
+
+      .light-chat-empty h3 {
+        font-size: 38px;
+        line-height: 1.08;
+      }
+
+      .light-starters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+      }
+
+      .light-starters button {
+        min-height: 56px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 999px;
+        background: #ffffff;
+        color: #707887;
+        font-size: 18px;
+        font-weight: 900;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+      }
+
+      .light-chat-messages {
+        display: grid;
+        align-content: end;
+        gap: 12px;
+      }
+
+      .light-bubble {
+        max-width: 84%;
+        border-radius: 24px;
+        background: #ffffff;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+        padding: 15px;
+        color: #101114;
+        font-size: 18px;
+        line-height: 1.36;
+      }
+
+      .light-bubble.user {
+        justify-self: end;
+        background: #101114;
+        color: #ffffff;
+      }
+
+      .light-composer {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr) 58px;
+        align-items: center;
+        gap: 12px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+        padding: 12px;
+      }
+
+      .light-composer span {
+        color: #9aa3b2;
+        font-size: 21px;
+      }
+
+      .light-history-sheet {
+        position: absolute;
+        top: 68px;
+        bottom: 0;
+        left: 0;
+        z-index: 5;
+        width: 486px;
+        border-radius: 0 34px 34px 0;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 34px 0 70px rgba(15, 23, 42, 0.16);
+        padding: 28px;
+      }
+
+      .light-history-sheet h3 {
+        font-size: 27px;
+      }
+
+      .light-history-item {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        margin-top: 14px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 22px;
+        background: #f6f7f9;
+        padding: 10px;
+      }
+
+      .light-history-item img {
+        width: 58px;
+        height: 58px;
+        object-fit: cover;
+        border-radius: 16px;
+      }
+
+      .light-history-item strong,
+      .light-history-item span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .light-history-item strong {
+        font-size: 17px;
+      }
+
+      .light-history-item span {
+        margin-top: 4px;
+        color: #707887;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="58" data-width="1080" data-height="1920">
+      <div class="garage-grid" data-layout-ignore></div>
+      <div class="amber-rack" data-layout-ignore></div>
+
+      <header class="headline">
+        <div>
+          <h1>移动端改装工作流</h1>
+          <p>保留现有满意控件，重组为图片优先、底部操作、对话接续的暗黑移动界面。</p>
+        </div>
+        <div class="build-tag">
+          <span>MOBILE ONLY</span>
+          <span>CONFIG + CHAT</span>
+        </div>
+      </header>
+
+      <section class="phone-frame">
+        <div class="phone-glass">
+          <div class="notch"></div>
+          <div class="mobile-status">
+            <span>15:21</span>
+            <span>5G 94%</span>
+          </div>
+
+          <section class="auth-surface">
+            <div class="auth-flow" data-layout-allow-overflow>
+              <div class="auth-app-page">
+                <div class="auth-app-top">
+                  <button class="auth-mini-button"><span class="auth-menu-lines"></span></button>
+                  <div class="auth-app-title">
+                    <strong>AI 改装助手</strong>
+                    <span>图生图 · 配件识别</span>
+                  </div>
+                  <button class="auth-mini-button">◎</button>
+                </div>
+
+                <div class="login-entry-banner">立即登录，解锁更多功能 →</div>
+                <div class="auth-avatar-orb"></div>
+                <div class="auth-welcome-bubble">
+                  嗨，我是你的改装助手。登录后可以同步车辆、保存历史记录，并继续上一次的生成结果。
+                </div>
+                <div class="auth-suggestion-grid">
+                  <button>如何换 BBS 轮毂</button>
+                  <button>机盖改裸碳</button>
+                  <button>生成渐变车身</button>
+                  <button>继续上次方案</button>
+                </div>
+              </div>
+
+              <div class="auth-login-route">
+                <div class="auth-route-top">
+                  <button class="auth-route-back">‹</button>
+                  <button class="auth-feedback">反馈</button>
+                </div>
+
+                <div class="auth-login-content">
+                  <h2>本机号登录</h2>
+                  <div class="auth-mask-phone">189****8686</div>
+                  <div class="auth-provider">认证服务由中国电信提供</div>
+                  <div class="auth-route-actions">
+                    <button class="auth-route-primary">一键登录</button>
+                    <button class="auth-route-secondary">其他手机号登录</button>
+                  </div>
+                  <div class="auth-terms">
+                    <span class="auth-check">✓</span>
+                    <span>已阅读并同意 <strong>服务协议</strong>、<strong>隐私政策</strong> 和 <strong>账号服务须知</strong></span>
+                  </div>
+                </div>
+                <div class="auth-provider-logo">♪</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="subscribe-surface">
+            <div class="subscribe-top">
+              <button class="back-button">‹</button>
+              <div class="theme-toggle">
+                <i class="theme-thumb-mini"></i>
+                <span class="active">暗色</span>
+                <span>亮色</span>
+              </div>
+            </div>
+
+            <div class="subscribe-hero">
+              <h2>升级会员</h2>
+              <p>把高频图生图流程放到一页内完成：权益、套餐、价格和支付动作都在拇指区。</p>
+            </div>
+
+            <div class="plan-tabs">
+              <button>基础</button>
+              <button class="active">Pro</button>
+              <button>Max</button>
+            </div>
+
+            <div class="membership-card">
+              <strong>Pro 改装创作包</strong>
+              <p>适合每天做车型识别、配件试装、颜色方案和对话微调的个人创作者。</p>
+              <div class="benefit-list">
+                <span>每月 300 次高质量生成</span>
+                <span>保留原车角度、灯光和背景一致性</span>
+                <span>配件参考图和裸碳策略记忆</span>
+              </div>
+            </div>
+
+            <div class="price-row">
+              <div class="price-option selected">
+                <strong>¥59 / 月</strong>
+                <span>随时取消</span>
+              </div>
+              <div class="price-option">
+                <strong>¥499 / 年</strong>
+                <span>约省 30%</span>
+              </div>
+            </div>
+
+            <button class="subscribe-cta">立即开通 Pro</button>
+          </section>
+
+          <div class="screen-panels" data-layout-allow-overflow>
+            <section class="mobile-screen config-screen">
+              <div class="screen-head">
+                <div class="screen-title">
+                  <span>AI Mod Studio</span>
+                  <strong>配置模式</strong>
+                </div>
+                <div class="mini-actions">
+                  <button>文</button>
+                  <button>会</button>
+                </div>
+              </div>
+
+              <div class="mode-switch">
+                <span class="mode-thumb"></span>
+                <button class="active">配置模式</button>
+                <button>对话模式</button>
+              </div>
+
+              <div class="media-card">
+                <img src="assets/source-car.jpg" alt="Uploaded vehicle" />
+                <span class="recognition-badge">XPENG P7 · 已识别</span>
+                <div class="view-tabs">
+                  <button>原图</button>
+                  <button class="active">生成图</button>
+                  <button>对比</button>
+                </div>
+                <span class="elapsed-badge">22s</span>
+              </div>
+
+              <div class="config-summary">
+                <div>
+                  <strong>3 个改装项已选</strong>
+                  <span>BBS LM-R / 裸碳机盖 / 渐变车身 / 气动避震</span>
+                </div>
+                <div class="summary-meter"><span>78%</span></div>
+              </div>
+
+              <div class="dock">
+                <button class="active">配件</button>
+                <button>颜色</button>
+                <button>高度</button>
+                <button>生成</button>
+              </div>
+
+              <div class="control-sheet">
+                <div class="sheet-handle"></div>
+                <div class="sheet-head">
+                  <h2>配件选择</h2>
+                  <span>保留下拉折叠样式</span>
+                </div>
+                <div class="parts-selector-block">
+                  <button class="parts-select-trigger">
+                    <span>当前配件组合</span>
+                    <strong>BBS LM-R 轮毂 / SEIBON OE 裸碳机盖</strong>
+                    <em>展开</em>
+                  </button>
+
+                  <div class="parts-dropdown open">
+                    <div class="parts-dropdown-inner">
+                      <label class="parts-search">
+                        <span>调</span>
+                        <input value="搜索 BBS、碳纤维、尾唇" readonly />
+                      </label>
+
+                      <section class="parts-accordion">
+                        <article class="accordion-card expanded">
+                          <button class="accordion-trigger">
+                            <span class="accordion-mark">×</span>
+                            <span class="accordion-copy">
+                              <strong>轮毂</strong>
+                              <small>BBS LM-R 已选择</small>
+                            </span>
+                            <span class="selected-check">✓</span>
+                          </button>
+                          <div class="accordion-content">
+                            <div class="brand-filter-row">
+                              <span class="active">BBS</span>
+                              <span>Rays</span>
+                              <span>HRE</span>
+                            </div>
+                            <div class="asset-grid">
+                              <article class="asset-card selected">
+                                <img src="assets/bbs-lmr-options.png" alt="BBS LM-R wheels" />
+                                <strong>BBS LM-R</strong>
+                                <small>轮毂 · 已选</small>
+                              </article>
+                              <article class="asset-card">
+                                <img src="assets/hero-result-ref.png" alt="Forged wheel reference" />
+                                <strong>Forged Mesh</strong>
+                                <small>轮毂 · 可选</small>
+                              </article>
+                            </div>
+                          </div>
+                        </article>
+
+                        <article class="accordion-card">
+                          <button class="accordion-trigger">
+                            <span class="accordion-mark">+</span>
+                            <span class="accordion-copy">
+                              <strong>机盖</strong>
+                              <small>SEIBON OE 裸碳策略</small>
+                            </span>
+                            <span class="selected-check">✓</span>
+                          </button>
+                        </article>
+
+                        <article class="accordion-card">
+                          <button class="accordion-trigger">
+                            <span class="accordion-mark">+</span>
+                            <span class="accordion-copy">
+                              <strong>尾唇 / 扰流</strong>
+                              <small>未选择，可继续添加</small>
+                            </span>
+                          </button>
+                        </article>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="policy-card">
+                  <h3>机盖颜色</h3>
+                  <div class="color-policy-segment">
+                    <button class="color-policy-button">车身同色</button>
+                    <button class="color-policy-button selected">裸碳</button>
+                  </div>
+                </div>
+
+                <div class="paint-card">
+                  <h3>车身颜色</h3>
+                  <div class="color-dots">
+                    <button style="background:#101114"></button>
+                    <button style="background:#f8f8f4"></button>
+                    <button class="selected" style="background:#fdc700"></button>
+                    <button style="background:#ff365c"></button>
+                    <button style="background:#2f6bff"></button>
+                  </div>
+                  <div class="gradient-strip"></div>
+                </div>
+
+                <div class="stance-card">
+                  <h3>车身高度</h3>
+                  <div class="stance-preset-options">
+                    <button class="stance-preset-button">升高</button>
+                    <button class="stance-preset-button">降低</button>
+                    <button class="stance-preset-button">齐边</button>
+                    <button class="stance-preset-button selected">气动</button>
+                  </div>
+                </div>
+
+                <div class="generate-bar">
+                  <button>生成改装图</button>
+                  <button class="secondary">清空</button>
+                </div>
+              </div>
+
+              <div class="progress-layer">
+                <strong>正在生成改装效果</strong>
+                <div class="progress-line"><div class="progress-fill"></div></div>
+              </div>
+            </section>
+
+            <section class="mobile-screen chat-screen">
+              <div class="chat-main">
+                <div class="screen-head chat-head">
+                  <button class="chat-menu-button" aria-label="Open history"><span></span></button>
+                  <div class="chat-title-pill">AI Mod Studio</div>
+                  <button class="chat-action-button">◎</button>
+                </div>
+
+                <div class="mode-switch chat-switch">
+                  <span class="mode-thumb"></span>
+                  <button>配置模式</button>
+                  <button class="active">对话模式</button>
+                </div>
+
+                <div class="chat-library-sheet">
+                  <div class="library-sheet-head">
+                    <div>
+                      <strong>历史与收藏</strong>
+                      <span>收起时只保留入口，展开后快速续聊或复用提示词</span>
+                    </div>
+                    <button class="library-collapse">收起</button>
+                  </div>
+                  <div class="library-tabs">
+                    <button class="active">历史</button>
+                    <button>收藏</button>
+                  </div>
+                  <div class="library-list">
+                    <article class="library-card">
+                      <img src="assets/hero-result-ref.png" alt="History result" />
+                      <div class="library-copy">
+                        <strong>黄色渐变 + BBS LM-R</strong>
+                        <span>刚刚 · 保留原车角度继续微调</span>
+                      </div>
+                      <span class="library-tag">续聊</span>
+                    </article>
+                    <article class="library-card favorite">
+                      <img src="assets/carbon-hood-ref.jpg" alt="Favorite carbon result" />
+                      <div class="library-copy">
+                        <strong>裸碳机盖确认模板</strong>
+                        <span>已收藏 · 机盖/后视镜二选一逻辑</span>
+                      </div>
+                      <span class="library-tag">收藏</span>
+                    </article>
+                    <article class="library-card">
+                      <img src="assets/source-car-ref.jpg" alt="Past vehicle" />
+                      <div class="library-copy">
+                        <strong>XPENG P7 原车识别</strong>
+                        <span>昨天 · 可恢复配置面板</span>
+                      </div>
+                      <span class="library-tag">恢复</span>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="chat-thread">
+                  <div class="chat-empty-state">
+                    <div class="particle-orb"></div>
+                    <h2>准备改这台车吗？</h2>
+                    <p>发送一句需求开始聊天，AI 会先判断是重新生成还是继续基于上一张结果修改。</p>
+                    <div class="starter-grid">
+                      <button class="starter-chip primary">继续生成</button>
+                      <button class="starter-chip">重新生成</button>
+                      <button class="starter-chip">上传配件</button>
+                      <button class="starter-chip">分析原车</button>
+                    </div>
+                  </div>
+
+                  <div class="chat-message-list">
+                    <article class="message user">
+                      <div class="bubble">
+                        换 BBS LM-R，机盖裸碳，车身做黄橙渐变，降低到气动姿态。
+                        <div class="ref-rail">
+                          <img src="assets/bbs-lmr-ref.png" alt="Wheel reference" />
+                          <img src="assets/carbon-hood-ref.jpg" alt="Hood reference" />
+                          <img src="assets/source-car-ref.jpg" alt="Vehicle source" />
+                        </div>
+                      </div>
+                      <div class="avatar">我</div>
+                    </article>
+
+                    <article class="message assistant">
+                      <div class="avatar">AI</div>
+                      <div class="bubble">
+                        这次是基于上一张结果继续修改，还是从原车重新生成一版？
+                        <div class="context-choice-inline">
+                          <button class="selected">继续生成</button>
+                          <button>重新生成</button>
+                        </div>
+                      </div>
+                    </article>
+
+                    <article class="message assistant">
+                      <div class="avatar">AI</div>
+                      <div class="bubble">
+                        机盖和后视镜是否都使用裸碳？会保留原车视角、地库灯光和车身边界。
+                        <div class="choice-row">
+                          <button>车身同色</button>
+                          <button class="selected">裸碳</button>
+                        </div>
+                      </div>
+                    </article>
+
+                    <article class="message assistant status-message">
+                      <div class="avatar">AI</div>
+                      <div class="bubble">正在识别车辆及配件，随后生成效果。</div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="composer">
+                  <button class="icon-button">＋</button>
+                  <span>继续说：尾翼换成更低调的碳纤维小鸭尾...</span>
+                  <button class="send-button">➜</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="theme-cutover">
+        <div class="theme-cutover-card">
+          <span>Theme Switch</span>
+          <strong>切换到亮色模式，再走一遍同样流程</strong>
+          <p>参考白色 ChatGPT App 的轻界面：圆形菜单、胶囊标题、白色输入条和浅色展厅质感。</p>
+        </div>
+      </section>
+
+      <section class="light-pass">
+        <div class="light-pass-title">
+          <h2>亮色移动端流程</h2>
+          <span>LIGHT THEME REPLAY</span>
+        </div>
+
+        <div class="light-phone-frame">
+          <div class="light-phone-glass">
+            <div class="notch"></div>
+            <div class="light-status">
+              <span>15:21</span>
+              <span>5G 94%</span>
+            </div>
+
+            <section class="light-scene light-login-scene">
+              <div class="light-login-flow" data-layout-allow-overflow>
+                <div class="light-login-app-page">
+                  <div class="light-topbar">
+                    <button class="light-circle-button"><span class="light-menu-lines"></span></button>
+                    <div class="light-title-pill">AI 改装助手</div>
+                    <button class="light-circle-button">◎</button>
+                  </div>
+                  <div class="light-login-banner">立即登录，解锁更多功能 →</div>
+                  <div class="light-avatar-orb"></div>
+                  <div class="light-welcome-bubble">
+                    嗨，我可以帮你识别原车、选择配件、生成改装效果。登录后可同步历史和收藏。
+                  </div>
+                  <div class="light-starters">
+                    <button>如何换轮毂</button>
+                    <button>裸碳机盖</button>
+                    <button>继续上次方案</button>
+                    <button>生成渐变车身</button>
+                  </div>
+                </div>
+
+                <div class="light-phone-login-route">
+                  <div class="light-route-head">
+                    <button>‹</button>
+                    <button>反馈</button>
+                  </div>
+                  <h3>手机号登录</h3>
+                  <div class="light-phone-input">
+                    <span>+86⌄</span>
+                    <span>请输入手机号</span>
+                  </div>
+                  <div class="light-login-terms">
+                    <span class="auth-check">✓</span>
+                    <span>已阅读并同意 <strong>服务协议</strong>、<strong>隐私政策</strong>、<strong>账号服务须知</strong></span>
+                  </div>
+                  <button class="light-disabled-next">下一步</button>
+                  <div class="light-keypad">
+                    <span>1</span>
+                    <span>2</span>
+                    <span>3</span>
+                    <span>⌫</span>
+                    <span>4</span>
+                    <span>5</span>
+                    <span>6</span>
+                    <span class="done">完成</span>
+                    <span>7</span>
+                    <span>8</span>
+                    <span>9</span>
+                    <span>返回</span>
+                    <span>0</span>
+                    <span>.</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="light-scene light-config-scene">
+              <div class="light-topbar">
+                <button class="light-circle-button"><span class="light-menu-lines"></span></button>
+                <div class="light-title-pill">配置模式</div>
+                <button class="light-circle-button">文</button>
+              </div>
+              <div class="light-config-card">
+                <img src="assets/hero-result.png" alt="Light config result" />
+                <h3>配件、颜色、高度</h3>
+                <p>保留现在满意的下拉配件选择、颜色点阵和车身高度按钮，只换成浅色承载。</p>
+                <div class="light-mode-switch">
+                  <button class="active">配置模式</button>
+                  <button>对话模式</button>
+                </div>
+                <div class="light-control-grid">
+                  <span>BBS LM-R</span>
+                  <span>裸碳机盖</span>
+                  <span>黄橙渐变</span>
+                  <span>气动姿态</span>
+                </div>
+                <button class="light-primary">生成改装图</button>
+              </div>
+            </section>
+
+            <section class="light-scene light-subscribe-scene">
+              <div class="light-topbar">
+                <button class="light-circle-button">‹</button>
+                <div class="light-title-pill">升级会员</div>
+                <button class="light-circle-button">◎</button>
+              </div>
+              <div class="light-subscribe-card">
+                <h3>Pro 改装创作包</h3>
+                <p>订阅页保持新界面，不做弹窗；权益、套餐、价格和 CTA 都在当前页完成。</p>
+                <div class="light-mode-switch">
+                  <button>基础</button>
+                  <button class="active">Pro</button>
+                </div>
+                <div class="benefit-list">
+                  <span>每月 300 次高质量生成</span>
+                  <span>配件参考图和裸碳策略记忆</span>
+                  <span>保留原车角度与地库光线</span>
+                </div>
+                <button class="light-primary">立即开通 Pro</button>
+              </div>
+            </section>
+
+            <section class="light-scene light-chat-scene">
+              <div class="light-topbar">
+                <button class="light-circle-button light-chat-menu"><span class="light-menu-lines"></span></button>
+                <div class="light-title-pill">AI Mod Studio</div>
+                <button class="light-circle-button">◎</button>
+              </div>
+
+              <div class="light-history-sheet">
+                <h3>历史与收藏</h3>
+                <div class="light-history-item">
+                  <img src="assets/hero-result-ref.png" alt="Light history" />
+                  <div>
+                    <strong>黄色渐变 + BBS LM-R</strong>
+                    <span>刚刚 · 继续修改</span>
+                  </div>
+                </div>
+                <div class="light-history-item">
+                  <img src="assets/carbon-hood-ref.jpg" alt="Light favorite" />
+                  <div>
+                    <strong>裸碳机盖确认模板</strong>
+                    <span>已收藏 · 可复用</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="light-chat-empty">
+                <div class="light-orb"></div>
+                <h3>有什么可以帮忙的？</h3>
+                <div class="light-starters">
+                  <button>创建改装图</button>
+                  <button>分析图片</button>
+                  <button>继续生成</button>
+                  <button>重新生成</button>
+                </div>
+              </div>
+
+              <div class="light-chat-messages">
+                <div class="light-bubble user">继续上一张，把轮毂换成 BBS LM-R，机盖裸碳。</div>
+                <div class="light-bubble">这次是继续生成还是从原车重新生成？我会保留当前车身角度和光线。</div>
+                <div class="light-bubble">确认继续生成，并使用裸碳机盖策略。</div>
+              </div>
+
+              <div class="light-composer">
+                <button class="light-circle-button">＋</button>
+                <span>问问 AI 改装助手</span>
+                <button class="light-send">➜</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <aside class="annotation-stack">
+        <div class="annotation">
+          <strong>KEEP</strong>
+          模式切换保留，但成为移动端顶层导航。
+        </div>
+        <div class="annotation">
+          <strong>SHEET</strong>
+          配件、颜色、高度以底部面板承载。
+        </div>
+        <div class="annotation">
+          <strong>CARBON</strong>
+          裸碳选择保留为明确二选一。
+        </div>
+      </aside>
+
+      <div class="final-notes">
+        <div class="note-card">
+          <strong>图片优先</strong>
+          <span>首屏先看车，再操作配置，符合图生图心智。</span>
+        </div>
+        <div class="note-card">
+          <strong>底部工作台</strong>
+          <span>常用控件在拇指区，避免长页面堆叠。</span>
+        </div>
+        <div class="note-card">
+          <strong>对话接续</strong>
+          <span>Chat 继承画布和配件上下文，不另起流程。</span>
+        </div>
+      </div>
+
+      <div class="wipe" data-layout-ignore>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.set(".subscribe-surface", { autoAlpha: 0, y: 62 });
+      tl.set(".auth-surface", { autoAlpha: 1, y: 0 });
+      tl.set(".auth-flow", { xPercent: 0 });
+      tl.set(".chat-library-sheet", { autoAlpha: 0, xPercent: -106 });
+      tl.set(".chat-message-list", { autoAlpha: 0, y: 28 });
+      tl.set([".theme-cutover", ".light-pass"], { autoAlpha: 0 });
+      tl.set([".light-config-scene", ".light-subscribe-scene", ".light-chat-scene"], { autoAlpha: 0 });
+      tl.set(".light-login-flow", { xPercent: 0 });
+      tl.set(".light-history-sheet", { autoAlpha: 0, xPercent: -108 });
+      tl.set(".light-chat-messages", { autoAlpha: 0, y: 26 });
+      tl.from(".auth-surface", { y: 48, opacity: 0, duration: 0.62, ease: "expo.out" }, 0.12);
+      tl.from(".auth-app-top", { y: 22, opacity: 0, duration: 0.44, ease: "power3.out" }, 0.34);
+      tl.from(".login-entry-banner", { y: 18, opacity: 0, duration: 0.42, ease: "power3.out" }, 0.68);
+      tl.from(".auth-avatar-orb", { y: 28, scale: 0.88, opacity: 0, duration: 0.58, ease: "expo.out" }, 0.98);
+      tl.from(".auth-welcome-bubble", { y: 28, opacity: 0, duration: 0.48, ease: "power3.out" }, 1.28);
+      tl.from(".auth-suggestion-grid button", { y: 18, opacity: 0, stagger: 0.06, duration: 0.28, ease: "back.out(1.5)" }, 1.7);
+      tl.to(".login-entry-banner", { scale: 1.025, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 2.02);
+      tl.to(".auth-flow", { xPercent: -50, duration: 0.68, ease: "power3.inOut" }, 2.32);
+      tl.set(".auth-app-page", { autoAlpha: 0 }, 3.0);
+      tl.from(".auth-route-top", { y: 20, opacity: 0, duration: 0.36, ease: "power3.out" }, 2.72);
+      tl.from(".auth-login-content h2", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 2.9);
+      tl.from(".auth-mask-phone", { y: 20, opacity: 0, duration: 0.42, ease: "power3.out" }, 3.12);
+      tl.from(".auth-route-actions button", { y: 22, opacity: 0, stagger: 0.08, duration: 0.34, ease: "back.out(1.4)" }, 3.38);
+      tl.to(".auth-route-primary", { scale: 1.03, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 3.86);
+      tl.to(".auth-surface", { autoAlpha: 0, y: -72, duration: 0.62, ease: "power3.in" }, 4.3);
+
+      tl.from(".headline h1", { y: 42, opacity: 0, duration: 0.72, ease: "expo.out" }, 0.18);
+      tl.from(".headline p", { x: -34, opacity: 0, duration: 0.54, ease: "power3.out" }, 0.42);
+      tl.from(".build-tag span", { y: 18, opacity: 0, stagger: 0.11, duration: 0.42, ease: "back.out(1.4)" }, 0.54);
+      tl.from(".phone-frame", { y: 90, scale: 0.94, opacity: 0, duration: 0.9, ease: "power4.out" }, 0.38);
+      tl.from(".mode-switch", { y: 24, opacity: 0, duration: 0.44, ease: "circ.out" }, 1.12);
+      tl.from(".media-card", { y: 36, opacity: 0, scale: 0.96, duration: 0.58, ease: "power3.out" }, 1.24);
+      tl.from(".recognition-badge", { x: -26, opacity: 0, duration: 0.36, ease: "power2.out" }, 1.66);
+      tl.from(".view-tabs button", { y: 18, opacity: 0, stagger: 0.06, duration: 0.32, ease: "back.out(1.7)" }, 1.86);
+      tl.from(".config-summary", { y: 28, opacity: 0, duration: 0.44, ease: "expo.out" }, 2.1);
+      tl.from(".dock button", { y: 24, opacity: 0, stagger: 0.05, duration: 0.34, ease: "power4.out" }, 2.36);
+
+      tl.from(".control-sheet", { y: 520, opacity: 0, duration: 0.78, ease: "expo.out" }, 3.0);
+      tl.from(".parts-select-trigger", { y: 24, opacity: 0, duration: 0.4, ease: "back.out(1.3)" }, 3.42);
+      tl.from(".parts-dropdown", { height: 0, opacity: 0, duration: 0.56, ease: "expo.out" }, 3.68);
+      tl.from(".accordion-card", { y: 18, opacity: 0, stagger: 0.08, duration: 0.34, ease: "power3.out" }, 3.96);
+      tl.from(".parts-dropdown .asset-card", { y: 18, opacity: 0, stagger: 0.07, duration: 0.32, ease: "back.out(1.3)" }, 4.26);
+      tl.from(".policy-card", { x: -30, opacity: 0, duration: 0.36, ease: "power3.out" }, 4.05);
+      tl.from(".paint-card", { x: 30, opacity: 0, duration: 0.38, ease: "circ.out" }, 5.05);
+      tl.from(".color-dots button", { scale: 0.4, opacity: 0, stagger: 0.05, duration: 0.32, ease: "back.out(2)" }, 5.28);
+      tl.from(".gradient-strip", { scaleX: 0, opacity: 0, duration: 0.48, ease: "power3.out", transformOrigin: "left center" }, 5.62);
+      tl.from(".stance-card", { y: 30, opacity: 0, duration: 0.42, ease: "expo.out" }, 6.55);
+      tl.from(".stance-preset-button", { y: 16, opacity: 0, stagger: 0.05, duration: 0.28, ease: "power2.out" }, 6.78);
+      tl.to(".dock button:nth-child(1)", { backgroundColor: "#111317", color: "#f7f8fb", duration: 0.18, ease: "power1.inOut" }, 7.2);
+      tl.to(".dock button:nth-child(4)", { backgroundColor: "#10201c", color: "#67ffca", duration: 0.2, ease: "power1.inOut" }, 7.2);
+      tl.from(".generate-bar", { y: 18, opacity: 0, duration: 0.36, ease: "back.out(1.5)" }, 7.48);
+      tl.from(".progress-layer", { scale: 0.92, y: 20, opacity: 0, duration: 0.45, ease: "power4.out" }, 8.35);
+      tl.from(".progress-fill", { scaleX: 0.12, duration: 1.1, ease: "sine.inOut", transformOrigin: "left center" }, 8.48);
+      tl.to(".media-card img", { filter: "contrast(1.08) saturate(1.05) brightness(0.93)", duration: 0.72, ease: "sine.inOut" }, 9.56);
+      tl.to(".progress-layer", { opacity: 0, scale: 0.98, duration: 0.32, ease: "power2.in" }, 10.08);
+
+      tl.to(".subscribe-surface", { autoAlpha: 1, y: 0, duration: 0.62, ease: "expo.out" }, 10.38);
+      tl.from(".subscribe-hero", { y: 30, opacity: 0, duration: 0.48, ease: "power4.out" }, 10.72);
+      tl.from(".plan-tabs button", { y: 18, opacity: 0, stagger: 0.06, duration: 0.3, ease: "back.out(1.5)" }, 11.12);
+      tl.from(".membership-card", { y: 32, opacity: 0, scale: 0.96, duration: 0.48, ease: "expo.out" }, 11.46);
+      tl.from(".benefit-list span", { x: -22, opacity: 0, stagger: 0.08, duration: 0.34, ease: "power3.out" }, 11.9);
+      tl.from(".price-option", { y: 22, opacity: 0, stagger: 0.08, duration: 0.34, ease: "back.out(1.4)" }, 12.34);
+      tl.from(".subscribe-cta", { y: 32, opacity: 0, duration: 0.42, ease: "expo.out" }, 12.72);
+      tl.to(".subscribe-surface .theme-thumb-mini", { x: 92, duration: 0.34, ease: "power3.inOut" }, 13.1);
+      tl.to(".subscribe-surface", { autoAlpha: 0, y: -72, duration: 0.52, ease: "power3.in" }, 14.02);
+
+      tl.from(".wipe span", { scaleX: 0, stagger: 0.04, duration: 0.18, ease: "power4.inOut" }, 14.65);
+      tl.to(".wipe span", { scaleX: 0, stagger: 0.04, duration: 0.2, ease: "power4.inOut", transformOrigin: "right center" }, 14.95);
+      tl.to(".screen-panels", { xPercent: -50, duration: 0.72, ease: "power3.inOut" }, 14.78);
+      tl.to(".mode-thumb", { x: "100%", duration: 0.44, ease: "power3.inOut" }, 14.86);
+      tl.from(".chat-head", { x: 34, opacity: 0, duration: 0.38, ease: "power3.out" }, 15.32);
+      tl.from(".chat-empty-state", { y: 36, opacity: 0, duration: 0.56, ease: "expo.out" }, 15.55);
+      tl.from(".composer", { y: 44, opacity: 0, duration: 0.54, ease: "expo.out" }, 15.75);
+      tl.to(".chat-menu-button", { scale: 1.08, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 15.96);
+      tl.to(".chat-library-sheet", { autoAlpha: 1, xPercent: 0, duration: 0.58, ease: "expo.out" }, 16.24);
+      tl.to(".chat-thread", { x: 98, scale: 0.92, opacity: 0.46, duration: 0.48, ease: "power3.out", transformOrigin: "right center" }, 16.24);
+      tl.from(".library-card", { x: -24, opacity: 0, stagger: 0.08, duration: 0.34, ease: "power3.out" }, 16.7);
+      tl.to(".library-tabs button:nth-child(1)", { backgroundColor: "transparent", color: "#9aa3b2", duration: 0.18, ease: "power1.inOut" }, 17.36);
+      tl.to(".library-tabs button:nth-child(2)", { backgroundColor: "#f7f8fb", color: "#050607", duration: 0.18, ease: "power1.inOut" }, 17.36);
+      tl.to(".library-card.favorite", { scale: 1.025, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 17.62);
+      tl.to(".chat-library-sheet", { autoAlpha: 0, xPercent: -106, duration: 0.45, ease: "power3.in" }, 18.14);
+      tl.to(".chat-thread", { x: 0, scale: 1, opacity: 1, duration: 0.45, ease: "power3.out" }, 18.14);
+      tl.to(".send-button", { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, ease: "power2.inOut" }, 18.72);
+      tl.to(".chat-empty-state", { autoAlpha: 0, y: -34, duration: 0.38, ease: "power3.in" }, 18.94);
+      tl.to(".chat-message-list", { autoAlpha: 1, y: 0, duration: 0.42, ease: "power3.out" }, 19.12);
+      tl.from(".message.user", { x: 36, opacity: 0, duration: 0.5, ease: "back.out(1.2)" }, 19.22);
+      tl.from(".ref-rail img", { scale: 0.72, opacity: 0, stagger: 0.07, duration: 0.34, ease: "power4.out" }, 19.6);
+      tl.from(".message.assistant", { x: -36, opacity: 0, stagger: 0.18, duration: 0.48, ease: "power3.out" }, 20.28);
+      tl.from([".context-choice-inline button", ".choice-row button"], { y: 18, opacity: 0, stagger: 0.06, duration: 0.3, ease: "back.out(1.6)" }, 20.9);
+      tl.from(".annotation", { x: 28, opacity: 0, stagger: 0.13, duration: 0.42, ease: "power3.out" }, 22.86);
+      tl.from(".final-notes .note-card", { y: 42, opacity: 0, stagger: 0.12, duration: 0.58, ease: "expo.out" }, 24.1);
+      tl.to(".phone-frame", { y: -18, duration: 1.8, ease: "sine.inOut" }, 24.22);
+      tl.to(".garage-grid", { opacity: 0.32, duration: 1.5, ease: "sine.inOut" }, 24.22);
+      tl.to([".headline", ".phone-frame", ".annotation-stack", ".final-notes"], { opacity: 0, y: -26, duration: 0.72, ease: "power2.in" }, 28.9);
+
+      tl.to(".theme-cutover", { autoAlpha: 1, duration: 0.48, ease: "power3.out" }, 29.35);
+      tl.from(".theme-cutover-card", { y: 38, scale: 0.96, opacity: 0, duration: 0.56, ease: "expo.out" }, 29.48);
+      tl.to(".theme-cutover", { autoAlpha: 0, duration: 0.44, ease: "power2.in" }, 31.05);
+
+      tl.to(".light-pass", { autoAlpha: 1, duration: 0.56, ease: "sine.inOut" }, 31.25);
+      tl.from(".light-pass-title h2", { y: 36, opacity: 0, duration: 0.58, ease: "expo.out" }, 31.45);
+      tl.from(".light-pass-title span", { x: 28, opacity: 0, duration: 0.42, ease: "power3.out" }, 31.72);
+      tl.from(".light-phone-frame", { y: 90, scale: 0.94, opacity: 0, duration: 0.9, ease: "power4.out" }, 31.55);
+
+      tl.from(".light-login-app-page .light-topbar", { y: 24, opacity: 0, duration: 0.44, ease: "power3.out" }, 32.18);
+      tl.from(".light-login-banner", { y: 18, opacity: 0, duration: 0.42, ease: "power3.out" }, 32.48);
+      tl.from(".light-avatar-orb", { y: 28, scale: 0.9, opacity: 0, duration: 0.5, ease: "expo.out" }, 32.78);
+      tl.from(".light-welcome-bubble", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 33.08);
+      tl.from(".light-login-app-page .light-starters button", { y: 18, opacity: 0, stagger: 0.05, duration: 0.26, ease: "back.out(1.4)" }, 33.42);
+      tl.to(".light-login-banner", { scale: 1.025, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 34.05);
+      tl.to(".light-login-flow", { xPercent: -50, duration: 0.68, ease: "power3.inOut" }, 34.32);
+      tl.from(".light-route-head", { y: 20, opacity: 0, duration: 0.36, ease: "power3.out" }, 34.72);
+      tl.from(".light-phone-login-route h3", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 34.94);
+      tl.from(".light-phone-input", { y: 22, opacity: 0, duration: 0.38, ease: "power3.out" }, 35.22);
+      tl.from(".light-login-terms", { y: 18, opacity: 0, duration: 0.34, ease: "power3.out" }, 35.48);
+      tl.from(".light-disabled-next", { y: 24, opacity: 0, duration: 0.36, ease: "power3.out" }, 35.78);
+      tl.set(".light-login-app-page", { autoAlpha: 0 }, 35.98);
+      tl.from(".light-keypad span", { y: 18, opacity: 0, stagger: 0.018, duration: 0.22, ease: "power2.out" }, 36.08);
+
+      tl.to(".light-login-scene", { autoAlpha: 0, y: -38, duration: 0.42, ease: "power3.in" }, 37.5);
+      tl.to(".light-config-scene", { autoAlpha: 1, duration: 0.34, ease: "power2.out" }, 37.82);
+      tl.from(".light-config-scene .light-topbar", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 37.95);
+      tl.from(".light-config-card", { y: 40, opacity: 0, scale: 0.96, duration: 0.58, ease: "expo.out" }, 38.23);
+      tl.from(".light-control-grid span", { y: 18, opacity: 0, stagger: 0.06, duration: 0.28, ease: "back.out(1.5)" }, 38.87);
+      tl.to(".light-config-card .light-primary", { scale: 1.035, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 39.83);
+      tl.from(".progress-fill", { scaleX: 0.22, duration: 0.8, ease: "sine.inOut", transformOrigin: "left center" }, 40.17);
+
+      tl.to(".light-config-scene", { autoAlpha: 0, y: -38, duration: 0.42, ease: "power3.in" }, 42.05);
+      tl.to(".light-subscribe-scene", { autoAlpha: 1, duration: 0.34, ease: "power2.out" }, 42.37);
+      tl.from(".light-subscribe-scene .light-topbar", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 42.5);
+      tl.from(".light-subscribe-card", { y: 42, opacity: 0, scale: 0.96, duration: 0.58, ease: "expo.out" }, 42.8);
+      tl.from(".light-subscribe-card .benefit-list span", { x: -22, opacity: 0, stagger: 0.08, duration: 0.34, ease: "power3.out" }, 43.39);
+      tl.to(".light-subscribe-card .light-primary", { scale: 1.035, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 44.27);
+
+      tl.to(".light-subscribe-scene", { autoAlpha: 0, y: -38, duration: 0.42, ease: "power3.in" }, 45.77);
+      tl.to(".light-chat-scene", { autoAlpha: 1, duration: 0.34, ease: "power2.out" }, 46.1);
+      tl.from(".light-chat-scene .light-topbar", { y: 24, opacity: 0, duration: 0.42, ease: "power3.out" }, 46.23);
+      tl.from(".light-chat-empty", { y: 34, opacity: 0, duration: 0.56, ease: "expo.out" }, 46.57);
+      tl.from(".light-composer", { y: 44, opacity: 0, duration: 0.54, ease: "expo.out" }, 47.1);
+      tl.to(".light-chat-menu", { scale: 1.08, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut" }, 47.83);
+      tl.to(".light-history-sheet", { autoAlpha: 1, xPercent: 0, duration: 0.58, ease: "expo.out" }, 48.23);
+      tl.to(".light-chat-empty", { x: 98, scale: 0.92, opacity: 0.5, duration: 0.48, ease: "power3.out", transformOrigin: "right center" }, 48.23);
+      tl.from(".light-history-item", { x: -24, opacity: 0, stagger: 0.08, duration: 0.34, ease: "power3.out" }, 48.7);
+      tl.to(".light-history-sheet", { autoAlpha: 0, xPercent: -108, duration: 0.45, ease: "power3.in" }, 49.95);
+      tl.to(".light-chat-empty", { x: 0, scale: 1, opacity: 1, duration: 0.45, ease: "power3.out" }, 49.95);
+      tl.to(".light-send", { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, ease: "power2.inOut" }, 50.67);
+      tl.to(".light-chat-empty", { autoAlpha: 0, y: -36, duration: 0.38, ease: "power3.in" }, 50.97);
+      tl.to(".light-chat-messages", { autoAlpha: 1, y: 0, duration: 0.42, ease: "power3.out" }, 51.17);
+      tl.from(".light-bubble", { y: 22, opacity: 0, stagger: 0.22, duration: 0.42, ease: "power3.out" }, 51.47);
+      tl.to(".light-phone-frame", { y: -18, duration: 1.8, ease: "sine.inOut" }, 54.8);
+      tl.to([".light-pass-title", ".light-phone-frame"], { opacity: 0, y: -26, duration: 0.72, ease: "power2.in" }, 56.5);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

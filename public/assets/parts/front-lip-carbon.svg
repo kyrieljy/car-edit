@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220">
+  <defs>
+    <linearGradient id="lip" x1="0" x2="1">
+      <stop offset="0" stop-color="#090b0d"/>
+      <stop offset="0.5" stop-color="#2a3037"/>
+      <stop offset="1" stop-color="#07090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="220" rx="24" fill="#101114"/>
+  <path d="M44 92c74-22 158-22 232 0l-34 54H78z" fill="url(#lip)" stroke="#5b646f" stroke-width="4"/>
+  <path d="M68 142c48 16 136 18 184 0" fill="none" stroke="#1f86ff" stroke-width="4" opacity=".55"/>
+  <text x="160" y="190" fill="#f5f6f7" font-family="Arial, sans-serif" font-size="21" font-weight="700" text-anchor="middle">Carbon Front Lip</text>
+</svg>

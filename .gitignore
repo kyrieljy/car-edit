@@ -1,0 +1,45 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+*.err
+admin-summary.json
+catalog-response.json
+artifacts/
+
+# local browser automation profiles
+.edge-chatgpt-batch/
+
+# env files
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# python cache
+__pycache__/
+*.pyc
+
+# local runtime data
+data/*.sqlite
+data/*.sqlite-*
+public/uploads/
+public/results/

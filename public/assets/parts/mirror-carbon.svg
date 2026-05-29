@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220">
+  <rect width="320" height="220" rx="24" fill="#101114"/>
+  <path d="M70 113c30-56 116-75 176-32 20 15 21 43 2 59-56 47-150 34-178-27z" fill="#161a1f" stroke="#59616d" stroke-width="5"/>
+  <path d="M82 110c45-25 100-31 158-12" stroke="#2b3138" stroke-width="12" stroke-linecap="round"/>
+  <path d="M119 144c-16 15-34 24-58 27" stroke="#59616d" stroke-width="9" stroke-linecap="round"/>
+  <text x="160" y="198" fill="#f5f6f7" font-family="Arial, sans-serif" font-size="21" font-weight="700" text-anchor="middle">Carbon Mirror Caps</text>
+</svg>

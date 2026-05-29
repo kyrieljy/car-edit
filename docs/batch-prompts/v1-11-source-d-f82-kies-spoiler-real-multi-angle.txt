@@ -1,0 +1,24 @@
+Please use Image 2 for a realistic local photo edit.
+
+Task: Edit the first image only. It is the only vehicle canvas.
+
+The remaining images are reference images for one aftermarket part only:
+- Kies Motorsports Performance Inspired Carbon Fiber Trunk Spoiler for BMW F82 M4.
+
+Goal:
+Install the referenced F82 M4 carbon fiber trunk lip spoiler on the visible trunk deck edge of the blue BMW M4 in the first image.
+
+Hard constraints:
+- Preserve the first image composition, camera angle, crop, garage background, lighting, reflections, license plate position, body color, wheels, diffuser, exhaust tips, side skirt, rear bumper, and all visible decals.
+- Do not copy any donor vehicle, donor background, donor lighting, donor camera angle, or donor license plate from the reference images.
+- Do not turn the trunk lip into a GT wing, high pedestal wing, ducktail, roof spoiler, or generic black blade.
+- The part must sit on the trunk lid edge, follow the existing trunk curvature, and remain physically attached to the rear deck.
+- Only edit the trunk lip spoiler area. Do not redesign the car.
+
+Material and fit:
+- The spoiler should read as glossy carbon fiber / black carbon, with subtle weave and highlights consistent with the garage lighting.
+- Keep the spoiler low-profile and proportional to an F82 M4 trunk lip, not oversized.
+- It should be visible from this rear-quarter angle, especially along the trunk top edge.
+
+Quality target:
+Create a realistic photo edit. The output should look like the original car was photographed with this exact trunk lip spoiler installed.

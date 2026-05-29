@@ -1,0 +1,192 @@
+{
+  "generatedAt": "2026-05-12T01:44:14.004Z",
+  "cases": [
+    {
+      "id": "bbs-lmr-ds-sld",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DS-SLD",
+      "sourcePage": "https://bbs-japan.co.jp/en/products/1303/",
+      "imageSource": "https://bbs-japan.co.jp/en/wp-content/uploads/sites/2/2016/10/01_lm-r_320.jpg",
+      "localImageUrl": "/assets/parts/test-cases/bbs-lmr-ds-sld.jpg",
+      "bytes": 89080
+    },
+    {
+      "id": "bbs-lmr-db-sld",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DB-SLD",
+      "sourcePage": "https://bbs-japan.co.jp/en/products/1303/",
+      "imageSource": "https://bbs-japan.co.jp/en/wp-content/uploads/sites/2/2016/10/LM-R_DBSLD_R_%E7%99%BD_%E6%AD%A3%E6%96%B9%E5%BD%A2.jpg",
+      "localImageUrl": "/assets/parts/test-cases/bbs-lmr-db-sld.jpg",
+      "bytes": 30554
+    },
+    {
+      "id": "bbs-lmr-ds-bkbd",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DS-BKBD",
+      "sourcePage": "https://bbs-japan.co.jp/en/products/1303/",
+      "imageSource": "https://bbs-japan.co.jp/en/wp-content/uploads/sites/2/2016/10/LM-R_DSBKBD_R_%E7%99%BD_%E6%AD%A3%E6%96%B9%E5%BD%A2-%E3%82%B3%E3%83%94%E3%83%BC.jpg",
+      "localImageUrl": "/assets/parts/test-cases/bbs-lmr-ds-bkbd.jpg",
+      "bytes": 79146
+    },
+    {
+      "id": "bbs-lmr-db-bkbd",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DB-BKBD",
+      "sourcePage": "https://bbs-japan.co.jp/en/products/1303/",
+      "imageSource": "https://bbs-japan.co.jp/en/wp-content/uploads/sites/2/2016/10/LM-R_DBBKBD_R_%E7%99%BD_%E6%AD%A3%E6%96%B9%E5%BD%A2-%E3%82%B3%E3%83%94%E3%83%BC.jpg",
+      "localImageUrl": "/assets/parts/test-cases/bbs-lmr-db-bkbd.jpg",
+      "bytes": 80130
+    },
+    {
+      "id": "brembo-gt-red",
+      "categoryId": "calipers",
+      "brand": "Brembo",
+      "model": "GT",
+      "variant": "6-Piston Red",
+      "sourcePage": "https://www.racetechnologies.com/products/brakekits/gt-1j-9019a",
+      "imageSource": "https://www.racetechnologies.com/sites/default/files/content/images/brakekits/brembo-j-caliper-6-piston-2-piece-380mm-drilled-red-med.jpg",
+      "localImageUrl": "/assets/parts/test-cases/brembo-gt-red.jpg",
+      "bytes": 236430
+    },
+    {
+      "id": "ap-racing-yellow",
+      "categoryId": "calipers",
+      "brand": "AP Racing",
+      "model": "Pro 5000 R",
+      "variant": "6-Piston Yellow",
+      "sourcePage": "https://apracing.com/race-car/brake-calipers/pro-5000-r-range",
+      "imageSource": "https://apracing.com/_/img/banners/banner-12.jpg",
+      "localImageUrl": "/assets/parts/test-cases/ap-racing-pro-5000r.jpg",
+      "bytes": 62441
+    },
+    {
+      "id": "akrapovic-quad-tip",
+      "categoryId": "exhaust",
+      "brand": "Akrapovic",
+      "model": "Tail Pipe Set",
+      "variant": "Carbon TP-CT/26",
+      "sourcePage": "https://www.maperformance.com/products/akrapovic-carbon-tail-pipes-2014-2018-bmw-m3-f80-m4-f82-83-tp-ct-26",
+      "imageSource": "https://www.maperformance.com/cdn/shop/products/akrapovic-akr-tp-ct-26-11950907129926.jpg?v=1747675663&width=1200",
+      "localImageUrl": "/assets/parts/test-cases/akrapovic-tail-pipe-carbon.jpg",
+      "bytes": 26345
+    },
+    {
+      "id": "varis-front-lip",
+      "categoryId": "front-bumper",
+      "brand": "APR Performance",
+      "model": "Front Splitter / Air Dam / Lip",
+      "variant": "FA-830402",
+      "sourcePage": "https://shop.aprperformance.com/products/bmw-f80-f82-m3-m4-front-splitter-air-dam-lip-2014-18",
+      "imageSource": "https://shop.aprperformance.com/cdn/shop/files/BMW_M4_Lip_Product_HR_1.jpg?v=1682441193&width=1946",
+      "localImageUrl": "/assets/parts/test-cases/apr-f80-front-splitter.webp",
+      "bytes": 34402
+    },
+    {
+      "id": "rsc-f80-side-skirts",
+      "categoryId": "side-skirts",
+      "brand": "Racing Sport Concepts",
+      "model": "Side Skirt Extensions",
+      "variant": "RSCBMW001",
+      "sourcePage": "https://www.racingsportconcepts.com/products/bmw-f80-m3-carbon-fiber-side-skirts",
+      "imageSource": "https://www.racingsportconcepts.com/cdn/shop/files/BMW_M3_Side_Skirt_Extension_F80_RSC_Carbon_Fiber_6_1800x1800.jpg?v=1685639474",
+      "localImageUrl": "/assets/parts/test-cases/rsc-f80-side-skirts.webp",
+      "bytes": 396540
+    },
+    {
+      "id": "m-performance-carbon-wing",
+      "categoryId": "rear-wing",
+      "brand": "Racing Sport Concepts",
+      "model": "M3 Rear Spoiler",
+      "variant": "RSCBMW005",
+      "sourcePage": "https://www.racingsportconcepts.com/products/bmw-f80-m3-rear_spoiler",
+      "imageSource": "https://www.racingsportconcepts.com/cdn/shop/files/Rear2.jpg?v=1683912173&width=1080",
+      "localImageUrl": "/assets/parts/test-cases/rsc-f80-rear-spoiler.webp",
+      "bytes": 101242
+    },
+    {
+      "id": "rsc-f80-carbon-diffuser",
+      "categoryId": "diffuser",
+      "brand": "Racing Sport Concepts",
+      "model": "F80 Rear Diffuser",
+      "variant": "RSCBMW004",
+      "sourcePage": "https://www.racingsportconcepts.com/products/bmw-f80-m3-rear-diffuser-carbon-fiber",
+      "imageSource": "https://www.racingsportconcepts.com/cdn/shop/files/Rear-diffuser-square-product-photo_1800x1800.jpg?v=1683911956",
+      "localImageUrl": "/assets/parts/test-cases/rsc-f80-carbon-diffuser.webp",
+      "bytes": 141156
+    },
+    {
+      "id": "seibon-oe-carbon-hood",
+      "categoryId": "hood",
+      "brand": "Seibon",
+      "model": "OE-Style Carbon Fiber Hood",
+      "variant": "HD14BMWF80-OE",
+      "sourcePage": "https://seiboncarbon.com/oe-style-carbon-fiber-hood-for-2015-2018-bmw-f80-m3-and-2015-2020-f82-f83-m4.html",
+      "imageSource": "https://seiboncarbon.com/media/catalog/product/cache/71ca68bedc79d61dff7e04ab03c07fd5/h/d/hd14bmwf80-oe_01.jpg",
+      "localImageUrl": "/assets/parts/test-cases/seibon-oe-carbon-hood.jpg",
+      "bytes": 770838
+    },
+    {
+      "id": "carbon-mirror-caps",
+      "categoryId": "mirrors",
+      "brand": "APR Performance",
+      "model": "Formula GT3 Carbon Fiber Mirrors",
+      "variant": "CB-100004B",
+      "sourcePage": "https://shop.aprperformance.com/products/universal-fit-formula-gt3-mirrors",
+      "imageSource": "https://shop.aprperformance.com/cdn/shop/files/CB-100004B.jpg?v=1699921975&width=1946",
+      "localImageUrl": "/assets/parts/test-cases/apr-formula-gt3-mirror.webp",
+      "bytes": 7190
+    },
+    {
+      "id": "vland-f80-smoked-tail-lights",
+      "categoryId": "lights",
+      "brand": "VLAND",
+      "model": "OLED Smoked Tail Lights",
+      "variant": "YAB-BMW-0293A",
+      "sourcePage": "https://vlandfactory.com/products/bmw-m3-3-series-f30-f35-f80-2012-2019-smoked-led-tail-lights-0293as",
+      "imageSource": "https://vlandfactory.com/cdn/shop/files/VLANDOLEDSmokedTailLightsforBMW3-SeriesF30F35F806thGenSedan2012-2019_1_1200x1200.webp?v=1756276006",
+      "localImageUrl": "/assets/parts/test-cases/vland-f80-smoked-tail-lights.webp",
+      "bytes": 40986
+    },
+    {
+      "id": "3m-2080-s261-satin-dark-gray",
+      "categoryId": "wrap",
+      "brand": "3M",
+      "model": "Wrap Film 2080",
+      "variant": "S261 Satin Dark Gray Metallic",
+      "sourcePage": "https://www.3m.com/3M/en_US/p/dc/v101651157/",
+      "imageSource": "https://multimedia.3m.com/mws/media/2319517J/3m-wrap-film-series-2080-satin-dark-gray.jpg",
+      "localImageUrl": "/assets/parts/test-cases/3m-2080-s261-satin-dark-gray.avif",
+      "bytes": 1422
+    },
+    {
+      "id": "bmw-m-performance-black-grille",
+      "categoryId": "grille",
+      "brand": "Genuine BMW",
+      "model": "M Performance Front Grilles",
+      "variant": "51712352812 + 51712352813",
+      "sourcePage": "https://r44performance.com/products/genuine-bmw-f80-m3-oem-m-performance-front-grilles-in-gloss-black",
+      "imageSource": "https://r44performance.com/cdn/shop/files/OEM-BMW-M-Performance-Gloss-Black-Front-Grilles-F80-M3.jpg?v=1733830602&width=1500",
+      "localImageUrl": "/assets/parts/test-cases/bmw-m-performance-gloss-black-grille.webp",
+      "bytes": 37344
+    },
+    {
+      "id": "test-bbs-lmr-reference-case",
+      "categoryId": "test",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "Reference Test Case",
+      "sourcePage": "https://bbs-japan.co.jp/en/products/1303/",
+      "imageSource": "https://bbs-japan.co.jp/en/wp-content/uploads/sites/2/2016/10/01_lm-r_320.jpg",
+      "localImageUrl": "/assets/parts/test-cases/test-bbs-lmr-reference-case.jpg",
+      "bytes": 89080
+    }
+  ]
+}

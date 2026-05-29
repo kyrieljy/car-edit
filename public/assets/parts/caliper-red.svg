@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220">
+  <rect width="320" height="220" rx="24" fill="#101114"/>
+  <circle cx="160" cy="110" r="76" fill="none" stroke="#343941" stroke-width="18"/>
+  <circle cx="160" cy="110" r="42" fill="none" stroke="#707783" stroke-width="10"/>
+  <path d="M106 66c28-30 88-22 107 14 8 15 8 40-2 55-17 26-57 34-89 18l24-24c18 6 40-1 47-15 5-10 2-25-7-34-14-14-43-15-58-1z" fill="#d61f32"/>
+  <text x="160" y="185" fill="#f5f6f7" font-family="Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle">Brembo GT Red</text>
+</svg>
