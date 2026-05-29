@@ -508,9 +508,11 @@ function is302ApiHost(host: string) {
 function canonical302Endpoint(endpoint: string) {
   const url = new URL(endpoint)
   const host = url.hostname.toLowerCase()
-  if (host === "api.302.ai" || host === "api.302ai.cn") {
+  if (host === "api.302.ai") {
     url.protocol = "https:"
-    url.hostname = "api.302.ai"
+    url.hostname = "api.302ai.cn"
+  } else if (host === "api.302ai.cn" || host === "api.302ai.com") {
+    url.protocol = "https:"
   }
   return url.toString()
 }
@@ -550,7 +552,7 @@ async function recover302TransportFailure(
   let lastRaw: Record<string, unknown> | null = null
   while (Date.now() < deadline) {
     try {
-      const raw = await fetch302LatestImageRecord(provider, apiKey, started)
+      const raw = await fetch302LatestImageRecord(provider, apiKey, started, endpoint)
       if (raw) {
         const imageResult = findImageResult(raw)
         if (!imageResult) return null
@@ -584,10 +586,13 @@ async function recover302TransportFailure(
   return null
 }
 
-async function fetch302LatestImageRecord(provider: ProviderConfig, apiKey: string, started: number) {
+async function fetch302LatestImageRecord(provider: ProviderConfig, apiKey: string, started: number, endpoint: string) {
   const nowSeconds = Math.floor(Date.now() / 1000) + 60
   const startSeconds = Math.max(0, Math.floor((started - 60_000) / 1000))
-  const url = `https://api.302.ai/dashboard/api-record?page=1&limit=20&start_time=${startSeconds}&end_time=${nowSeconds}`
+  const dashboardUrl = new URL(canonical302Endpoint(endpoint))
+  dashboardUrl.pathname = "/dashboard/api-record"
+  dashboardUrl.search = `?page=1&limit=20&start_time=${startSeconds}&end_time=${nowSeconds}`
+  const url = dashboardUrl.toString()
   const response = await fetch(url, {
     method: "GET",
     headers: providerRequestHeaders(apiKey, url),
