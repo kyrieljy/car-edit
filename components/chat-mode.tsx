@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { readProgressResponse } from "@/lib/progress-client"
-import { downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
+import { canvasSafeImageUrl, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import { IMAGE_UPLOAD_MAX_BYTES, IMAGE_UPLOAD_MAX_MB, MAX_CHAT_PART_IMAGES, isAllowedImageMimeType } from "@/lib/upload-limits"
 import type { AuthUser, ChatMessage, ChatSession, EntitlementStatus, GenerationProgressEvent, PartColorPolicy } from "@/lib/types"
 
@@ -921,7 +921,7 @@ export function ChatMode({
                 {vehiclePreview ? (
                   <span className="chat-upload-chip selected preview-only with-remove">
                     <button className="chat-preview-thumb-button" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPreviewUrl(vehiclePreview))} aria-label={t.preview}>
-                      <img className="chat-vehicle-thumb" src={vehiclePreview} alt={t.vehicle} />
+                      <img className="chat-vehicle-thumb" src={canvasSafeImageUrl(vehiclePreview)} alt={t.vehicle} />
                     </button>
                     <button className="chat-chip-remove" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setVehicleFile(null))} aria-label="Remove vehicle photo">
                       <X size={12} />
@@ -1026,7 +1026,7 @@ export function ChatMode({
             <button onClick={() => setPreviewUrl("")}>
               <X size={18} />
             </button>
-            <img src={previewUrl} alt={t.preview} />
+            <img src={canvasSafeImageUrl(previewUrl)} alt={t.preview} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -1243,7 +1243,7 @@ function ChatImageWithFallback({ src, alt, label, compact = false }: { src: stri
     )
   }
 
-  return <img src={src} alt={alt} onError={() => setFailed(true)} />
+  return <img src={canvasSafeImageUrl(src)} alt={alt} onError={() => setFailed(true)} />
 }
 
 function LoadingBubble({ text }: { text: string }) {

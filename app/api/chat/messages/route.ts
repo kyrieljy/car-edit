@@ -19,6 +19,7 @@ import { previewGenerationWorkflow, runGenerationWorkflow } from "@/lib/server/g
 import { isProviderSafetyBlockMessage, providerSafetyBlockMessage } from "@/lib/server/generation-provider"
 import { runMockGuardrail } from "@/lib/server/guardrail"
 import { readImageAsset } from "@/lib/server/image-assets"
+import { materializeImageUrl } from "@/lib/server/image-materializer"
 import { parseChatFallbackIntentWithLlmProvider } from "@/lib/server/llm-provider"
 import { toArrayBuffer, writeChatUploadImage } from "@/lib/server/local-images"
 import { ndjsonProgressResponse, noopProgress, type ProgressEmitter, type ProgressLanguage } from "@/lib/server/progress-stream"
@@ -905,9 +906,15 @@ async function resolveChatCanvas(input: {
         ? ({ url: latestResult, fileName: "latest-result.png", mime: "image/png", size: 0 } satisfies SavedUpload)
         : original
   if (!selected) return null
-  const vehicleRecognition = vehicleRecognitionFromMessageHistory(messages, input.userId, selected.url)
-  const canvasUpload = await materializeChatCanvas(selected)
-  const source = input.contextMode === "original" ? "original" : latestResult ? "latest" : "original"
+  let vehicleRecognition = vehicleRecognitionFromMessageHistory(messages, input.userId, selected.url)
+  let canvasUpload = await materializeChatCanvas(selected)
+  let source: ChatCanvas["source"] = input.contextMode === "original" ? "original" : latestResult ? "latest" : "original"
+  if (!canvasUpload && selected !== original && original) {
+    canvasUpload = await materializeChatCanvas(original)
+    source = "original"
+    vehicleRecognition = vehicleRecognitionFromMessageHistory(messages, input.userId, original.url)
+  }
+  if (!canvasUpload) return null
   return {
     url: canvasUpload.url,
     fileName: canvasUpload.fileName,
@@ -1060,28 +1067,14 @@ async function fileFromPublicUrl(url: string, fileName: string, mime = "") {
   return new File([toArrayBuffer(image.bytes)], fileName || image.fileName, { type: mime || image.mime })
 }
 
-async function materializeChatCanvas(upload: SavedUpload): Promise<SavedUpload> {
-  if (upload.url.startsWith("/uploads/chat/") || upload.url.startsWith("/uploads/") || upload.url.startsWith("/results/") || upload.url.startsWith("/assets/")) {
-    return {
-      ...upload,
-      mime: upload.mime || mimeFromPath(upload.url),
-    }
-  }
-  const image = await readImageAsset(upload.url)
-  if (!image) {
-    return {
-      ...upload,
-      mime: upload.mime || mimeFromPath(upload.url),
-    }
-  }
-  const mime = image.mime || upload.mime || mimeFromPath(upload.url)
-  const fileName = `context-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
-  await writeChatUploadImage(fileName, image.bytes)
+async function materializeChatCanvas(upload: SavedUpload): Promise<SavedUpload | null> {
+  const image = await materializeImageUrl(upload.url, "chat_upload", "context")
+  if (!image) return null
   return {
-    url: `/uploads/chat/${fileName}`,
-    fileName,
-    mime,
-    size: image.bytes.byteLength,
+    url: image.url,
+    fileName: image.fileName || upload.fileName,
+    mime: image.mime || upload.mime,
+    size: image.size || upload.size,
   }
 }
 
@@ -1335,22 +1328,6 @@ async function saveChatUpload(file: File, prefix: "vehicle" | "part") {
     mime: file.type,
     size: file.size,
   }
-}
-
-function mimeFromPath(value: string) {
-  const lower = value.toLowerCase()
-  if (lower.endsWith(".webp")) return "image/webp"
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg"
-  if (lower.endsWith(".avif")) return "image/avif"
-  return "image/png"
-}
-
-function extensionFromMime(mime: string) {
-  const lower = mime.toLowerCase()
-  if (lower.includes("jpeg") || lower.includes("jpg")) return "jpg"
-  if (lower.includes("webp")) return "webp"
-  if (lower.includes("avif")) return "avif"
-  return "png"
 }
 
 function mockVisionProvider(): ProviderConfig {

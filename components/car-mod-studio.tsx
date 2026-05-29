@@ -45,7 +45,7 @@ import {
   type AccountPayload,
 } from "@/lib/account-client"
 import { readProgressResponse } from "@/lib/progress-client"
-import { downloadCompareImage, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
+import { canvasSafeImageUrl, downloadCompareImage, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import type {
   AuthUser,
   CatalogResponse,
@@ -1232,6 +1232,7 @@ export function CarModStudio() {
         history={history}
         selectHistoryJob={selectHistoryJob}
         deleteHistoryJob={deleteHistoryJob}
+        formatHistoryTitle={(item) => displayVehicleModelForHistory(item, item.id === job?.id || item.sourceImageUrl === vehiclePreview ? vehicleNote : "")}
         isGenerating={isGenerating}
         generationElapsedSeconds={generationElapsedSeconds}
         generationDurationSeconds={generationDurationSeconds}
@@ -1371,7 +1372,7 @@ export function CarModStudio() {
                         }}
                       />
                       {vehiclePreview ? (
-                        <img src={vehiclePreview} alt="Vehicle preview" />
+                        <img src={canvasSafeImageUrl(vehiclePreview)} alt="Vehicle preview" />
                       ) : (
                         <>
                           <Upload size={25} />
@@ -1880,7 +1881,7 @@ export function CarModStudio() {
                     className={vehiclePreview ? "mobile-upload-preview has-preview" : "mobile-upload-preview"}
                     onClick={() => inputRef.current?.click()}
                   >
-                    {vehiclePreview ? <img src={vehiclePreview} alt="Vehicle preview" /> : <Upload size={22} />}
+                    {vehiclePreview ? <img src={canvasSafeImageUrl(vehiclePreview)} alt="Vehicle preview" /> : <Upload size={22} />}
                   </button>
                   <label className="mobile-vehicle-model" htmlFor="vehicle-model-mobile-input">
                     <span>{t.detected}</span>
@@ -2522,6 +2523,8 @@ function ResultPanel({
 }) {
   const historyGroups = groupHistoryByDate(history)
   const generatedResultUrl = job?.status === "succeeded" ? job.resultImageUrl : ""
+  const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
+  const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGeneratedResult = Boolean(generatedResultUrl)
   const showCompletedElapsed = hasGeneratedResult && completedElapsedSeconds !== null && !isGenerating && viewMode !== "original"
   const progressRetryText = generationProgress?.retryAttempt ? (language === "zh" ? ` · 第 ${generationProgress.retryAttempt} 次重试` : ` · retry ${generationProgress.retryAttempt}`) : ""
@@ -2566,18 +2569,18 @@ function ResultPanel({
             <span>{t.waiting}</span>
           </div>
         )}
-        {viewMode === "original" && vehiclePreview && <img className="main-image" src={vehiclePreview} alt="Original vehicle" />}
+        {viewMode === "original" && vehiclePreview && <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />}
         {viewMode === "generated" &&
-          (hasGeneratedResult ? <img className="main-image fixed-result-image" src={generatedResultUrl} alt="Generated vehicle render" /> : vehiclePreview ? <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} /> : null)}
+          (hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : vehiclePreview ? <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} /> : null)}
         {viewMode === "compare" && vehiclePreview && (
           <div className="compare-grid">
             <div>
               <span>Before</span>
-              <img src={vehiclePreview} alt="Before" />
+              <img src={safeVehiclePreview} alt="Before" />
             </div>
             <div>
               <span>After</span>
-              {hasGeneratedResult ? <img className="main-image fixed-result-image" src={generatedResultUrl} alt="Generated vehicle render" /> : <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} />}
+              {hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} />}
             </div>
           </div>
         )}
@@ -2630,7 +2633,7 @@ function ResultPanel({
                   {group.items.map((item) => (
                     <div className={item.id === job?.id ? "history-thumb selected" : "history-thumb"} key={item.id}>
                       <button onClick={() => onHistorySelect(item)} title="Open render history">
-                        <img src={item.resultImageUrl} alt={item.id} />
+                        <img src={canvasSafeImageUrl(item.resultImageUrl)} alt={item.id} />
                         <span>{displayVehicleModelForHistory(item, item.id === job?.id || item.sourceImageUrl === vehiclePreview ? vehicleNote : "")}</span>
                       </button>
                       <button
@@ -2941,7 +2944,7 @@ function GeneratedPreview({
 
   return (
     <div className="generated-preview">
-      <img className="main-image" src={src} alt="Generated vehicle mock" style={{ transform: `translateY(${offset}px)` }} />
+      <img className="main-image" src={canvasSafeImageUrl(src)} alt="Generated vehicle mock" style={{ transform: `translateY(${offset}px)` }} />
       <span className="paint-layer" style={{ background: paintBackground }} />
       <div className="mod-tags">
         {selectedAssets.slice(0, 5).map((asset) => (

@@ -1,6 +1,7 @@
 import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
 import { readImageAsset } from "./image-assets"
+import { materializeImageUrl } from "./image-materializer"
 import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
 
@@ -35,6 +36,7 @@ export type GenerationProviderResponse = {
 const FIXED_MOCK_RESULT_URL = "/assets/results/fixed-m3-render.png"
 const NANO_BANANA_WS_POLL_INTERVAL_MS = 4000
 const MAX_NANO_BANANA_WS_INPUT_IMAGES = 14
+const MAX_PROVIDER_RESULT_IMAGE_BYTES = 20 * 1024 * 1024
 const PROVIDER_SAFETY_BLOCK_MESSAGE =
   "The image provider safety check blocked this request. Try a cleaner vehicle or reference image, or remove sensitive-looking text, decals, background people, weapons, politics, or other sensitive visual elements before retrying."
 const NANO_BANANA_EN_SAFETY_TERMS =
@@ -132,7 +134,7 @@ async function invokeOpenAiCompatibleImageEdit(
     formData.append("image", new Blob([image.bytes], { type: image.mime }), image.fileName)
   })
 
-  const requestEndpoint = is302ImageEndpoint(endpoint) ? withQueryParams(canonical302Endpoint(endpoint), { response_format: "url" }) : endpoint
+  const requestEndpoint = is302ImageEndpoint(endpoint) ? withQueryParams(canonical302Endpoint(endpoint), responseFormatParamsFor302Images()) : endpoint
   const response = await fetch(requestEndpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, requestEndpoint),
@@ -191,7 +193,7 @@ async function invokeOpenAiCompatibleImageGeneration(
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("没有可发送给生图 Provider 的车辆图片。")
   const imageReferences = images.map(imageDataUrl)
-  const requestEndpoint = is302ImageEndpoint(endpoint) ? withQueryParams(canonical302Endpoint(endpoint), { response_format: "url" }) : endpoint
+  const requestEndpoint = is302ImageEndpoint(endpoint) ? withQueryParams(canonical302Endpoint(endpoint), responseFormatParamsFor302Images()) : endpoint
   const response = await fetch(requestEndpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
@@ -546,6 +548,10 @@ function withQueryParams(endpoint: string, params: Record<string, string>) {
   return url.toString()
 }
 
+function responseFormatParamsFor302Images() {
+  return { response_format: "b64_json" }
+}
+
 async function recover302TransportFailure(
   provider: ProviderConfig,
   apiKey: string,
@@ -769,7 +775,7 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
     resolution: "0.5k",
     enable_sync_mode: true,
-    enable_base64_output: false,
+    enable_base64_output: true,
   }
 }
 
@@ -1390,20 +1396,11 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
     bytes = parsed.bytes
     mime = parsed.mime
   } else if (image.url) {
-    let response: Response
-    try {
-      response = await fetch(image.url, {
-        headers: {
-          Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
-          "User-Agent": "Mozilla/5.0 (compatible; ModLabImageFetcher/1.0)",
-        },
-      })
-    } catch {
-      return image.url
-    }
-    if (!response.ok) throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(image.url)}; HTTP ${response.status}`)
-    mime = response.headers.get("content-type")?.split(";")[0] || mimeFromPath(image.url)
-    bytes = new Uint8Array(await response.arrayBuffer())
+    const persisted = await materializeImageUrl(image.url, "result", providerId)
+    if (persisted) return persisted.url
+    const parsed = await readProviderResultImageUrl(image.url)
+    bytes = parsed.bytes
+    mime = parsed.mime
   } else {
     throw new Error("生图 Provider 返回的图片结果为空。")
   }
@@ -1411,6 +1408,29 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
   const fileName = `${providerId}-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
   await writeResultImage(fileName, bytes)
   return `/results/${fileName}`
+}
+
+async function readProviderResultImageUrl(url: string) {
+  let response: Response
+  try {
+    response = await fetch(url, {
+      redirect: "follow",
+      headers: {
+        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (compatible; ModLabImageFetcher/1.0)",
+      },
+    })
+  } catch (error) {
+    throw new Error(`Provider returned an image URL but the server could not persist it locally. source=${safeSourceUrl(url)}; ${transportErrorSummary(error)}`, { cause: error })
+  }
+  if (!response.ok) throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(url)}; HTTP ${response.status}`)
+  const contentLength = Number(response.headers.get("content-length") || 0)
+  if (contentLength > MAX_PROVIDER_RESULT_IMAGE_BYTES) throw new Error(`Provider result image is too large. source=${safeSourceUrl(url)}; bytes=${contentLength}`)
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (bytes.byteLength > MAX_PROVIDER_RESULT_IMAGE_BYTES) throw new Error(`Provider result image is too large. source=${safeSourceUrl(url)}; bytes=${bytes.byteLength}`)
+  const mime = mimeFromImageBytes(bytes) || response.headers.get("content-type")?.split(";")[0] || mimeFromPath(url)
+  if (!mime.startsWith("image/")) throw new Error(`Provider result image has invalid content type. source=${safeSourceUrl(url)}; contentType=${mime}`)
+  return { bytes, mime }
 }
 
 function providerErrorMessage(raw: Record<string, unknown>) {

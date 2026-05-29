@@ -47,6 +47,7 @@ import {
   sendPhoneChangeCode,
   updateAccountProfile,
 } from "@/lib/account-client"
+import { canvasSafeImageUrl } from "@/lib/client/image-download"
 import type {
   AccountMessage,
   AuthUser,
@@ -197,6 +198,7 @@ type MobileStudioAppProps = {
   generate: () => void
   saveResult: (exportMode?: ViewMode) => void
   clearCurrentConfig: () => void
+  formatHistoryTitle?: (job: GenerationJob) => string
   notice: string
   authUser: AuthUser | null
   billing: EntitlementStatus | null
@@ -645,6 +647,8 @@ function MobileConfigMode(props: MobileStudioAppProps) {
   const isLoginBlocked = mobileAccessKind === "login"
   const isGenerateBlocked = mobileAccessKind === "login" || mobileAccessKind === "config_quota"
   const generatedResultUrl = job?.status === "succeeded" ? job.resultImageUrl : ""
+  const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
+  const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGenerated = Boolean(generatedResultUrl)
   const canUseGeneratedView = hasGenerated
   const canUseCompareView = Boolean(vehiclePreview && hasGenerated)
@@ -765,11 +769,11 @@ function MobileConfigMode(props: MobileStudioAppProps) {
           {vehiclePreview ? (
             isCompareView ? (
               <div className="mobile-compare-grid">
-                <img src={vehiclePreview} alt="Original vehicle" />
-                <img src={generatedResultUrl} alt="Generated vehicle" />
+                <img src={safeVehiclePreview} alt="Original vehicle" />
+                <img src={safeGeneratedResultUrl} alt="Generated vehicle" />
               </div>
             ) : (
-              <img src={effectiveViewMode === "original" || !hasGenerated ? vehiclePreview : generatedResultUrl} alt="Vehicle preview" />
+              <img src={effectiveViewMode === "original" || !hasGenerated ? safeVehiclePreview : safeGeneratedResultUrl} alt="Vehicle preview" />
             )
           ) : (
             <span className="mobile-upload-empty">
@@ -1456,6 +1460,7 @@ function MobileHistorySheet({
   job,
   selectHistoryJob,
   deleteHistoryJob,
+  formatHistoryTitle,
   setSheet,
   onClose,
 }: MobileStudioAppProps & { setSheet?: (sheet: MobileSheet) => void; onClose?: () => void }) {
@@ -1472,9 +1477,9 @@ function MobileHistorySheet({
                 onClose?.()
               }}
             >
-              <img src={item.resultImageUrl || item.sourceImageUrl} alt={item.id} />
+              <img src={canvasSafeImageUrl(item.resultImageUrl || item.sourceImageUrl)} alt={item.id} />
               <span>
-                <strong>{item.displayVehicleModel || item.standardJson?.vehicle?.model || item.id}</strong>
+                <strong>{formatHistoryTitle?.(item) || mobileHistoryTitle(item)}</strong>
                 <small>{new Date(item.createdAt).toLocaleString()}</small>
               </span>
             </button>
@@ -1488,6 +1493,20 @@ function MobileHistorySheet({
       )}
     </section>
   )
+}
+
+function mobileHistoryTitle(item: GenerationJob) {
+  const candidates = [item.displayVehicleModel, item.standardJson?.vehicle?.model, item.id]
+  return candidates.map((value) => cleanMobileHistoryTitle(value)).find(Boolean) || item.id
+}
+
+function cleanMobileHistoryTitle(value: unknown) {
+  const text = String(value || "").trim().replace(/\s+/g, " ")
+  if (!text) return ""
+  const normalized = text.toLowerCase()
+  if (normalized === "user uploaded vehicle, preserve exact identity") return ""
+  if (normalized === "vehicle model pending" || normalized === "unknown" || normalized === "n/a") return ""
+  return text
 }
 
 type MobileProfileSection = "overview" | "profile" | "password" | "phone" | "messages"

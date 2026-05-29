@@ -1912,6 +1912,38 @@ export function findGenerationByResultImageUrl(resultImageUrl: string, userId = 
   return row ? mapGeneration(row) : null
 }
 
+export function updateGenerationStoredImages(input: {
+  generationId: string
+  userId: string
+  sourceImageUrl?: string
+  sourceMime?: string
+  sourceSize?: number
+  resultImageUrl?: string
+}) {
+  const current = database()
+    .prepare(`
+      SELECT generation_jobs.id, generation_jobs.vehicle_upload_id
+      FROM generation_jobs
+      JOIN vehicle_uploads ON vehicle_uploads.id = generation_jobs.vehicle_upload_id
+      WHERE generation_jobs.id = ? AND generation_jobs.user_id = ?
+      LIMIT 1
+    `)
+    .get(input.generationId, input.userId) as Row | undefined
+  if (!current) return null
+
+  if (input.sourceImageUrl) {
+    database()
+      .prepare("UPDATE vehicle_uploads SET url = ?, mime = COALESCE(NULLIF(?, ''), mime), size = COALESCE(?, size) WHERE id = ? AND user_id = ?")
+      .run(input.sourceImageUrl, input.sourceMime || "", input.sourceSize ?? null, String(current.vehicle_upload_id), input.userId)
+  }
+  if (input.resultImageUrl) {
+    database()
+      .prepare("UPDATE generation_jobs SET result_image_url = ? WHERE id = ? AND user_id = ?")
+      .run(input.resultImageUrl, input.generationId, input.userId)
+  }
+  return getGeneration(input.generationId)
+}
+
 export function saveGarage(generationId: string, userId = DEMO_USER_ID) {
   const job = database()
     .prepare("SELECT status, result_image_url FROM generation_jobs WHERE id = ? AND user_id = ? LIMIT 1")
@@ -2858,6 +2890,43 @@ export function createChatExchange(input: {
     session: listChatSessions(userId).find((item) => item.id === session.id) as ChatSession,
     messages: getChatMessages(session.id, userId),
   }
+}
+
+export function updateChatMessageResultImageUrl(messageId: string, userId: string, resultImageUrl: string) {
+  database()
+    .prepare(`
+      UPDATE chat_messages
+      SET result_image_url = ?
+      WHERE id = ?
+        AND session_id IN (SELECT id FROM chat_sessions WHERE user_id = ?)
+    `)
+    .run(resultImageUrl, messageId, userId)
+}
+
+export function updateChatAttachmentImageUrl(input: {
+  attachmentId: string
+  userId: string
+  url: string
+  fileName?: string
+  mime?: string
+  size?: number
+}) {
+  database()
+    .prepare(`
+      UPDATE chat_attachments
+      SET url = ?,
+          file_name = COALESCE(NULLIF(?, ''), file_name),
+          mime = COALESCE(NULLIF(?, ''), mime),
+          size = COALESCE(?, size)
+      WHERE id = ?
+        AND message_id IN (
+          SELECT chat_messages.id
+          FROM chat_messages
+          JOIN chat_sessions ON chat_sessions.id = chat_messages.session_id
+          WHERE chat_sessions.user_id = ?
+        )
+    `)
+    .run(input.url, input.fileName || "", input.mime || "", input.size ?? null, input.attachmentId, input.userId)
 }
 
 type Row = Record<string, unknown>

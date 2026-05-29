@@ -48,7 +48,10 @@ export function downloadImageEndpoint(url: string, fileName: string) {
 }
 
 export function canvasSafeImageUrl(url: string) {
-  if (!url || isDirectBrowserUrl(url) || isSameOriginUrl(url)) return url
+  if (!url || isDirectBrowserUrl(url)) return url
+  const dynamicPath = dynamicImagePath(url)
+  if (dynamicPath) return `/api/proxy-image?url=${encodeURIComponent(dynamicPath)}`
+  if (isSameOriginUrl(url)) return url
   return `/api/proxy-image?url=${encodeURIComponent(url)}`
 }
 
@@ -73,6 +76,20 @@ function isSameOriginUrl(url: string) {
   } catch {
     return false
   }
+}
+
+function dynamicImagePath(url: string) {
+  try {
+    const parsed = new URL(url, window.location.href)
+    if (parsed.origin !== window.location.origin) return ""
+    return isDynamicImagePath(parsed.pathname) ? `${parsed.pathname}${parsed.search}` : ""
+  } catch {
+    return isDynamicImagePath(url.split("?")[0]) ? url : ""
+  }
+}
+
+function isDynamicImagePath(pathname: string) {
+  return pathname.startsWith("/uploads/") || pathname.startsWith("/results/")
 }
 
 function serverReadableImageUrl(url: string) {
