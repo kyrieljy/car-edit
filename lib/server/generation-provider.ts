@@ -691,7 +691,7 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
     resolution: "0.5k",
     enable_sync_mode: true,
-    enable_base64_output: true,
+    enable_base64_output: false,
   }
 }
 
@@ -1260,8 +1260,8 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
     let response: Response
     try {
       response = await fetch(image.url)
-    } catch (error) {
-      throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(image.url)}; ${transportErrorSummary(error)}`, { cause: error })
+    } catch {
+      return image.url
     }
     if (!response.ok) throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(image.url)}; HTTP ${response.status}`)
     mime = response.headers.get("content-type")?.split(";")[0] || mimeFromPath(image.url)
