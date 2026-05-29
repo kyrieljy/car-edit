@@ -1,6 +1,6 @@
 import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
-import { mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
+import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
 
 try {
@@ -1025,13 +1025,6 @@ function supportsInputFidelity(modelName: string) {
   return normalized.includes("gpt-image-1") || normalized.includes("gpt-image-1.5") || normalized.includes("gpt-image-2")
 }
 
-function mimeFromImageBytes(bytes: Uint8Array) {
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png"
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
-  if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") return "image/webp"
-  return ""
-}
-
 function providerTransportErrorMessage(provider: ProviderConfig, error: unknown) {
   const endpoint = effectiveTransportEndpoint(provider)
   const message = error instanceof Error ? error.message : "Image provider transport failed."
@@ -1400,6 +1393,7 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
   } else {
     throw new Error("生图 Provider 返回的图片结果为空。")
   }
+  mime = mimeFromImageBytes(bytes) || mime
   const fileName = `${providerId}-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
   await writeResultImage(fileName, bytes)
   return `/results/${fileName}`

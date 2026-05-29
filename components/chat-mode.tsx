@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Clock,
   ImageIcon,
+  ImageOff,
   Menu,
   Mic,
   PanelLeftClose,
@@ -85,6 +86,7 @@ const chatCopy = {
     context: "Context",
     latest: "Continue",
     originalContext: "Regenerate",
+    imageUnavailable: "History image is unavailable",
     bodyColor: "Body color",
     exposedCarbon: "Exposed carbon",
     preview: "Preview",
@@ -125,6 +127,7 @@ const chatCopy = {
     context: "\u4e0a\u4e0b\u6587",
     latest: "\u7ee7\u7eed\u751f\u6210",
     originalContext: "\u91cd\u65b0\u751f\u6210",
+    imageUnavailable: "\u5386\u53f2\u56fe\u7247\u5df2\u5931\u6548",
     bodyColor: "\u8f66\u8eab\u540c\u8272",
     exposedCarbon: "\u88f8\u78b3",
     preview: "\u9884\u89c8",
@@ -1145,7 +1148,7 @@ function MessageBubble({
               .filter((attachment) => attachment.type !== "result")
               .map((attachment) => (
                 <button key={attachment.id} className="message-attachment-thumb" type="button" onClick={() => onPreview(attachment.url)}>
-                  <img src={attachment.url} alt={attachment.fileName} />
+                  <ChatImageWithFallback src={attachment.url} alt={attachment.fileName} label={t.imageUnavailable} compact />
                 </button>
               ))}
           </div>
@@ -1153,7 +1156,7 @@ function MessageBubble({
         {result && (
           <div className="chat-result-card">
             <button className="chat-result-image-button" type="button" onClick={() => onPreview(result)}>
-              <img src={result} alt="Generated car render" />
+              <ChatImageWithFallback src={result} alt="Generated car render" label={t.imageUnavailable} />
             </button>
             <div>
               <button onClick={onRegenerate}>
@@ -1202,6 +1205,25 @@ function MessageBubble({
       </div>
     </article>
   )
+}
+
+function ChatImageWithFallback({ src, alt, label, compact = false }: { src: string; alt: string; label: string; compact?: boolean }) {
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setFailed(false)
+  }, [src])
+
+  if (failed) {
+    return (
+      <span className={compact ? "chat-image-fallback compact" : "chat-image-fallback"} role="img" aria-label={alt}>
+        <ImageOff size={compact ? 14 : 20} />
+        <span>{label}</span>
+      </span>
+    )
+  }
+
+  return <img src={src} alt={alt} onError={() => setFailed(true)} />
 }
 
 function LoadingBubble({ text }: { text: string }) {

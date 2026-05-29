@@ -93,9 +93,10 @@ async function readFirstImageCandidate(paths: string[], fileName: string): Promi
   for (const candidate of paths) {
     try {
       const bytes = await readFile(candidate)
+      const detectedMime = mimeFromImageBytes(bytes)
       return {
         bytes,
-        mime: mimeFromPath(candidate),
+        mime: detectedMime || mimeFromPath(candidate),
         fileName,
       }
     } catch {
@@ -116,4 +117,19 @@ export function mimeFromPath(value: string) {
   if (lower.endsWith(".webp")) return "image/webp"
   if (lower.endsWith(".svg")) return "image/svg+xml"
   return "image/png"
+}
+
+export function mimeFromImageBytes(bytes: Uint8Array) {
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png"
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") return "image/webp"
+  if (bytes.length >= 12 && ascii(bytes, 4, 4) === "ftyp") {
+    const brand = ascii(bytes, 8, 4)
+    if (brand === "avif" || brand === "avis") return "image/avif"
+  }
+  return ""
+}
+
+function ascii(bytes: Uint8Array, offset: number, length: number) {
+  return String.fromCharCode(...bytes.slice(offset, offset + length))
 }
