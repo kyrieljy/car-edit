@@ -1383,7 +1383,12 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
   } else if (image.url) {
     let response: Response
     try {
-      response = await fetch(image.url)
+      response = await fetch(image.url, {
+        headers: {
+          Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+          "User-Agent": "Mozilla/5.0 (compatible; ModLabImageFetcher/1.0)",
+        },
+      })
     } catch {
       return image.url
     }

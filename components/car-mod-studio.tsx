@@ -45,6 +45,7 @@ import {
   type AccountPayload,
 } from "@/lib/account-client"
 import { readProgressResponse } from "@/lib/progress-client"
+import { downloadCompareImage, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import type {
   AuthUser,
   CatalogResponse,
@@ -1017,7 +1018,7 @@ export function CarModStudio() {
         if (!vehiclePreview || !job.resultImageUrl) throw new Error(t.saveFailed)
         await downloadCompareImage(vehiclePreview, job.resultImageUrl, `ai-mod-compare-${job.id}.png`)
       } else if (exportMode === "generated" && job.resultImageUrl) {
-        downloadImageAsset(job.resultImageUrl, `ai-mod-result-${job.id}${imageExtensionFromUrl(job.resultImageUrl)}`)
+        await downloadImageAsset(job.resultImageUrl, `ai-mod-result-${job.id}${imageExtensionFromUrl(job.resultImageUrl)}`)
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : t.saveFailed)
@@ -2334,85 +2335,6 @@ function DesktopAccountPanel({
   )
 }
 
-function downloadImageAsset(url: string, fileName: string) {
-  if (!url) return
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = fileName
-  anchor.rel = "noopener"
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-}
-
-async function downloadCompareImage(originalUrl: string, generatedUrl: string, fileName: string) {
-  const [original, generated] = await Promise.all([loadImageElement(originalUrl), loadImageElement(generatedUrl)])
-  const sourceWidth = Math.max(original.naturalWidth || original.width, generated.naturalWidth || generated.width, 1)
-  const width = Math.min(1600, sourceWidth)
-  const originalAspect = imageAspectRatio(original)
-  const generatedAspect = imageAspectRatio(generated)
-  const cellHeight = Math.max(Math.round(width / originalAspect), Math.round(width / generatedAspect))
-  const separator = Math.max(2, Math.round(width * 0.002))
-  const canvas = document.createElement("canvas")
-  canvas.width = width
-  canvas.height = cellHeight * 2 + separator
-  const context = canvas.getContext("2d")
-  if (!context) throw new Error("无法创建对比拼图。")
-  context.fillStyle = "#050607"
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  drawContainedImage(context, original, 0, 0, width, cellHeight)
-  context.fillStyle = "#262832"
-  context.fillRect(0, cellHeight, width, separator)
-  drawContainedImage(context, generated, 0, cellHeight + separator, width, cellHeight)
-  const blob = await canvasToBlob(canvas)
-  const objectUrl = URL.createObjectURL(blob)
-  try {
-    downloadImageAsset(objectUrl, fileName)
-  } finally {
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2000)
-  }
-}
-
-function loadImageElement(url: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error("图片加载失败，无法保存。"))
-    image.src = url
-  })
-}
-
-function imageAspectRatio(image: HTMLImageElement) {
-  const width = image.naturalWidth || image.width || 1
-  const height = image.naturalHeight || image.height || 1
-  return Math.max(0.1, width / height)
-}
-
-function drawContainedImage(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
-  const imageWidth = image.naturalWidth || image.width || 1
-  const imageHeight = image.naturalHeight || image.height || 1
-  const scale = Math.min(width / imageWidth, height / imageHeight)
-  const drawWidth = Math.round(imageWidth * scale)
-  const drawHeight = Math.round(imageHeight * scale)
-  const drawX = x + Math.round((width - drawWidth) / 2)
-  const drawY = y + Math.round((height - drawHeight) / 2)
-  context.drawImage(image, drawX, drawY, drawWidth, drawHeight)
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement) {
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error("对比拼图保存失败。"))
-    }, "image/png")
-  })
-}
-
-function imageExtensionFromUrl(url: string) {
-  const extension = url.split("?")[0].match(/\.(png|jpe?g|webp)$/i)?.[0]
-  return extension || ".png"
-}
-
 function scrollToAssetCard(assetId: string, refTarget?: HTMLButtonElement | null) {
   const target =
     refTarget ??
@@ -2591,7 +2513,7 @@ function ResultPanel({
   selectedAssets: PartAsset[]
   generate: () => void
   canGenerate: boolean
-  saveResult: () => void
+  saveResult: (exportMode?: ViewMode) => void
   selectedPaintLabel: string
   vehicleNote: string
   history: GenerationJob[]
@@ -2674,20 +2596,20 @@ function ResultPanel({
           <button onClick={generate} disabled={!canGenerate}>
             <Sparkles size={16} /> {t.rerun}
           </button>
-          <a
+          <button
+            type="button"
             className={!hasGeneratedResult ? "disabled" : ""}
-            href={generatedResultUrl || "#"}
-            download
+            disabled={!hasGeneratedResult}
             onClick={(event) => {
               if (!hasGeneratedResult) {
                 event.preventDefault()
                 return
               }
-              saveResult()
+              saveResult(viewMode === "compare" ? "compare" : "generated")
             }}
           >
             <ArrowDownToLine size={16} /> {t.saveExport}
-          </a>
+          </button>
         </div>
       </section>
 

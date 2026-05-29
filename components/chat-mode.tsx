@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { readProgressResponse } from "@/lib/progress-client"
+import { downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import { IMAGE_UPLOAD_MAX_BYTES, IMAGE_UPLOAD_MAX_MB, MAX_CHAT_PART_IMAGES, isAllowedImageMimeType } from "@/lib/upload-limits"
 import type { AuthUser, ChatMessage, ChatSession, EntitlementStatus, GenerationProgressEvent, PartColorPolicy } from "@/lib/types"
 
@@ -1182,10 +1183,10 @@ function MessageBubble({
                 <Sparkles size={15} />
                 {t.regenerate}
               </button>
-              <a href={result} download>
+              <button type="button" onClick={() => void downloadImageAsset(result, `ai-mod-chat-result-${message.id}${imageExtensionFromUrl(result)}`)}>
                 <ArrowDownToLine size={15} />
                 {t.download}
-              </a>
+              </button>
             </div>
           </div>
         )}
