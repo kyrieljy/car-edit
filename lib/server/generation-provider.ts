@@ -277,12 +277,24 @@ async function invoke302NanoBananaWsEdit(
   const images = await Promise.all(imageUrls.map(readImageSource))
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
-  const requestEndpoint = canonical302Endpoint(endpoint)
-  const response = await fetch(requestEndpoint, {
-    method: "POST",
-    headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
-    body: JSON.stringify(nanoBananaWsEditPayload(prompt, "", images)),
-  })
+  const body = JSON.stringify(nanoBananaWsEditPayload(prompt, "", images))
+  let requestEndpoint = endpoint
+  let response: Response | undefined
+  let lastTransportError: unknown
+  for (const candidateEndpoint of nanoBananaWsEndpointCandidates(endpoint)) {
+    try {
+      requestEndpoint = candidateEndpoint
+      response = await fetch(requestEndpoint, {
+        method: "POST",
+        headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
+        body,
+      })
+      break
+    } catch (error) {
+      lastTransportError = error
+    }
+  }
+  if (!response) throw lastTransportError ?? new Error("Nano-Banana-2 transport failed before HTTP response.")
   const payload = await readProviderPayload(response)
   const raw = payload.raw
   if (!response.ok) {
@@ -444,7 +456,7 @@ function is302GeminiOriginalImageEndpoint(endpoint: string) {
   try {
     const url = new URL(endpoint)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn") && url.pathname.includes("/google/v1/models/gemini-")
+    return is302ApiHost(host) && url.pathname.includes("/google/v1/models/gemini-")
   } catch {
     return false
   }
@@ -454,7 +466,7 @@ function is302NanoBananaWsEditEndpoint(endpoint: string) {
   try {
     const url = new URL(endpoint)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn") && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
+    return is302ApiHost(host) && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
   } catch {
     return false
   }
@@ -464,10 +476,14 @@ function is302ImageEndpoint(endpoint: string) {
   try {
     const url = new URL(endpoint)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn") && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
+    return is302ApiHost(host) && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
   } catch {
     return false
   }
+}
+
+function is302ApiHost(host: string) {
+  return host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com"
 }
 
 function canonical302Endpoint(endpoint: string) {
@@ -478,6 +494,27 @@ function canonical302Endpoint(endpoint: string) {
     url.hostname = "api.302.ai"
   }
   return url.toString()
+}
+
+function nanoBananaWsEndpointCandidates(endpoint: string) {
+  try {
+    const url = new URL(endpoint)
+    const host = url.hostname.toLowerCase()
+    if (!url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")) return [endpoint]
+    if (host !== "api.302ai.cn" && host !== "api.302ai.com" && host !== "api.302.ai") return [endpoint]
+    const orderedHosts =
+      host === "api.302ai.com"
+        ? ["api.302ai.com", "api.302ai.cn"]
+        : ["api.302ai.cn", "api.302ai.com"]
+    return orderedHosts.map((hostname) => {
+      const candidate = new URL(endpoint)
+      candidate.protocol = "https:"
+      candidate.hostname = hostname
+      return candidate.toString()
+    })
+  } catch {
+    return [endpoint]
+  }
 }
 
 function withQueryParams(endpoint: string, params: Record<string, string>) {
@@ -916,7 +953,10 @@ function providerTransportErrorRaw(provider: ProviderConfig, error: unknown) {
 function effectiveTransportEndpoint(provider: ProviderConfig) {
   const endpoint = generationEndpoint(provider.baseUrl).url
   try {
-    if (is302ImageEndpoint(endpoint) || is302GeminiOriginalImageEndpoint(endpoint) || is302NanoBananaWsEditEndpoint(endpoint)) {
+    if (is302NanoBananaWsEditEndpoint(endpoint)) {
+      return nanoBananaWsEndpointCandidates(endpoint).join(" -> ")
+    }
+    if (is302ImageEndpoint(endpoint) || is302GeminiOriginalImageEndpoint(endpoint)) {
       return canonical302Endpoint(endpoint)
     }
   } catch {
@@ -989,7 +1029,7 @@ function httpEndpointHint(status: number, endpoint: string) {
     if (url.hostname.includes("shengsuanyun")) {
       return ` Endpoint: ${endpoint}. Check the configured Base URL; Shengsuanyun image generation should use /api/v1/images/generations.`
     }
-    if ((url.hostname === "api.302.ai" || url.hostname === "api.302ai.cn") && url.pathname.includes("/302/v2/image/fetch/")) {
+    if (is302ApiHost(url.hostname.toLowerCase()) && url.pathname.includes("/302/v2/image/fetch/")) {
       return ` Endpoint: ${endpoint}. 302 async task was not found by the fetch endpoint.`
     }
   } catch {

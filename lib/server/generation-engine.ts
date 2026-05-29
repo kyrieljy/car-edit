@@ -320,7 +320,7 @@ function isNanoBananaWsProvider(provider: ProviderConfig | undefined) {
   try {
     const url = new URL(provider.baseUrl)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn") && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
+    return (host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com") && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
   } catch {
     return provider.baseUrl.includes("/ws/api/v3/google/nano-banana-2/edit")
   }
@@ -344,10 +344,10 @@ function is302OpenAiImageEndpoint(baseUrl: string) {
   try {
     const url = new URL(endpoint)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn") && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
+    return (host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com") && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
   } catch {
     const normalized = endpoint.toLowerCase()
-    return (normalized.includes("api.302.ai") || normalized.includes("api.302ai.cn")) && (normalized.includes("/images/edits") || normalized.includes("/images/generations"))
+    return (normalized.includes("api.302.ai") || normalized.includes("api.302ai.cn") || normalized.includes("api.302ai.com")) && (normalized.includes("/images/edits") || normalized.includes("/images/generations"))
   }
 }
 
