@@ -1,7 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
+
+try {
+  setDefaultResultOrder("ipv4first")
+} catch {
+  // Older Node runtimes may not support this option; fetch will use the runtime default.
+}
 
 export type GenerationProviderRequest = {
   mode: GenerationMode
@@ -278,9 +285,12 @@ async function invoke302NanoBananaWsEdit(
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
   const body = JSON.stringify(nanoBananaWsEditPayload(prompt, "", images))
+  const payloadBytes = Buffer.byteLength(body)
+  const imageSummary = images.map((image, index) => `#${index + 1}:${image.mime}:${formatBytes(image.bytes.byteLength)}`).join(", ")
   let requestEndpoint = endpoint
   let response: Response | undefined
   let lastTransportError: unknown
+  const transportFailures: string[] = []
   for (const candidateEndpoint of nanoBananaWsEndpointCandidates(endpoint)) {
     try {
       requestEndpoint = candidateEndpoint
@@ -292,9 +302,17 @@ async function invoke302NanoBananaWsEdit(
       break
     } catch (error) {
       lastTransportError = error
+      transportFailures.push(`${candidateEndpoint}: ${transportErrorSummary(error)}`)
     }
   }
-  if (!response) throw lastTransportError ?? new Error("Nano-Banana-2 transport failed before HTTP response.")
+  if (!response) {
+    const details = [
+      `payload=${formatBytes(payloadBytes)}`,
+      `images=${images.length} [${imageSummary}]`,
+      transportFailures.length ? `failures=${transportFailures.join(" | ")}` : "",
+    ].filter(Boolean).join("; ")
+    throw new Error(`Nano-Banana-2 request failed before HTTP response. ${details}`, { cause: lastTransportError })
+  }
   const payload = await readProviderPayload(response)
   const raw = payload.raw
   if (!response.ok) {
@@ -969,12 +987,37 @@ function transportCause(error: unknown) {
   const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause : undefined
   if (!cause) return ""
   if (typeof cause === "string") return cause
+  if (cause instanceof AggregateError) return aggregateErrorSummary(cause)
   if (cause instanceof Error) return [cause.name, cause.message].filter(Boolean).join(": ")
   if (typeof cause === "object") {
     const record = cause as Record<string, unknown>
     return [record.code, record.errno, record.message].filter(Boolean).map(String).join(" ")
   }
   return String(cause)
+}
+
+function transportErrorSummary(error: unknown): string {
+  if (error instanceof AggregateError) return aggregateErrorSummary(error)
+  if (error instanceof Error) {
+    const cause = transportCause(error)
+    return [error.message, cause ? `cause=${cause}` : ""].filter(Boolean).join("; ")
+  }
+  return String(error)
+}
+
+function aggregateErrorSummary(error: AggregateError) {
+  const items = Array.from(error.errors ?? []).map((item) => {
+    if (item instanceof Error) {
+      const record = item as Error & { code?: string; errno?: string; address?: string; port?: number }
+      return [record.code, record.errno, record.address, record.port, item.message].filter(Boolean).map(String).join(" ")
+    }
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>
+      return [record.code, record.errno, record.address, record.port, record.message].filter(Boolean).map(String).join(" ")
+    }
+    return String(item)
+  }).filter(Boolean)
+  return [`AggregateError`, ...items].join(" | ")
 }
 
 async function readProviderPayload(response: Response) {
@@ -1040,6 +1083,14 @@ function httpEndpointHint(status: number, endpoint: string) {
 
 function textSnippet(value: string, limit = 500) {
   return value.replace(/\s+/g, " ").trim().slice(0, limit)
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0B"
+  if (value < 1024) return `${Math.round(value)}B`
+  const mb = value / 1024 / 1024
+  if (mb >= 1) return `${mb.toFixed(mb >= 10 ? 1 : 2)}MB`
+  return `${(value / 1024).toFixed(1)}KB`
 }
 
 async function readImageSource(url: string) {
