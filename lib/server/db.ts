@@ -46,6 +46,12 @@ import type {
 
 const DB_PATH = path.join(process.cwd(), "data", "car_mod_effect.sqlite")
 const DEMO_USER_ID = "demo-user"
+const systemCategoryIds = new Set(categoriesSeed.map((item) => item.id))
+const systemBrandIds = new Set(brandsSeed.map((item) => item.id))
+const systemAssetIds = new Set(assetsSeed.map((item) => item.id))
+const systemPromptTemplateIds = new Set(promptTemplateSeed.map((item) => item.id))
+const systemProviderIds = new Set(providerSeed.map((item) => item.id))
+const systemWorkflowIds = new Set(workflowSeed.map((item) => item.id))
 
 let db: DatabaseSync | null = null
 let seeded = false
@@ -575,6 +581,7 @@ function seed(conn: DatabaseSync) {
 
   seedMembershipPlans(conn, now)
   seedAccountMessages(conn, now)
+  if (!shouldSeedLegacyStaticConfig()) return
 
   const categoryStatement = conn.prepare(`
     INSERT INTO asset_categories (id, label, label_en, label_zh, description, sort_order, aliases_json, chat_enabled, reference_high_risk) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -729,6 +736,10 @@ function seed(conn: DatabaseSync) {
   }
 }
 
+function shouldSeedLegacyStaticConfig() {
+  return process.env.CAR_MOD_LEGACY_STATIC_DB_SEED === "1"
+}
+
 function seedWorkflows(conn: DatabaseSync, now: number) {
   const statement = conn.prepare(`
     INSERT INTO workflow_configs
@@ -740,7 +751,10 @@ function seedWorkflows(conn: DatabaseSync, now: number) {
     UPDATE workflow_configs
     SET nodes_json = CASE WHEN nodes_json = '[]' OR nodes_json = '' THEN ? ELSE nodes_json END,
         edges_json = CASE WHEN edges_json = '[]' OR edges_json = '' THEN ? ELSE edges_json END,
-        title = CASE WHEN title LIKE '%Generation Workflow' THEN ? ELSE title END
+        title = CASE
+          WHEN title IN ('Input recognition workflow', 'Configuration generation workflow') OR title LIKE '%Generation Workflow' THEN ?
+          ELSE title
+        END
     WHERE id = ?
   `)
   workflowSeed.forEach((workflow) => {
@@ -2493,8 +2507,9 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
 
 export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string }) {
   const providerId = input.id || `provider_${crypto.randomUUID().slice(0, 8)}`
+  const stored = database().prepare("SELECT id FROM provider_configs WHERE id = ? LIMIT 1").get(providerId) as Row | undefined
   const current = providers().find((provider) => provider.id === providerId)
-  const isNew = !current
+  const isNew = !stored
   const baseProvider: ProviderConfig = current ?? {
     id: providerId,
     label: input.label || "新建模型 API",
@@ -2674,11 +2689,29 @@ export function updateWorkflowConfig(id: string, patch: Partial<Omit<WorkflowCon
   }
   database()
     .prepare(`
-      UPDATE workflow_configs
-      SET title = ?, enabled = ?, vehicle_check_enabled = ?, part_check_enabled = ?, allow_follow_up = ?, prompt_template_ids_json = ?, provider_id = ?, fallback_provider_id = ?, result_check_enabled = ?, auto_retry_enabled = ?, max_retries = ?, nodes_json = ?, edges_json = ?, updated_at = ?
-      WHERE id = ?
+      INSERT INTO workflow_configs
+      (id, mode, title, enabled, vehicle_check_enabled, part_check_enabled, allow_follow_up, prompt_template_ids_json, provider_id, fallback_provider_id, result_check_enabled, auto_retry_enabled, max_retries, nodes_json, edges_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        mode = excluded.mode,
+        title = excluded.title,
+        enabled = excluded.enabled,
+        vehicle_check_enabled = excluded.vehicle_check_enabled,
+        part_check_enabled = excluded.part_check_enabled,
+        allow_follow_up = excluded.allow_follow_up,
+        prompt_template_ids_json = excluded.prompt_template_ids_json,
+        provider_id = excluded.provider_id,
+        fallback_provider_id = excluded.fallback_provider_id,
+        result_check_enabled = excluded.result_check_enabled,
+        auto_retry_enabled = excluded.auto_retry_enabled,
+        max_retries = excluded.max_retries,
+        nodes_json = excluded.nodes_json,
+        edges_json = excluded.edges_json,
+        updated_at = excluded.updated_at
     `)
     .run(
+      next.id,
+      next.mode,
       next.title,
       next.enabled ? 1 : 0,
       next.vehicleCheckEnabled ? 1 : 0,
@@ -2693,7 +2726,6 @@ export function updateWorkflowConfig(id: string, patch: Partial<Omit<WorkflowCon
       JSON.stringify(next.nodes),
       JSON.stringify(next.edges),
       next.updatedAt,
-      id,
     )
   writeAudit("", "admin.workflow.update", { id, mode: next.mode })
   return workflowConfigs().find((workflow) => workflow.id === id) as WorkflowConfig
@@ -2829,10 +2861,23 @@ export function createChatExchange(input: {
 
 type Row = Record<string, unknown>
 
-function categories() {
-  const rows = database().prepare("SELECT * FROM asset_categories ORDER BY sort_order ASC").all() as Row[]
-  return rows.map((row) => ({
-    id: String(row.id),
+function seedCategory(category: PartCategory, row?: Row): PartCategory {
+  return {
+    ...category,
+    label: category.labelEn || category.label,
+    labelEn: category.labelEn || category.label,
+    labelZh: category.labelZh || category.label,
+    sortOrder: Number.isFinite(Number(row?.sort_order)) ? Number(row?.sort_order) : category.sortOrder,
+    aliases: normalizeCategoryAliases(category.aliases ?? defaultAliasesForCategory(category.id)),
+    chatEnabled: category.chatEnabled ?? defaultChatEnabledForCategory(category.id),
+    referenceHighRisk: category.referenceHighRisk ?? defaultReferenceHighRiskForCategory(category.id),
+  }
+}
+
+function mapCategoryRow(row: Row): PartCategory {
+  const id = String(row.id)
+  return {
+    id,
     label: String(row.label_en || row.label),
     labelEn: String(row.label_en || row.label),
     labelZh: String(row.label_zh || row.label),
@@ -2840,61 +2885,212 @@ function categories() {
     sortOrder: Number(row.sort_order),
     aliases: normalizeCategoryAliases(safeJson<string[]>(String(row.aliases_json || "[]"), [])),
     chatEnabled: row.chat_enabled === undefined ? true : Number(row.chat_enabled) !== 0,
-    referenceHighRisk: row.reference_high_risk === undefined ? defaultReferenceHighRiskForCategory(String(row.id)) : Number(row.reference_high_risk) !== 0,
-  }))
+    referenceHighRisk: row.reference_high_risk === undefined ? defaultReferenceHighRiskForCategory(id) : Number(row.reference_high_risk) !== 0,
+  }
 }
 
-function brands(): PartBrand[] {
-  const rows = database().prepare("SELECT * FROM asset_brands ORDER BY category_id ASC, sort_order ASC, label ASC").all() as Row[]
-  return rows.map((row) => ({
+function seedBrand(brand: PartBrand, row?: Row): PartBrand {
+  return {
+    ...brand,
+    sortOrder: Number.isFinite(Number(row?.sort_order)) ? Number(row?.sort_order) : brand.sortOrder,
+    active: row ? Boolean(row.active) : brand.active,
+  }
+}
+
+function mapBrandRow(row: Row): PartBrand {
+  return {
     id: String(row.id),
     categoryId: String(row.category_id),
     label: String(row.label),
     sortOrder: Number(row.sort_order),
     active: Boolean(row.active),
-  }))
+  }
+}
+
+function seedAsset(asset: PartAsset, row?: Row): PartAsset {
+  const defaultColorPolicy = normalizeColorPolicy(asset.defaultColorPolicy) ?? inferAssetDefaultColorPolicy(asset)
+  const allowedColorPolicies = resolveAllowedColorPolicies(asset, defaultColorPolicy)
+  return {
+    ...asset,
+    keywords: normalizeAssetKeywords(asset.keywords || defaultAssetKeywords(asset)),
+    imageCrop: asset.imageCrop ?? "",
+    active: row ? Boolean(row.active) : asset.active,
+    sortOrder: Number.isFinite(Number(row?.sort_order)) ? Number(row?.sort_order) : asset.sortOrder,
+    defaultColorPolicy,
+    allowedColorPolicies,
+    generationReferences: (asset.generationReferences ?? []).map((reference, index) => ({
+      ...reference,
+      id: reference.id || `${asset.id}-seed-ref-${index + 1}`,
+      assetId: asset.id,
+      role: normalizeReferenceRole(reference.role),
+      view: reference.view || "product",
+      priority: Number.isFinite(Number(reference.priority)) ? Number(reference.priority) : index + 1,
+      promptHint: reference.promptHint || "",
+      uploadToModel: reference.uploadToModel !== false && reference.role !== "avoid_upload",
+      active: reference.active !== false,
+      createdAt: reference.createdAt || 0,
+    })),
+    promptTestStatus: row ? normalizePromptTestStatus(row.prompt_test_status) : asset.promptTestStatus ?? "untested",
+    generationReady: row ? Boolean(row.generation_ready) : asset.generationReady ?? false,
+    badCaseNotes: row ? String(row.bad_case_notes ?? "") : asset.badCaseNotes ?? "",
+    recommendedViews: row ? safeJson<string[]>(String(row.recommended_views_json || "[]"), asset.recommendedViews ?? []) : asset.recommendedViews ?? [],
+  }
+}
+
+function mapAssetRow(row: Row, references: Map<string, PartAssetReference[]>): PartAsset {
+  const base = {
+    id: String(row.id),
+    categoryId: String(row.category_id),
+    brand: String(row.brand),
+    model: String(row.model),
+    variant: String(row.variant),
+    keywords: normalizeAssetKeywords(String(row.keywords || "")) || defaultAssetKeywords({
+      id: String(row.id),
+      brand: String(row.brand),
+      model: String(row.model),
+      variant: String(row.variant),
+    }),
+    color: String(row.color),
+    finish: String(row.finish),
+    promptHint: String(row.prompt_hint),
+  }
+  const defaultColorPolicy = normalizeColorPolicy(row.default_color_policy) ?? inferAssetDefaultColorPolicy(base)
+  return {
+    ...base,
+    brandId: String(row.brand_id || ensureBrand(String(row.category_id), String(row.brand))),
+    imageUrl: String(row.image_url),
+    imageCrop: String(row.image_crop ?? ""),
+    active: Boolean(row.active),
+    sortOrder: Number(row.sort_order || 0),
+    defaultColorPolicy,
+    allowedColorPolicies: resolveAllowedColorPolicies(
+      { ...base, allowedColorPolicies: safeJson<PartColorPolicy[]>(String(row.allowed_color_policies_json || "[]"), []) },
+      defaultColorPolicy,
+    ),
+    generationReferences: references.get(String(row.id)) ?? [],
+    promptTestStatus: normalizePromptTestStatus(row.prompt_test_status),
+    generationReady: Boolean(row.generation_ready),
+    badCaseNotes: String(row.bad_case_notes ?? ""),
+    recommendedViews: safeJson<string[]>(String(row.recommended_views_json || "[]"), []),
+  }
+}
+
+function mapProviderRow(row?: Row, fallback?: ProviderConfig): ProviderConfig {
+  if (!row) return fallback as ProviderConfig
+  return {
+    id: row.id as ProviderId,
+    label: String(row.label || fallback?.label || ""),
+    baseUrl: String(row.base_url || fallback?.baseUrl || ""),
+    modelName: String(row.model_name || fallback?.modelName || ""),
+    capabilities: safeJson<ProviderConfig["capabilities"]>(String(row.capabilities_json || ""), fallback?.capabilities ?? ["image_generation"]),
+    enabled: Boolean(row.enabled),
+    active: Boolean(row.active),
+    hasApiKey: Boolean(row.api_key_masked),
+    maskedKey: String(row.api_key_masked ?? ""),
+    updatedAt: Number(row.updated_at || fallback?.updatedAt || 0),
+  }
+}
+
+function mapPromptPresetRow(row: Row): PromptPreset {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    version: String(row.version),
+    body: String(row.body),
+    negativePrompt: String(row.negative_prompt),
+    active: Boolean(row.active),
+    createdAt: Number(row.created_at),
+  }
+}
+
+function mapPromptTemplateRow(row: Row): PromptTemplate {
+  return {
+    id: String(row.id),
+    scope: row.scope as PromptTemplateScope,
+    title: String(row.title),
+    body: String(row.body),
+    assetId: String(row.asset_id || ""),
+    combinationKey: String(row.combination_key || ""),
+    active: Boolean(row.active),
+    sortOrder: Number(row.sort_order || 0),
+    updatedAt: Number(row.updated_at),
+  }
+}
+
+function mergeWorkflowOverride(seed: WorkflowConfig, row?: Row): WorkflowConfig {
+  if (!row) return seed
+  const override = mapWorkflowConfig(row)
+  const overrideNodes = new Map(override.nodes.map((node) => [node.id, node]))
+  const nodes = seed.nodes.map((seedNode) => {
+    const source = overrideNodes.get(seedNode.id)
+    if (!source) return seedNode
+    return {
+      ...seedNode,
+      enabled: source.enabled,
+      providerId: workflowProviderOverride(source.providerId, seedNode.providerId),
+      fallbackProviderId: workflowFallbackProviderOverride(source.fallbackProviderId, seedNode.fallbackProviderId),
+      promptTemplateId: source.promptTemplateId || seedNode.promptTemplateId,
+      failureStrategy: source.failureStrategy || seedNode.failureStrategy,
+      maxRetries: Number.isFinite(Number(source.maxRetries)) ? Math.max(0, Number(source.maxRetries)) : seedNode.maxRetries,
+      config: { ...seedNode.config, ...(source.config ?? {}) },
+    }
+  })
+  return {
+    ...seed,
+    enabled: override.enabled,
+    vehicleCheckEnabled: override.vehicleCheckEnabled,
+    partCheckEnabled: override.partCheckEnabled,
+    allowFollowUp: override.allowFollowUp,
+    promptTemplateIds: Array.from(new Set([...seed.promptTemplateIds, ...override.promptTemplateIds])),
+    providerId: workflowProviderOverride(override.providerId, seed.providerId),
+    fallbackProviderId: workflowFallbackProviderOverride(override.fallbackProviderId, seed.fallbackProviderId),
+    resultCheckEnabled: override.resultCheckEnabled,
+    autoRetryEnabled: override.autoRetryEnabled,
+    maxRetries: Number.isFinite(Number(override.maxRetries)) ? override.maxRetries : seed.maxRetries,
+    nodes,
+    edges: seed.edges,
+    updatedAt: override.updatedAt,
+  }
+}
+
+function workflowProviderOverride(value: ProviderId | "", fallback: ProviderId | ""): ProviderId | "" {
+  if (!value) return fallback
+  if (value !== fallback && (value === "mock" || value === "mock-vision" || value === "mock-llm")) return fallback
+  return value
+}
+
+function workflowFallbackProviderOverride(value: ProviderId | "", fallback: ProviderId | ""): ProviderId | "" {
+  if (!value) return fallback
+  if (value === "mock" && !fallback) return fallback
+  return value
+}
+
+function categories() {
+  const rows = database().prepare("SELECT * FROM asset_categories ORDER BY sort_order ASC").all() as Row[]
+  const rowById = new Map(rows.map((row) => [String(row.id), row]))
+  return [
+    ...categoriesSeed.map((category) => seedCategory(category, rowById.get(category.id))),
+    ...rows.filter((row) => !systemCategoryIds.has(String(row.id))).map(mapCategoryRow),
+  ].toSorted((a, b) => a.sortOrder - b.sortOrder)
+}
+
+function brands(): PartBrand[] {
+  const rows = database().prepare("SELECT * FROM asset_brands ORDER BY category_id ASC, sort_order ASC, label ASC").all() as Row[]
+  const rowById = new Map(rows.map((row) => [String(row.id), row]))
+  return [
+    ...brandsSeed.map((brand) => seedBrand(brand, rowById.get(brand.id))),
+    ...rows.filter((row) => !systemBrandIds.has(String(row.id))).map(mapBrandRow),
+  ].toSorted((a, b) => a.categoryId.localeCompare(b.categoryId) || a.sortOrder - b.sortOrder || a.label.localeCompare(b.label))
 }
 
 function assets(): PartAsset[] {
   const rows = database().prepare("SELECT * FROM part_assets ORDER BY category_id ASC, brand_id ASC, sort_order ASC, created_at ASC").all() as Row[]
+  const rowById = new Map(rows.map((row) => [String(row.id), row]))
   const references = assetReferencesByAssetId()
-  return rows.map((row) => {
-    const base = {
-      id: String(row.id),
-      categoryId: String(row.category_id),
-      brand: String(row.brand),
-      model: String(row.model),
-      variant: String(row.variant),
-      keywords: normalizeAssetKeywords(String(row.keywords || "")) || defaultAssetKeywords({
-        id: String(row.id),
-        brand: String(row.brand),
-        model: String(row.model),
-        variant: String(row.variant),
-      }),
-      color: String(row.color),
-      finish: String(row.finish),
-      promptHint: String(row.prompt_hint),
-    }
-    const defaultColorPolicy = normalizeColorPolicy(row.default_color_policy) ?? inferAssetDefaultColorPolicy(base)
-    return {
-      ...base,
-      brandId: String(row.brand_id || ensureBrand(String(row.category_id), String(row.brand))),
-      imageUrl: String(row.image_url),
-      imageCrop: String(row.image_crop ?? ""),
-      active: Boolean(row.active),
-      sortOrder: Number(row.sort_order || 0),
-      defaultColorPolicy,
-      allowedColorPolicies: resolveAllowedColorPolicies(
-        { ...base, allowedColorPolicies: safeJson<PartColorPolicy[]>(String(row.allowed_color_policies_json || "[]"), []) },
-        defaultColorPolicy,
-      ),
-      generationReferences: references.get(String(row.id)) ?? [],
-      promptTestStatus: normalizePromptTestStatus(row.prompt_test_status),
-      generationReady: Boolean(row.generation_ready),
-      badCaseNotes: String(row.bad_case_notes ?? ""),
-      recommendedViews: safeJson<string[]>(String(row.recommended_views_json || "[]"), []),
-    }
-  })
+  return [
+    ...assetsSeed.map((asset) => seedAsset(asset, rowById.get(asset.id))),
+    ...rows.filter((row) => !systemAssetIds.has(String(row.id))).map((row) => mapAssetRow(row, references)),
+  ].toSorted((a, b) => a.categoryId.localeCompare(b.categoryId) || a.brandId.localeCompare(b.brandId) || a.sortOrder - b.sortOrder)
 }
 
 function assetReferencesByAssetId(): Map<string, PartAssetReference[]> {
@@ -2923,69 +3119,41 @@ function assetReferencesByAssetId(): Map<string, PartAssetReference[]> {
 
 function providers(): ProviderConfig[] {
   const rows = database().prepare("SELECT * FROM provider_configs ORDER BY id ASC").all() as Row[]
-  return rows.map((row) => ({
-    id: row.id as ProviderId,
-    label: String(row.label),
-    baseUrl: String(row.base_url ?? ""),
-    modelName: String(row.model_name),
-    capabilities: safeJson<ProviderConfig["capabilities"]>(String(row.capabilities_json || "[]"), ["image_generation"]),
-    enabled: Boolean(row.enabled),
-    active: Boolean(row.active),
-    hasApiKey: Boolean(row.api_key_masked),
-    maskedKey: String(row.api_key_masked ?? ""),
-    updatedAt: Number(row.updated_at),
-  }))
+  const rowById = new Map(rows.map((row) => [String(row.id), row]))
+  const hasDbActiveProvider = rows.some((row) => Boolean(row.active))
+  return [
+    ...providerSeed.map((provider) => mapProviderRow(rowById.get(provider.id), hasDbActiveProvider && !rowById.has(provider.id) ? { ...provider, active: false } : provider)),
+    ...rows.filter((row) => !systemProviderIds.has(String(row.id))).map((row) => mapProviderRow(row)),
+  ].toSorted((a, b) => a.id.localeCompare(b.id))
 }
 
 function prompts(): PromptPreset[] {
   const rows = database().prepare("SELECT * FROM prompt_presets ORDER BY created_at DESC").all() as Row[]
-  return rows.map((row) => ({
-    id: String(row.id),
-    title: String(row.title),
-    version: String(row.version),
-    body: String(row.body),
-    negativePrompt: String(row.negative_prompt),
-    active: Boolean(row.active),
-    createdAt: Number(row.created_at),
-  }))
+  const customPrompts = rows.filter((row) => String(row.id) !== promptSeed.id).map(mapPromptPresetRow)
+  return [
+    { ...promptSeed, active: !customPrompts.some((prompt) => prompt.active) },
+    ...customPrompts,
+  ].toSorted((a, b) => Number(b.active) - Number(a.active) || b.createdAt - a.createdAt)
 }
 
 function activePrompt() {
-  const row = database()
-    .prepare("SELECT * FROM prompt_presets WHERE active = 1 ORDER BY created_at DESC LIMIT 1")
-    .get() as Row | undefined
-  if (row) {
-    return {
-      id: String(row.id),
-      title: String(row.title),
-      version: String(row.version),
-      body: String(row.body),
-      negativePrompt: String(row.negative_prompt),
-      active: Boolean(row.active),
-      createdAt: Number(row.created_at),
-    }
-  }
-  return prompts()[0]
+  return prompts().find((prompt) => prompt.active) ?? promptSeed
 }
 
 function promptTemplates(): PromptTemplate[] {
   const rows = database().prepare("SELECT * FROM prompt_templates ORDER BY scope ASC, sort_order ASC, updated_at DESC").all() as Row[]
-  return rows.map((row) => ({
-    id: String(row.id),
-    scope: row.scope as PromptTemplateScope,
-    title: String(row.title),
-    body: String(row.body),
-    assetId: String(row.asset_id || ""),
-    combinationKey: String(row.combination_key || ""),
-    active: Boolean(row.active),
-    sortOrder: Number(row.sort_order || 0),
-    updatedAt: Number(row.updated_at),
-  }))
+  return [
+    ...promptTemplateSeed.map((template) => ({ ...template, updatedAt: 0 })),
+    ...rows.filter((row) => !systemPromptTemplateIds.has(String(row.id))).map(mapPromptTemplateRow),
+  ].toSorted((a, b) => a.scope.localeCompare(b.scope) || a.sortOrder - b.sortOrder || b.updatedAt - a.updatedAt)
 }
 
 function workflowConfigs(): WorkflowConfig[] {
   const rows = database().prepare("SELECT * FROM workflow_configs ORDER BY mode ASC, updated_at DESC").all() as Row[]
-  return normalizeWorkflowConfigs(rows.map(mapWorkflowConfig))
+  const rowById = new Map(rows.map((row) => [String(row.id), row]))
+  const systemWorkflows = workflowSeed.map((workflow) => mergeWorkflowOverride(workflow, rowById.get(workflow.id)))
+  const customWorkflows = rows.filter((row) => !systemWorkflowIds.has(String(row.id))).map(mapWorkflowConfig)
+  return normalizeWorkflowConfigs([...systemWorkflows, ...customWorkflows])
 }
 
 function normalizeWorkflowConfigs(workflows: WorkflowConfig[]) {

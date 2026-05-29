@@ -763,13 +763,15 @@ export const promptTemplateSeed: Array<Omit<PromptTemplate, "updatedAt">> = [
 
 export const providerSeed: ProviderConfig[] = [
   { id: "mock", label: "Mock Render", baseUrl: "local://mock-render", modelName: "mock-render-v1", capabilities: ["image_generation"], enabled: true, active: true, hasApiKey: false, maskedKey: "", updatedAt: 0 },
-  { id: "openai", label: "GPT Image", baseUrl: "https://api.openai.com/v1", modelName: "gpt-image-2.0", capabilities: ["image_generation"], enabled: false, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
-  { id: "nano", label: "Nano Banana", baseUrl: "https://api.example.com/nano", modelName: "nano-banana/edit", capabilities: ["image_generation"], enabled: false, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
+  { id: "openai", label: "GPT Image 2", baseUrl: "https://router.shengsuanyun.com/api/v1/images/generations", modelName: "openai/gpt-image-2", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
+  { id: "nano", label: "Nano Banana 2", baseUrl: "https://router.shengsuanyun.com/api/v1/images/edits", modelName: "google/gemini-3.1-flash-image-preview", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
   { id: "provider_302_nano_banana2_async_edit", label: "302-Nano Banana 2 Sync Edit", baseUrl: "https://api.302ai.cn/ws/api/v3/google/nano-banana-2/edit", modelName: "gemini-3.1-flash-image-preview", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
+  { id: "provider_80fce082", label: "302-GPT Image 2", baseUrl: "https://api.302.ai/v1/images/edits", modelName: "gpt-image-2", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
   { id: "mock-vision", label: "Mock Vision", baseUrl: "local://mock-vision", modelName: "mock-vision-v1", capabilities: ["vision"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
   { id: "openai-vision", label: "OpenAI Vision", baseUrl: "https://api.openai.com/v1", modelName: "gpt-4.1-mini", capabilities: ["vision"], enabled: false, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
   { id: "mock-llm", label: "Mock LLM", baseUrl: "local://mock-llm", modelName: "mock-intent-parser-v1", capabilities: ["llm"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
   { id: "openai-llm", label: "GPT-5.4-mini", baseUrl: "https://router.shengsuanyun.com/api/v1/chat/completions", modelName: "openai/gpt-5.4-mini", capabilities: ["vision", "llm"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
+  { id: "provider_d77cadd5", label: "QWEN-3.6", baseUrl: "https://router.shengsuanyun.com/api/v1/chat/completions", modelName: "ali/qwen3.6-plus", capabilities: ["vision", "llm"], enabled: true, active: false, hasApiKey: false, maskedKey: "", updatedAt: 0 },
 ]
 
 export const guardrailSeed: GuardrailConfig = {
@@ -826,13 +828,13 @@ const recognitionNodes = [
   workflowNode("vehicle_detection", "vehicle_detection", "Vehicle detection", 500, 130, {
     description: "Identify the source vehicle and camera view.",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_vehicle_recognition_default",
   }),
   workflowNode("part_detection", "part_detection", "Part reference detection", 500, 260, {
     description: "Identify uploaded part reference category and usable views.",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_part_recognition_default",
     required: false,
   }),
@@ -857,7 +859,7 @@ const configGenerationNodes = [
   workflowNode("result_check", "result_check", "Result check", 980, 180, {
     description: "Check that selected parts appeared and unselected parts stayed unchanged.",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_result_check_default",
   }),
   workflowNode("retry", "retry", "Repair retry", 1220, 180, {
@@ -883,13 +885,13 @@ const chatGenerationNodes = [
   workflowNode("vehicle_detection", "vehicle_detection", "车辆识别", 720, 110, {
     description: "调用视觉 provider 识别原车和相机视角。若画布已有识别结果可复用；Chat Mode 不把识别车型当成最终身份。",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_vehicle_recognition_default",
   }),
   workflowNode("part_detection", "part_detection", "配件识别", 720, 250, {
     description: "调用视觉 provider 识别上传配件参考图的类别和视觉特征；识别结果仍会回到本地规则校验。",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_part_recognition_default",
     required: false,
   }),
@@ -917,14 +919,14 @@ const chatGenerationNodes = [
     description: "调用图像生成 provider 执行车辆改装效果生成。fallback provider 会按自身参考图预算重新选择上传图片。",
     providerCapability: "image_generation",
     providerId: "provider_302_nano_banana2_async_edit",
-    fallbackProviderId: "mock",
+    fallbackProviderId: "",
     failureStrategy: "fallback",
     config: { callFailurePolicy: "retry_then_fallback" },
   }),
   workflowNode("result_check", "result_check", "结果检查", 2400, 180, {
     description: "mock/local 只做本地轻量检查：是否有结果图、是否有可见修改需求。切换真实 vision provider 后，才会对比原图和结果图检查颜色、配件、车高和保护项。",
     providerCapability: "vision",
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     promptTemplateId: "tpl_result_check_default",
     config: { qualityFailurePolicy: "save_bad_case" },
   }),
@@ -943,13 +945,13 @@ export const workflowSeed: WorkflowConfig[] = [
   {
     id: "workflow_input_detection",
     mode: "recognition",
-    title: "Input recognition workflow",
+    title: "图片识别 / 输入检测 Workflow",
     enabled: true,
     vehicleCheckEnabled: true,
     partCheckEnabled: true,
     allowFollowUp: false,
     promptTemplateIds: ["tpl_vehicle_recognition_default", "tpl_part_recognition_default"],
-    providerId: "mock-vision",
+    providerId: "openai-llm",
     fallbackProviderId: "",
     resultCheckEnabled: false,
     autoRetryEnabled: false,
@@ -961,7 +963,7 @@ export const workflowSeed: WorkflowConfig[] = [
   {
     id: "workflow_config_default",
     mode: "config",
-    title: "Configuration generation workflow",
+    title: "配置模式生图 Workflow",
     enabled: true,
     vehicleCheckEnabled: true,
     partCheckEnabled: false,
@@ -986,7 +988,7 @@ export const workflowSeed: WorkflowConfig[] = [
     allowFollowUp: true,
     promptTemplateIds: ["tpl_vehicle_recognition_default", "tpl_part_recognition_default", "tpl_base_photo_edit", "tpl_chat_mode_default", "tpl_negative_default", "tpl_result_check_default", "tpl_retry_default"],
     providerId: "provider_302_nano_banana2_async_edit",
-    fallbackProviderId: "mock",
+    fallbackProviderId: "",
     resultCheckEnabled: true,
     autoRetryEnabled: false,
     maxRetries: 0,
