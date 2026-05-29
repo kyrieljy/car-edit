@@ -207,9 +207,9 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
   const saveWorkflow = async () => {
     if (!selectedWorkflow) return
     setIsSaving(true)
-    const imageNode = nodes.find((node) => node.type === "image_generation")
     const resultCheckNode = nodes.find((node) => node.type === "result_check")
     const retryNode = nodes.find((node) => node.type === "retry")
+    const primaryProvider = primaryWorkflowProvider(selectedWorkflow, nodes)
     const promptTemplateIds = workflowPromptIds
     const response = await fetch("/api/admin/workflows", {
       method: "PUT",
@@ -223,8 +223,8 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
         partCheckEnabled: nodes.some((node) => node.type === "part_detection" && node.enabled),
         allowFollowUp: nodes.some((node) => node.type === "follow_up_gate" && node.enabled),
         promptTemplateIds,
-        providerId: imageNode?.providerId || selectedWorkflow.providerId,
-        fallbackProviderId: imageNode?.fallbackProviderId || "",
+        providerId: primaryProvider.providerId || selectedWorkflow.providerId,
+        fallbackProviderId: primaryProvider.fallbackProviderId,
         resultCheckEnabled: Boolean(resultCheckNode?.enabled),
         autoRetryEnabled: Boolean(retryNode?.enabled && qualityFailurePolicy(retryNode) === "repair_once"),
         maxRetries: retryNode?.maxRetries ?? selectedWorkflow.maxRetries,
@@ -620,6 +620,18 @@ function normalizeWorkflowNode(node: WorkflowNodeConfig): WorkflowNodeConfig {
       ...node.config,
       qualityFailurePolicy: qualityFailurePolicy(node),
     },
+  }
+}
+
+function primaryWorkflowProvider(workflow: WorkflowConfig, nodes: WorkflowNodeConfig[]) {
+  const primaryNode =
+    workflow.mode === "recognition"
+      ? nodes.find((node) => node.type === "vehicle_detection" && node.enabled) ??
+        nodes.find((node) => node.type === "part_detection" && node.enabled)
+      : nodes.find((node) => node.type === "image_generation")
+  return {
+    providerId: primaryNode?.providerId || workflow.providerId,
+    fallbackProviderId: workflow.mode === "recognition" ? "" : primaryNode?.fallbackProviderId || "",
   }
 }
 

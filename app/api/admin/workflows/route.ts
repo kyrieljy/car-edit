@@ -22,17 +22,21 @@ export async function PUT(request: Request) {
     requireAdminUser()
     const body = await request.json()
     const providers = getCatalog().providers
+    const workflowId = String(body.id || "")
+    const currentWorkflow = listWorkflowConfigs().find((workflow) => workflow.id === workflowId)
+    const mode = typeof body.mode === "string" ? (body.mode as WorkflowMode) : currentWorkflow?.mode
     const providerId = typeof body.providerId === "string" ? (body.providerId as ProviderId) : undefined
     const fallbackProviderId = typeof body.fallbackProviderId === "string" ? (body.fallbackProviderId as ProviderId | "") : undefined
     const nodes = Array.isArray(body.nodes) ? normalizeNodes(body.nodes) : undefined
     const edges = Array.isArray(body.edges) ? normalizeEdges(body.edges) : undefined
+    const topLevelCapability = topLevelProviderCapability(mode)
 
     if (providerId) {
-      const error = validateProvider(providerId, "image_generation", providers)
+      const error = validateProvider(providerId, topLevelCapability, providers)
       if (error) return NextResponse.json({ error }, { status: 400 })
     }
     if (fallbackProviderId) {
-      const error = validateProvider(fallbackProviderId, "image_generation", providers)
+      const error = validateProvider(fallbackProviderId, topLevelCapability, providers)
       if (error) return NextResponse.json({ error }, { status: 400 })
     }
 
@@ -53,8 +57,8 @@ export async function PUT(request: Request) {
       }
     }
 
-    const workflow = updateWorkflowConfig(String(body.id || ""), {
-      mode: typeof body.mode === "string" ? (body.mode as WorkflowMode) : undefined,
+    const workflow = updateWorkflowConfig(workflowId, {
+      mode,
       title: typeof body.title === "string" ? body.title : undefined,
       enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
       vehicleCheckEnabled: typeof body.vehicleCheckEnabled === "boolean" ? body.vehicleCheckEnabled : undefined,
@@ -83,6 +87,10 @@ function validateProvider(providerId: ProviderId, capability: ProviderCapability
   if (!provider.enabled) return "Provider 未启用，不能在 Workflow 中选择。"
   if (!provider.capabilities.includes(capability)) return `Provider 能力不匹配，需要 ${capabilityLabel(capability)}。`
   return ""
+}
+
+function topLevelProviderCapability(mode?: WorkflowMode): ProviderCapability {
+  return mode === "recognition" ? "vision" : "image_generation"
 }
 
 function normalizeNodes(nodes: unknown[]): WorkflowNodeConfig[] {

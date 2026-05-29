@@ -3709,6 +3709,20 @@ function CheckLine({ label, checked, onChange }: { label: string; checked: boole
   )
 }
 
+function workflowProviderCapability(workflow: WorkflowConfig): ProviderCapability {
+  return workflow.mode === "recognition" ? "vision" : "image_generation"
+}
+
+function workflowProviderCapabilityText(workflow: WorkflowConfig) {
+  const capability = workflowProviderCapability(workflow)
+  return providerCapabilityGroups.find((group) => group.id === capability)?.label ?? capability
+}
+
+function workflowProviderOptions(workflow: WorkflowConfig, providers: AdminSummary["providers"]) {
+  const capability = workflowProviderCapability(workflow)
+  return providers.filter((provider) => provider.capabilities.includes(capability))
+}
+
 function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
   const [forms, setForms] = useState<Record<string, WorkflowFormValue>>(() => buildWorkflowForms(summary))
   const enabledProviders = useMemo(() => summary.providers.filter((provider) => provider.enabled), [summary.providers])
@@ -3733,11 +3747,21 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
       notify("error", "请先在模型 API 页面启用备用模型，再保存 Workflow。")
       return
     }
+    const providerOptions = workflowProviderOptions(workflow, enabledProviders)
+    if (!providerOptions.some((provider) => provider.id === form.providerId)) {
+      notify("error", `请先在模型 API 页面启用可用于${workflowProviderCapabilityText(workflow)}的主模型，再保存 Workflow。`)
+      return
+    }
+    if (form.fallbackProviderId && !providerOptions.some((provider) => provider.id === form.fallbackProviderId)) {
+      notify("error", `请先在模型 API 页面启用可用于${workflowProviderCapabilityText(workflow)}的备用模型，再保存 Workflow。`)
+      return
+    }
     const response = await fetch("/api/admin/workflows", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id,
+        mode: workflow.mode,
         title: form.title,
         enabled: form.enabled,
         vehicleCheckEnabled: form.vehicleCheckEnabled,
@@ -3765,6 +3789,7 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
       {summary.workflows.map((workflow) => {
         const form = forms[workflow.id]
         if (!form) return null
+        const providerOptions = workflowProviderOptions(workflow, enabledProviders)
         return (
           <article className="provider-card" key={workflow.id}>
             <PanelHeading label={workflow.mode === "config" ? "配置模式" : "对话模式"} title={form.title} />
@@ -3776,12 +3801,12 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
             <label>
               主模型
               <select value={form.providerId} onChange={(event) => updateForm(workflow.id, { providerId: event.target.value as ProviderId })}>
-                {!enabledProviders.some((provider) => provider.id === form.providerId) && (
+                {!providerOptions.some((provider) => provider.id === form.providerId) && (
                   <option value={form.providerId} disabled>
                     当前未启用：{summary.providers.find((provider) => provider.id === form.providerId)?.label ?? form.providerId}
                   </option>
                 )}
-                {enabledProviders.map((provider) => (
+                {providerOptions.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.label}
                   </option>
@@ -3792,12 +3817,12 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
               备用模型
               <select value={form.fallbackProviderId} onChange={(event) => updateForm(workflow.id, { fallbackProviderId: event.target.value as ProviderId | "" })}>
                 <option value="">不启用</option>
-                {form.fallbackProviderId && !enabledProviders.some((provider) => provider.id === form.fallbackProviderId) && (
+                {form.fallbackProviderId && !providerOptions.some((provider) => provider.id === form.fallbackProviderId) && (
                   <option value={form.fallbackProviderId} disabled>
                     当前未启用：{summary.providers.find((provider) => provider.id === form.fallbackProviderId)?.label ?? form.fallbackProviderId}
                   </option>
                 )}
-                {enabledProviders.map((provider) => (
+                {providerOptions.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.label}
                   </option>
