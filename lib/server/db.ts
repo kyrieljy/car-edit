@@ -3056,7 +3056,6 @@ function mergeWorkflowOverride(seed: WorkflowConfig, row?: Row): WorkflowConfig 
 
 function workflowProviderOverride(value: ProviderId | "", fallback: ProviderId | ""): ProviderId | "" {
   if (!value) return fallback
-  if (value !== fallback && (value === "mock" || value === "mock-vision" || value === "mock-llm")) return fallback
   return value
 }
 

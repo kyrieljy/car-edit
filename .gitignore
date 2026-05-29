@@ -41,5 +41,7 @@ __pycache__/
 # local runtime data
 data/*.sqlite
 data/*.sqlite-*
+data/uploads/
+data/results/
 public/uploads/
 public/results/
