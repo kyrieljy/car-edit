@@ -1,7 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
 import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
+import { mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
 
 try {
@@ -1203,15 +1202,12 @@ async function readImageSource(url: string) {
       fileName: `input-${Date.now()}.${extensionFromMime(match[1])}`,
     }
   }
-  const cleanUrl = decodeURIComponent(url.split("?")[0].replace(/^\/+/, ""))
-  const absolutePath = path.resolve(process.cwd(), "public", cleanUrl)
-  const publicRoot = path.resolve(process.cwd(), "public")
-  if (!absolutePath.startsWith(publicRoot)) throw new Error(`图片路径不在 public 目录内：${url}`)
-  const bytes = await readFile(absolutePath)
+  const image = await readLocalImageByAppUrl(url)
+  if (!image) throw new Error(`图片路径不存在或不可读取：${url}`)
   return {
-    bytes: new Uint8Array(bytes),
-    mime: mimeFromPath(absolutePath),
-    fileName: path.basename(absolutePath),
+    bytes: new Uint8Array(image.bytes),
+    mime: image.mime,
+    fileName: image.fileName,
   }
 }
 
@@ -1404,10 +1400,8 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
   } else {
     throw new Error("生图 Provider 返回的图片结果为空。")
   }
-  const resultDir = path.join(process.cwd(), "public", "results")
-  await mkdir(resultDir, { recursive: true })
   const fileName = `${providerId}-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
-  await writeFile(path.join(resultDir, fileName), bytes)
+  await writeResultImage(fileName, bytes)
   return `/results/${fileName}`
 }
 
@@ -1456,14 +1450,6 @@ function estimateCostCents(providerId: ProviderId, usageUnits: number) {
   return providerId === "mock" ? 0 : Math.max(90, usageUnits * 25)
 }
 
-function mimeFromPath(value: string) {
-  const ext = path.extname(value.split("?")[0]).toLowerCase()
-  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
-  if (ext === ".webp") return "image/webp"
-  if (ext === ".svg") return "image/svg+xml"
-  return "image/png"
-}
-
 function extensionFromMime(mime: string) {
   if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg"
   if (mime.includes("webp")) return "webp"
@@ -1472,6 +1458,7 @@ function extensionFromMime(mime: string) {
 }
 
 function fileNameFromPath(value: string, mime: string) {
-  const name = path.basename(value.split("?")[0])
+  const clean = value.split("?")[0].replace(/\/+$/, "")
+  const name = clean.split(/[\\/]/).pop() || ""
   return name && name.includes(".") ? name : `input-${Date.now()}.${extensionFromMime(mime)}`
 }

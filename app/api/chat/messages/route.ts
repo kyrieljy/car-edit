@@ -1,5 +1,3 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
 import { applyFallbackIntentToChatParseInput, hasChatStanceRequestText, parseChatIntent, type ChatPartReferenceInput, type ChatVehicleRecognitionInput } from "@/lib/generation-core"
@@ -21,6 +19,7 @@ import { previewGenerationWorkflow, runGenerationWorkflow } from "@/lib/server/g
 import { isProviderSafetyBlockMessage, providerSafetyBlockMessage } from "@/lib/server/generation-provider"
 import { runMockGuardrail } from "@/lib/server/guardrail"
 import { parseChatFallbackIntentWithLlmProvider } from "@/lib/server/llm-provider"
+import { readLocalImageByAppUrl, toArrayBuffer, writeChatUploadImage } from "@/lib/server/local-images"
 import { ndjsonProgressResponse, noopProgress, type ProgressEmitter, type ProgressLanguage } from "@/lib/server/progress-stream"
 import { recognizePartWithProvider, recognizeVehicleWithProvider } from "@/lib/server/vision-provider"
 import type { ChatAttachment, ChatFallbackIntent, ChatIntentParseResult, ChatMessage, GenerationStandardJson, GuardrailResult, PartCategory, PartColorPolicy, ProviderConfig } from "@/lib/types"
@@ -1054,15 +1053,9 @@ function isPartReferenceFollowUp(content: string) {
 }
 
 async function fileFromPublicUrl(url: string, fileName: string, mime = "") {
-  if (!url.startsWith("/")) return null
-  const cleanPath = decodeURIComponent(url.split("?")[0].replace(/^\/+/, ""))
-  const filePath = path.join(process.cwd(), "public", cleanPath)
-  try {
-    const bytes = await readFile(filePath)
-    return new File([bytes], fileName || path.basename(cleanPath), { type: mime || mimeFromPath(cleanPath) })
-  } catch {
-    return null
-  }
+  const image = await readLocalImageByAppUrl(url)
+  if (!image) return null
+  return new File([toArrayBuffer(image.bytes)], fileName || image.fileName, { type: mime || image.mime })
 }
 
 function dryRunContent(preview: ReturnType<typeof previewGenerationWorkflow>, language: ResponseLanguage) {
@@ -1308,9 +1301,7 @@ async function saveChatUpload(file: File, prefix: "vehicle" | "part") {
   }
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg"
   const fileName = `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "chat")
-  await mkdir(uploadDir, { recursive: true })
-  await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()))
+  await writeChatUploadImage(fileName, Buffer.from(await file.arrayBuffer()))
   return {
     url: `/uploads/chat/${fileName}`,
     fileName: file.name || fileName,

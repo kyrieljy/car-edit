@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises"
-import path from "node:path"
 import type { GenerationStandardJson, ProviderConfig, ProviderId, ResultCheckResult } from "../types"
 import { categoryIdFromAliasText, categoryRecognitionList, normalizePartCategoryAlias, type PartCategoryAliasSource } from "../part-category-aliases"
+import { readLocalImageByAppUrl } from "./local-images"
 
 type VehicleRecognitionRequest = {
   provider: ProviderConfig
@@ -481,12 +480,9 @@ async function imageUrlToDataUrl(url: string) {
     const mime = response.headers.get("content-type")?.split(";")[0] || mimeFromPathForVision(url)
     return `data:${mime};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`
   }
-  const cleanUrl = decodeURIComponent(url.split("?")[0].replace(/^\/+/, ""))
-  const absolutePath = path.resolve(process.cwd(), "public", cleanUrl)
-  const publicRoot = path.resolve(process.cwd(), "public")
-  if (!absolutePath.startsWith(publicRoot)) throw new Error(`Result check image is outside public directory: ${url}`)
-  const bytes = await readFile(absolutePath)
-  return `data:${mimeFromPathForVision(absolutePath)};base64,${Buffer.from(bytes).toString("base64")}`
+  const image = await readLocalImageByAppUrl(url)
+  if (!image) throw new Error(`Result check image is missing or unreadable: ${url}`)
+  return `data:${image.mime};base64,${image.bytes.toString("base64")}`
 }
 
 function mimeFromPathForVision(value: string) {
