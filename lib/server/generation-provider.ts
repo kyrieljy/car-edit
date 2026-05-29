@@ -277,9 +277,10 @@ async function invoke302NanoBananaWsEdit(
   const images = await Promise.all(imageUrls.map(readImageSource))
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
-  const response = await fetch(endpoint, {
+  const requestEndpoint = canonical302Endpoint(endpoint)
+  const response = await fetch(requestEndpoint, {
     method: "POST",
-    headers: providerRequestHeaders(apiKey, endpoint, { "Content-Type": "application/json" }),
+    headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
     body: JSON.stringify(nanoBananaWsEditPayload(prompt, "", images)),
   })
   const payload = await readProviderPayload(response)
@@ -288,21 +289,21 @@ async function invoke302NanoBananaWsEdit(
     return providerError(
       input.provider,
       started,
-      providerHttpErrorMessageForUi(raw, payload, response, endpoint),
-      providerHttpErrorRaw(raw, payload, response, endpoint),
+      providerHttpErrorMessageForUi(raw, payload, response, requestEndpoint),
+      providerHttpErrorRaw(raw, payload, response, requestEndpoint),
     )
   }
 
   let settled: Record<string, unknown>
   try {
-    settled = await waitFor302NanoBananaResult(raw, apiKey, endpoint)
+    settled = await waitFor302NanoBananaResult(raw, apiKey, requestEndpoint)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return providerError(input.provider, started, message, sanitizeRawResponse({ endpoint, error: message, initialResponse: raw }))
+    return providerError(input.provider, started, message, sanitizeRawResponse({ endpoint: requestEndpoint, configuredEndpoint: endpoint, error: message, initialResponse: raw }))
   }
   const imageResult = findImageResult(settled)
   if (!imageResult) {
-    return providerError(input.provider, started, "Nano-Banana-2 edit returned no recognizable image URL or base64 image.", sanitizeRawResponse({ endpoint, response: settled }))
+    return providerError(input.provider, started, "Nano-Banana-2 edit returned no recognizable image URL or base64 image.", sanitizeRawResponse({ endpoint: requestEndpoint, configuredEndpoint: endpoint, response: settled }))
   }
   const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
   const usageUnits = estimateUsageUnits(settled)
@@ -313,7 +314,7 @@ async function invoke302NanoBananaWsEdit(
     latencyMs: Date.now() - started,
     usageUnits,
     costCents: estimateCostCents(input.provider.id, usageUnits),
-    rawResponse: sanitizeRawResponse({ endpoint, response: settled }),
+    rawResponse: sanitizeRawResponse({ endpoint: requestEndpoint, configuredEndpoint: endpoint, response: settled }),
   }
 }
 
@@ -893,7 +894,7 @@ function supportsInputFidelity(modelName: string) {
 }
 
 function providerTransportErrorMessage(provider: ProviderConfig, error: unknown) {
-  const endpoint = generationEndpoint(provider.baseUrl).url
+  const endpoint = effectiveTransportEndpoint(provider)
   const message = error instanceof Error ? error.message : "Image provider transport failed."
   const cause = transportCause(error)
   const detail = cause ? `${message}; cause: ${cause}` : message
@@ -905,10 +906,23 @@ function providerTransportErrorRaw(provider: ProviderConfig, error: unknown) {
     provider: provider.id,
     label: provider.label,
     model: provider.modelName,
-    endpoint: generationEndpoint(provider.baseUrl).url,
+    endpoint: effectiveTransportEndpoint(provider),
+    configuredEndpoint: generationEndpoint(provider.baseUrl).url,
     error: error instanceof Error ? error.message : String(error),
     cause: transportCause(error),
   })
+}
+
+function effectiveTransportEndpoint(provider: ProviderConfig) {
+  const endpoint = generationEndpoint(provider.baseUrl).url
+  try {
+    if (is302ImageEndpoint(endpoint) || is302GeminiOriginalImageEndpoint(endpoint) || is302NanoBananaWsEditEndpoint(endpoint)) {
+      return canonical302Endpoint(endpoint)
+    }
+  } catch {
+    return endpoint
+  }
+  return endpoint
 }
 
 function transportCause(error: unknown) {
