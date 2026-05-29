@@ -159,6 +159,8 @@ async function invokeOpenAiCompatibleImageEdit(
 
   const imageResult = findImageResult(raw)
   if (!imageResult) {
+    const recovered = await recover302EmptyImageSuccess(input.provider, apiKey, started, endpoint, raw)
+    if (recovered) return recovered
     return providerError(input.provider, started, "生图 Provider 未返回可识别的图片 URL 或 base64。", sanitizeRawResponse(raw))
   }
   const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
@@ -217,6 +219,8 @@ async function invokeOpenAiCompatibleImageGeneration(
 
   const imageResult = findImageResult(raw)
   if (!imageResult) {
+    const recovered = await recover302EmptyImageSuccess(input.provider, apiKey, started, endpoint, raw)
+    if (recovered) return recovered
     return providerError(input.provider, started, "生图 Provider 已返回成功，但没有返回可识别的图片 URL 或 base64。", sanitizeRawResponse({ endpoint, response: raw }))
   }
   const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
@@ -398,6 +402,8 @@ async function invokeOpenAiCompatibleChatImage(
 
   const imageResult = findImageResult(raw)
   if (!imageResult) {
+    const recovered = await recover302EmptyImageSuccess(input.provider, apiKey, started, endpoint, raw)
+    if (recovered) return recovered
     return providerError(input.provider, started, "生图 Provider 已返回成功，但没有返回可识别的图片 URL 或 base64。", sanitizeRawResponse({ endpoint, response: raw }))
   }
   const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
@@ -548,6 +554,32 @@ async function recover302TransportFailure(
 ): Promise<GenerationProviderResponse | null> {
   const endpoint = generationEndpoint(provider.baseUrl).url
   if (!is302ImageEndpoint(endpoint)) return null
+  return recover302ImageRecord(provider, apiKey, started, endpoint, {
+    recoveredAfterTransportError: error instanceof Error ? error.message : String(error),
+  })
+}
+
+async function recover302EmptyImageSuccess(
+  provider: ProviderConfig,
+  apiKey: string,
+  started: number,
+  endpoint: string,
+  raw: Record<string, unknown>,
+): Promise<GenerationProviderResponse | null> {
+  if (!is302ImageEndpoint(endpoint)) return null
+  return recover302ImageRecord(provider, apiKey, started, endpoint, {
+    recoveredAfterEmptyProviderResponse: true,
+    providerResponse: raw,
+  })
+}
+
+async function recover302ImageRecord(
+  provider: ProviderConfig,
+  apiKey: string,
+  started: number,
+  endpoint: string,
+  context: Record<string, unknown>,
+): Promise<GenerationProviderResponse | null> {
   const deadline = Date.now() + 300_000
   let lastRaw: Record<string, unknown> | null = null
   while (Date.now() < deadline) {
@@ -566,7 +598,7 @@ async function recover302TransportFailure(
           usageUnits,
           costCents: estimateCostCents(provider.id, usageUnits),
           rawResponse: sanitizeRawResponse({
-            recoveredAfterTransportError: error instanceof Error ? error.message : String(error),
+            ...context,
             endpoint,
             response: raw,
           }),
@@ -612,21 +644,62 @@ async function fetch302LatestImageRecord(provider: ProviderConfig, apiKey: strin
 }
 
 function apiRecordMatchesModel(record: Record<string, unknown>, modelName: string) {
-  return [record.model, record.model_name, record.modelName].some((value) => String(value || "") === modelName)
+  if (!modelName.trim()) return true
+  const modelValues = [
+    record.model,
+    record.model_name,
+    record.modelName,
+    record.model_id,
+    record.modelId,
+    record.model_slug,
+    record.modelSlug,
+  ]
+  if (modelValues.some((value) => String(value || "") === modelName)) return true
+  return modelValues.some((value) => String(value || "").includes(modelName))
 }
 
 function apiRecordResponseRaw(record: Record<string, unknown>): Record<string, unknown> | null {
-  const response = record.resp || record.response
-  if (response && typeof response === "object" && !Array.isArray(response)) return response as Record<string, unknown>
-  if (typeof response === "string" && response.trim()) {
-    try {
-      const parsed = JSON.parse(response) as unknown
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>
-    } catch {
-      return null
-    }
+  const candidateKeys = [
+    "resp",
+    "response",
+    "response_body",
+    "responseBody",
+    "resp_body",
+    "respBody",
+    "raw_response",
+    "rawResponse",
+    "result",
+    "results",
+    "output",
+    "outputs",
+    "image",
+    "images",
+    "body",
+    "content",
+    "answer",
+    "data",
+  ]
+  for (const key of candidateKeys) {
+    const raw = rawResponseRecordFromValue(record[key])
+    if (raw && findImageResult(raw)) return raw
   }
   return null
+}
+
+function rawResponseRecordFromValue(value: unknown): Record<string, unknown> | null {
+  if (!value) return null
+  if (Array.isArray(value)) return { data: value }
+  if (typeof value === "object") return value as Record<string, unknown>
+  if (typeof value !== "string" || !value.trim()) return null
+  const trimmed = value.trim()
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (Array.isArray(parsed)) return { data: parsed }
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>
+  } catch {
+    // Some 302 dashboard fields store a text blob instead of JSON.
+  }
+  return findImageResultInText(trimmed) ? { output: [trimmed] } : null
 }
 
 function apiRecordIsNearStart(record: Record<string, unknown>, raw: Record<string, unknown>, started: number) {
@@ -1181,10 +1254,18 @@ function findOutputImageResult(raw: Record<string, unknown>): { url?: string; b6
   return firstPreferredImageResult([
     data?.outputs,
     data?.output,
+    data?.result,
+    data?.results,
     data?.images,
+    data?.image,
+    data?.url,
     raw.outputs,
     raw.output,
+    raw.result,
+    raw.results,
     raw.images,
+    raw.image,
+    raw.url,
   ])
 }
 
@@ -1269,11 +1350,24 @@ function base64ImageFromRecord(record: Record<string, unknown>): { b64Json: stri
 }
 
 function findImageResultInText(value: string): { url?: string; b64Json?: string; mime?: string } | null {
+  const trimmed = value.trim()
   const dataUrl = value.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/)
   if (dataUrl?.[0]) return { url: dataUrl[0] }
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      const result = findImageResultInValue(parsed)
+      if (result) return result
+    } catch {
+      // Fall through to text URL extraction.
+    }
+  }
+  const searchable = value.replace(/\\\//g, "/").replace(/\\u0026/g, "&")
   const b64Json = value.match(/"b64_json"\s*:\s*"([^"]+)"/)
   if (b64Json?.[1]) return { b64Json: b64Json[1] }
-  const imageUrl = value.match(/https?:\/\/[^\s)"']+\.(?:png|jpe?g|webp)(?:\?[^\s)"']*)?/i)
+  const hosted302Url = searchable.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*file\.302\.ai\/[^\s)"'<>\\]+/i)
+  if (hosted302Url?.[0]) return { url: hosted302Url[0] }
+  const imageUrl = searchable.match(/https?:\/\/[^\s)"'<>\\]+\.(?:png|jpe?g|webp)(?:\?[^\s)"'<>\\]*)?/i)
   if (imageUrl?.[0]) return { url: imageUrl[0] }
   return null
 }
