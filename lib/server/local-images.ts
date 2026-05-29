@@ -15,11 +15,16 @@ export type LocalImageData = {
 
 const dynamicImageMounts: DynamicImageMount[] = [
   { prefix: "uploads/chat/", dataDir: ["data", "uploads", "chat"], publicDir: ["public", "uploads", "chat"] },
+  { prefix: "uploads/", dataDir: ["data", "uploads"], publicDir: ["public", "uploads"] },
   { prefix: "results/", dataDir: ["data", "results"], publicDir: ["public", "results"] },
 ]
 
 export async function writeChatUploadImage(fileName: string, bytes: Buffer | Uint8Array) {
   await writeDynamicImage(["data", "uploads", "chat"], ["public", "uploads", "chat"], fileName, bytes)
+}
+
+export async function writeVehicleUploadImage(fileName: string, bytes: Buffer | Uint8Array) {
+  await writeDynamicImage(["data", "uploads"], ["public", "uploads"], fileName, bytes)
 }
 
 export async function writeResultImage(fileName: string, bytes: Buffer | Uint8Array) {

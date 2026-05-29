@@ -1,11 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises"
-import path from "node:path"
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
 import { buildConfigStandardJson } from "@/lib/generation-core"
 import { checkAndConsumeEntitlement, createVehicleUpload, getCatalog, refundEntitlementUsage } from "@/lib/server/db"
 import { runGenerationWorkflow } from "@/lib/server/generation-engine"
 import { runMockGuardrail } from "@/lib/server/guardrail"
+import { writeVehicleUploadImage } from "@/lib/server/local-images"
 import { ndjsonProgressResponse, noopProgress, type ProgressEmitter, type ProgressLanguage } from "@/lib/server/progress-stream"
 import { paintFromId } from "@/lib/prompts"
 import type { PaintFinishEffect, PaintGradient, PaintOption, PartColorPolicy, PartSelectionOptions, SelectionMap } from "@/lib/types"
@@ -282,9 +281,7 @@ async function saveUpload(file: File) {
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg"
   const fileName = `vehicle-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`
   const relativeUrl = `/uploads/${fileName}`
-  const uploadDir = path.join(process.cwd(), "public", "uploads")
-  await mkdir(uploadDir, { recursive: true })
-  await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()))
+  await writeVehicleUploadImage(fileName, Buffer.from(await file.arrayBuffer()))
   return { url: relativeUrl }
 }
 
