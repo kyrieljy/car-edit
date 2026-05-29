@@ -883,13 +883,27 @@ function predictionError(raw: Record<string, unknown>) {
 function predictionResultUrl(raw: Record<string, unknown>, endpoint: string) {
   const data = predictionData(raw)
   const urls = data.urls && typeof data.urls === "object" ? (data.urls as Record<string, unknown>) : {}
-  if (typeof urls.get === "string" && urls.get) return urls.get
+  if (typeof urls.get === "string" && urls.get) return normalize302PredictionResultUrl(urls.get, endpoint)
   const id = typeof data.id === "string" ? data.id : ""
   if (!id) return ""
   const url = new URL(endpoint)
   url.pathname = `/ws/api/v3/predictions/${id}/result`
   url.search = ""
-  return url.toString()
+  return normalize302PredictionResultUrl(url.toString(), endpoint)
+}
+
+function normalize302PredictionResultUrl(resultUrl: string, endpoint: string) {
+  try {
+    const url = new URL(resultUrl)
+    if (!is302ApiHost(url.hostname.toLowerCase())) return resultUrl
+    const base = new URL(canonical302Endpoint(endpoint))
+    url.protocol = base.protocol
+    url.hostname = base.hostname
+    url.port = base.port
+    return url.toString()
+  } catch {
+    return resultUrl
+  }
 }
 
 function append302FastImageOptions(formData: FormData) {
