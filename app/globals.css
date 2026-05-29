@@ -18624,6 +18624,15 @@ a {
     min-height: 100svh !important;
     overflow-x: hidden !important;
     overflow-y: visible !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-studio-app :where(button, a, label, input, textarea, select, summary, [role="button"], [role="tab"]) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-studio-app :where(button, a, [role="button"], [role="tab"]):focus:not(:focus-visible) {
+    outline: none !important;
   }
 
   .mobile-studio-phone:not(.is-transitioning),
