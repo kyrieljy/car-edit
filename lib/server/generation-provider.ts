@@ -1152,6 +1152,8 @@ function imageDataUrl(image: { bytes: Uint8Array; mime: string }) {
 }
 
 function findImageResult(raw: Record<string, unknown>): { url?: string; b64Json?: string; mime?: string } | null {
+  const outputResult = findOutputImageResult(raw)
+  if (outputResult) return outputResult
   const data = Array.isArray(raw.data) ? raw.data : []
   for (const item of data) {
     if (!item || typeof item !== "object") continue
@@ -1167,6 +1169,40 @@ function findImageResult(raw: Record<string, unknown>): { url?: string; b64Json?
     if (result) return result
   }
   return findImageResultInValue(raw)
+}
+
+function findOutputImageResult(raw: Record<string, unknown>): { url?: string; b64Json?: string; mime?: string } | null {
+  const data = raw.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? (raw.data as Record<string, unknown>) : null
+  return firstPreferredImageResult([
+    data?.outputs,
+    data?.output,
+    data?.images,
+    raw.outputs,
+    raw.output,
+    raw.images,
+  ])
+}
+
+function firstPreferredImageResult(values: unknown[]): { url?: string; b64Json?: string; mime?: string } | null {
+  const results: Array<{ url?: string; b64Json?: string; mime?: string }> = []
+  for (const value of values) {
+    if (!value) continue
+    const items = Array.isArray(value) ? value : [value]
+    for (const item of items) {
+      const result = findImageResultInValue(item)
+      if (result) results.push(result)
+    }
+  }
+  return results.find((result) => result.url && is302HostedResultUrl(result.url)) || results[0] || null
+}
+
+function is302HostedResultUrl(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname === "file.302.ai" || hostname.endsWith(".file.302.ai")
+  } catch {
+    return false
+  }
 }
 
 function findImageResultInValue(value: unknown): { url?: string; b64Json?: string; mime?: string } | null {
