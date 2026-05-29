@@ -3157,7 +3157,59 @@ function workflowConfigs(): WorkflowConfig[] {
 }
 
 function normalizeWorkflowConfigs(workflows: WorkflowConfig[]) {
-  return workflows.map((workflow) => (workflow.mode === "chat" ? normalizeChatWorkflowConfig(workflow, workflows) : workflow))
+  return workflows
+    .map((workflow) => (workflow.mode === "chat" ? normalizeChatWorkflowConfig(workflow, workflows) : workflow))
+    .map(normalizeWorkflowDisplayCopy)
+}
+
+const legacyWorkflowTitleCopy: Record<string, string> = {
+  "图片识别 / 输入检测工作流": "图片识别 / 输入检测 Workflow",
+  "配置模式生图工作流": "配置模式生图 Workflow",
+  "对话模式生图工作流": "对话模式生图 Workflow",
+}
+
+const legacyWorkflowNodeLabelCopy: Record<string, string> = {
+  Start: "开始",
+  "Input validation": "输入校验",
+  "Vehicle detection": "车辆识别",
+  "Part reference detection": "配件识别",
+  "Build JSON": "标准 JSON 组装",
+  "Prompt Builder": "提示词组装",
+  "Prompt 组装": "提示词组装",
+  "Image generation": "生图 / 修图",
+  "Result check": "结果检查",
+  "Repair retry": "修复重试",
+  "Save record": "保存记录",
+  End: "结束",
+  "LLM 兜底解析": "大模型兜底解析",
+}
+
+const legacyWorkflowNodeDescriptionCopy: Record<string, string> = {
+  "Validate vehicle image and request scope.": "校验车辆图片、上传内容和识别范围。",
+  "Identify the source vehicle and camera view.": "识别原车车型、车身姿态和拍摄视角。",
+  "Identify uploaded part reference category and usable views.": "识别上传配件参考图的类别、可用视角和关键视觉特征。",
+  "Build standard JSON from configuration selections.": "根据配置选择组装标准 JSON。",
+  "Build Effective Prompt v1 from base, config, category, part, combo, and negative templates.": "从基础、配置、分类、配件、组合和负面模板组装最终生图提示词。",
+  "Render the configured vehicle edit.": "调用图像模型生成配置好的车辆改装效果。",
+  "Check that selected parts appeared and unselected parts stayed unchanged.": "检查已选配件是否出现，未选择区域是否保持不变。",
+  "Create one repair prompt if the result misses selected modifications.": "当结果缺少已选改装项时，生成一次修复提示词。",
+  "调用视觉 provider 识别原车和相机视角。若画布已有识别结果可复用；Chat Mode 不把识别车型当成最终身份。": "调用视觉模型识别原车和相机视角。若画布已有识别结果可复用；对话模式不把识别车型当成最终身份。",
+  "调用视觉 provider 识别上传配件参考图的类别和视觉特征；识别结果仍会回到本地规则校验。": "调用视觉模型识别上传配件参考图的类别和视觉特征；识别结果仍会回到本地规则校验。",
+  "本地组装 Chat Mode 的 Effective Prompt v1，并应用保护项、参考图分配和 provider 预算。": "本地组装对话模式的最终生图提示词，并应用保护项、参考图分配和模型预算。",
+  "调用图像生成 provider 执行车辆改装效果生成。fallback provider 会按自身参考图预算重新选择上传图片。": "调用图像生成模型执行车辆改装效果生成。备用模型会按自身参考图预算重新选择上传图片。",
+  "mock/local 只做本地轻量检查：是否有结果图、是否有可见修改需求。切换真实 vision provider 后，才会对比原图和结果图检查颜色、配件、车高和保护项。": "本地模拟只做轻量检查：是否有结果图、是否有可见修改需求。切换真实视觉模型后，才会对比原图和结果图检查颜色、配件、车高和保护项。",
+}
+
+function normalizeWorkflowDisplayCopy(workflow: WorkflowConfig): WorkflowConfig {
+  return {
+    ...workflow,
+    title: legacyWorkflowTitleCopy[workflow.title] ?? workflow.title,
+    nodes: workflow.nodes.map((node) => ({
+      ...node,
+      label: legacyWorkflowNodeLabelCopy[node.label] ?? node.label,
+      description: legacyWorkflowNodeDescriptionCopy[node.description] ?? node.description,
+    })),
+  }
 }
 
 function normalizeChatWorkflowConfig(workflow: WorkflowConfig, workflows: WorkflowConfig[]): WorkflowConfig {

@@ -45,7 +45,7 @@ const capabilityLabels: Record<ProviderCapability, string> = {
   image_generation: "生图 / 修图模型",
   vision: "多模态识别模型",
   llm: "大语言模型",
-  embedding: "Embedding",
+  embedding: "向量模型",
 }
 
 const nodeTypeLabels: Partial<Record<WorkflowNodeType, string>> = {
@@ -56,7 +56,7 @@ const nodeTypeLabels: Partial<Record<WorkflowNodeType, string>> = {
   intent_parser: "需求解析",
   follow_up_gate: "追问判断",
   json_builder: "标准 JSON",
-  prompt_builder: "Prompt Builder",
+  prompt_builder: "提示词组装",
   image_generation: "生图 / 修图",
   result_check: "结果检查",
   retry: "修复重试",
@@ -86,16 +86,16 @@ nodeAccent.guardrail = "#ff8a7a"
 nodeAccent.local_parser = "#8ee6a4"
 
 const callFailurePolicies: Array<{ id: CallFailurePolicy; label: string; shortLabel: string; description: string }> = [
-  { id: "retry_then_fallback", label: "重试当前模型 1 次，然后切备用模型", shortLabel: "API: 重试后切备用", description: "适合生产默认值。网络抖动、超时、限流时先重试主模型，仍失败再切备用模型。" },
-  { id: "retry_once", label: "只重试当前模型 1 次", shortLabel: "API: 重试 1 次", description: "没有备用模型时使用。主模型失败后再试一次，仍失败才停止。" },
-  { id: "fallback", label: "直接切备用模型", shortLabel: "API: 切备用", description: "主模型失败后不重试，直接切到备用模型。" },
-  { id: "stop", label: "失败即停止", shortLabel: "API: 失败停止", description: "只适合明确不允许自动重试的低风险步骤。" },
+  { id: "retry_then_fallback", label: "重试当前模型 1 次，然后切备用模型", shortLabel: "接口：重试后切备用", description: "适合生产默认值。网络抖动、超时、限流时先重试主模型，仍失败再切备用模型。" },
+  { id: "retry_once", label: "只重试当前模型 1 次", shortLabel: "接口：重试 1 次", description: "没有备用模型时使用。主模型失败后再试一次，仍失败才停止。" },
+  { id: "fallback", label: "直接切备用模型", shortLabel: "接口：切备用", description: "主模型失败后不重试，直接切到备用模型。" },
+  { id: "stop", label: "失败即停止", shortLabel: "接口：失败停止", description: "只适合明确不允许自动重试的低风险步骤。" },
 ]
 
 const qualityFailurePolicies: Array<{ id: QualityFailurePolicy; label: string; shortLabel: string; description: string }> = [
-  { id: "repair_once", label: "回到生图 / 修图步骤修复一次", shortLabel: "质量: 修复 1 次", description: "结果检查不通过时，使用 Retry Prompt 回到生图 / 修图步骤重新生成。" },
-  { id: "save_bad_case", label: "保存 Bad Case，不自动修复", shortLabel: "质量: 记录 Bad Case", description: "保留失败结果和检查原因，进入 Bad Case 记录，供后续优化 Prompt。" },
-  { id: "stop", label: "停止并返回失败", shortLabel: "质量: 停止", description: "结果不合格时直接停止，不自动修复。" },
+  { id: "repair_once", label: "回到生图 / 修图步骤修复一次", shortLabel: "质量：修复 1 次", description: "结果检查不通过时，使用修复提示词回到生图 / 修图步骤重新生成。" },
+  { id: "save_bad_case", label: "保存失败样本，不自动修复", shortLabel: "质量：记录失败样本", description: "保留失败结果和检查原因，进入失败样本记录，供后续优化提示词。" },
+  { id: "stop", label: "停止并返回失败", shortLabel: "质量：停止", description: "结果不合格时直接停止，不自动修复。" },
 ]
 
 export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesignerProps) {
@@ -187,7 +187,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
 
   const savePrompt = async () => {
     if (!selectedPrompt) {
-      notify("error", "当前步骤没有绑定 Prompt 模板。")
+      notify("error", "当前步骤没有绑定提示词模板。")
       return
     }
     const response = await fetch(`/api/admin/prompt-templates/${selectedPrompt.id}`, {
@@ -197,10 +197,10 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
     })
     const body = await response.json().catch(() => ({}))
     if (!response.ok) {
-      notify("error", body.error || "Prompt 保存失败")
+      notify("error", body.error || "提示词保存失败")
       return
     }
-    notify("success", "Prompt 已同步保存到提示词管理。")
+    notify("success", "提示词已同步保存到提示词管理。")
     onChanged()
   }
 
@@ -270,7 +270,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
             <span>{workflowModeLabel(selectedWorkflow.mode)}</span>
             <h2>{selectedWorkflow.title}</h2>
             <p>
-              Workflow ID: {selectedWorkflow.id} / {orderedNodes.length} 个步骤 / {selectedPromptIds.length} 个 Prompt
+              Workflow ID：{selectedWorkflow.id} / {orderedNodes.length} 个步骤 / {selectedPromptIds.length} 个提示词
             </p>
           </div>
           <div className="workflow-head-actions">
@@ -287,7 +287,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
 
         <div className="workflow-explain-note">
           <strong>策略说明</strong>
-          <span>网络、超时、限流属于“调用失败”，走重试/备用模型；出图缺配件、颜色错、背景变了属于“质量失败”，走 Repair Prompt 回到生图 / 修图。</span>
+          <span>网络、超时、限流属于“调用失败”，走重试/备用模型；出图缺配件、颜色错、背景变了属于“质量失败”，走修复提示词回到生图 / 修图。</span>
         </div>
 
         <div className="workflow-step-axis" aria-label="Workflow 步骤轴">
@@ -386,7 +386,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                   </label>
                 </>
               ) : (
-                <div className="workflow-system-note">该步骤不调用模型，只执行系统逻辑。网络/API 失败策略不会显示在这里，避免误配。</div>
+                <div className="workflow-system-note">该步骤不调用模型，只执行系统逻辑。网络/接口失败策略不会显示在这里，避免误配。</div>
               )}
 
               {isQualityPolicyNode(selectedNode) && (
@@ -418,9 +418,9 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
 
               {shouldShowPromptSelect(selectedNode) && (
                 <label>
-                  Prompt 模板
+                  提示词模板
                   <select value={selectedNode.promptTemplateId} onChange={(event) => updateSelectedNode({ promptTemplateId: event.target.value })}>
-                    <option value="">不绑定 Prompt</option>
+                    <option value="">不绑定提示词</option>
                     {summary.promptTemplates.map((template) => (
                       <option key={template.id} value={template.id}>
                         {promptTemplateOptionLabel(template.title, template.id)}
@@ -448,12 +448,12 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
               {selectedPrompt && (
                 <>
                   <label className="workflow-wide-field">
-                    Prompt 内容
+                    提示词内容
                     <textarea value={promptDraft} onChange={(event) => setPromptDraft(event.target.value)} />
                   </label>
                   <button type="button" onClick={() => void savePrompt()}>
                     <BadgeCheck size={16} />
-                    保存 Prompt
+                    保存提示词
                   </button>
                 </>
               )}
@@ -493,12 +493,12 @@ function buildWorkflowPromptPreview(workflow: WorkflowConfig, nodes: WorkflowNod
   const promptIds = workflowPromptTemplateIds(workflow, nodes, summary.promptTemplates)
   if (workflow.mode === "recognition") {
     return {
-      prompt: "识别 Workflow 不直接生成生图 Prompt。它使用车辆识别 Prompt 和配件图识别 Prompt 输出结构化检测结果，后续配置/对话 Workflow 再组装最终生图 Prompt。",
+      prompt: "识别 Workflow 不直接生成生图提示词。它使用车辆识别提示词和配件图识别提示词输出结构化检测结果，后续配置/对话 Workflow 再组装最终生图提示词。",
       negativePrompt: "",
       resultCheckPrompt: "",
       retryPrompt: "",
       templateIds: promptIds,
-      note: "识别流程预览，仅展示绑定的识别 Prompt 模块。",
+      note: "识别流程预览，仅展示绑定的识别提示词模块。",
     }
   }
 
@@ -615,7 +615,7 @@ function normalizeWorkflowNode(node: WorkflowNodeConfig): WorkflowNodeConfig {
   return {
     ...node,
     label: node.label && !node.label.includes("失败") ? node.label : "修复重试",
-    description: node.description || "结果检查失败后，使用 Retry Prompt 回到生图 / 修图步骤重新生成。",
+    description: node.description || "结果检查失败后，使用修复提示词回到生图 / 修图步骤重新生成。",
     config: {
       ...node.config,
       qualityFailurePolicy: qualityFailurePolicy(node),
@@ -667,7 +667,7 @@ function displayNodeLabel(node: WorkflowNodeConfig) {
 }
 
 function nodeDescription(node: WorkflowNodeConfig) {
-  if (node.type === "retry") return "结果检查失败后，使用 Retry Prompt 回到生图 / 修图步骤重新生成。它不是重试自己。"
+  if (node.type === "retry") return "结果检查失败后，使用修复提示词回到生图 / 修图步骤重新生成。它不是重试自己。"
   return node.description || "该步骤暂无说明。"
 }
 
@@ -691,9 +691,9 @@ function qualityFailurePolicy(node: WorkflowNodeConfig): QualityFailurePolicy {
 }
 
 function strategySummary(node: WorkflowNodeConfig) {
-  if (node.type === "result_check") return qualityFailurePolicies.find((policy) => policy.id === qualityFailurePolicy(node))?.shortLabel ?? "质量: 默认策略"
+  if (node.type === "result_check") return qualityFailurePolicies.find((policy) => policy.id === qualityFailurePolicy(node))?.shortLabel ?? "质量：默认策略"
   if (node.type === "intent_parser") return "追问: 缺信息时返回"
-  if (node.providerCapability) return callFailurePolicies.find((policy) => policy.id === callFailurePolicy(node))?.shortLabel ?? "API: 默认策略"
+  if (node.providerCapability) return callFailurePolicies.find((policy) => policy.id === callFailurePolicy(node))?.shortLabel ?? "接口：默认策略"
   if (node.type === "retry") return `修复: 回到生图 ${Math.max(0, node.maxRetries)} 次`
   return "系统逻辑"
 }
@@ -707,13 +707,13 @@ function strategyNoteTitle(node: WorkflowNodeConfig) {
 
 function strategyNoteBody(node: WorkflowNodeConfig) {
   if (node.type === "result_check") {
-    return "mock/local 只做本地轻量检查，不真正看图；切换真实 vision provider 后才会对比原图和结果图，检查颜色、配件、车高、保护项和严重变形。"
+    return "本地模拟只做轻量检查，不真正看图；切换真实视觉模型后才会对比原图和结果图，检查颜色、配件、车高、保护项和严重变形。"
   }
   if (node.providerCapability) {
     return callFailurePolicies.find((policy) => policy.id === callFailurePolicy(node))?.description ?? "模型接口失败时按当前策略处理。"
   }
   if (node.type === "retry") {
-    return "修复重试会拿结果检查的失败原因生成 Repair Prompt，然后回到生图 / 修图步骤重新生成。"
+    return "修复重试会拿结果检查的失败原因生成修复提示词，然后回到生图 / 修图步骤重新生成。"
   }
   return "该步骤不调用外部模型，也没有独立的失败分支。"
 }

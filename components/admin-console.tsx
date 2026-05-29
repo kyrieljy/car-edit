@@ -51,7 +51,7 @@ const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.Re
   { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
   { id: "providers", label: "模型 API", sub: "全局生效接口", icon: <ServerCog size={20} /> },
   { id: "prompts", label: "提示词", sub: "配置 / 对话 / 负面词", icon: <ListPlus size={20} /> },
-  { id: "guardrail", label: "风控 SOP", sub: "检测与工作流", icon: <ShieldCheck size={20} /> },
+  { id: "guardrail", label: "风控 SOP", sub: "检测与 Workflow", icon: <ShieldCheck size={20} /> },
   { id: "plans", label: "会员配置", sub: "套餐与额度", icon: <BadgeCheck size={20} /> },
   { id: "usage", label: "用量统计", sub: "API 消耗", icon: <Eye size={20} /> },
   { id: "users", label: "用户管理", sub: "账号与角色", icon: <Users size={20} /> },
@@ -61,13 +61,13 @@ const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.Re
 const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.ReactNode }> = [
   { id: "dashboard", label: "数据看板", sub: "指标 / 状态 / 趋势", icon: <Database size={20} /> },
   { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
-  { id: "providers", label: "模型 API", sub: "全局 Provider", icon: <ServerCog size={20} /> },
+  { id: "providers", label: "模型 API", sub: "全局模型接口", icon: <ServerCog size={20} /> },
   { id: "prompts", label: "提示词", sub: "模板 / 负面词 / 重试", icon: <ListPlus size={20} /> },
   { id: "workflows", label: "Workflow", sub: "配置 / 对话 / 检查", icon: <Activity size={20} /> },
   { id: "guardrail", label: "风控 SOP", sub: "检测 / 限制 / 追问", icon: <ShieldCheck size={20} /> },
   { id: "plans", label: "会员配置", sub: "套餐 / 额度 / 价格", icon: <BadgeCheck size={20} /> },
   { id: "usage", label: "用量统计", sub: "API / 成本 / 记录", icon: <Eye size={20} /> },
-  { id: "badcases", label: "Bad Case", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
+  { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
   { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
   { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
   { id: "audit", label: "审计日志", sub: "后台操作 / 安全", icon: <Activity size={20} /> },
@@ -83,7 +83,7 @@ function adminTabTitle(tab: AdminTab) {
     guardrail: "风控 SOP 配置",
     plans: "会员配置",
     usage: "用量统计",
-    badcases: "Bad Case 记录",
+    badcases: "失败样本记录",
     users: "用户管理",
     profiles: "用户画像",
     audit: "审计日志",
@@ -342,7 +342,7 @@ function DashboardPanel({ summary }: { summary: AdminSummary }) {
       </div>
       <div className="dashboard-grid">
         <article className="admin-panel dashboard-card">
-          <PanelHeading label="PROVIDER" title="模型接口状态" count={`${activeProviderCount} 个启用`} />
+          <PanelHeading label="模型接口" title="模型接口状态" count={`${activeProviderCount} 个启用`} />
           <div className="dashboard-list">
             {summary.providers.map((provider) => (
               <StatusRow key={provider.id} label={provider.label} value={provider.enabled ? "启用" : "停用"} accent={provider.enabled} />
@@ -1302,7 +1302,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
             </label>
             <label className="inline-check">
               <input type="checkbox" checked={categoryForm.chatEnabled} onChange={(event) => setCategoryForm((current) => ({ ...current, chatEnabled: event.target.checked }))} />
-              Chat Mode 参与识别
+              对话模式参与识别
             </label>
             <label className="inline-check">
               <input type="checkbox" checked={categoryForm.referenceHighRisk} onChange={(event) => setCategoryForm((current) => ({ ...current, referenceHighRisk: event.target.checked }))} />
@@ -1591,7 +1591,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
                       </div>
                       <label className="inline-check asset-reference-upload-check">
                         <input type="checkbox" checked={reference.uploadToModel} onChange={(event) => updateGenerationReference(index, { uploadToModel: event.target.checked })} />
-                        上传给 provider
+                        上传给模型接口
                       </label>
                       <label>
                         Prompt hint
@@ -1674,7 +1674,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               生图已验收
             </label>
             <label>
-              Bad Case / 入库备注
+              失败样本 / 入库备注
               <textarea value={badCaseNotes} onChange={(event) => setBadCaseNotes(event.target.value)} placeholder="例如：机盖需要补同车型安装图；尾翼在 45 度图中容易被忽略。" />
             </label>
               </div>
@@ -2038,14 +2038,14 @@ const providerCapabilityGroups: Array<{ id: ProviderCapability; label: string; h
   { id: "image_generation", label: "生图 / 修图模型", helper: "用于配置模式和对话模式的最终图片生成。" },
   { id: "vision", label: "多模态识别模型", helper: "用于车辆识别、配件图片识别、结果检查。" },
   { id: "llm", label: "大语言模型", helper: "用于对话需求解析、追问生成，不能用于生图或图片识别。" },
-  { id: "embedding", label: "Embedding", helper: "预留给后续检索和相似资产匹配。" },
+  { id: "embedding", label: "向量模型", helper: "预留给后续检索和相似资产匹配。" },
 ]
 
 const providerCapabilityLabels: Record<ProviderCapability, string> = {
   llm: "LLM",
   vision: "Vision",
   image_generation: "Image",
-  embedding: "Embedding",
+  embedding: "向量模型",
 }
 
 const providerCapabilityShortLabels: Record<ProviderCapability, string> = {
@@ -2129,10 +2129,10 @@ function ProviderManager({ summary, onChanged, notify }: { summary: AdminSummary
         <div>
           <span>全局生效模型</span>
           <strong>{summary.providers.find((provider) => provider.id === activeProviderId)?.label ?? activeProviderId}</strong>
-          <p>前台配置模式和对话模式统一使用这个 Provider，一次只能选择一个全局模型。</p>
+          <p>前台配置模式和对话模式统一使用这个模型接口，一次只能选择一个全局模型。</p>
         </div>
         <label>
-          选择 Provider
+          选择模型接口
           <select value={activeProviderId} onChange={(event) => setActiveProviderId(event.target.value as ProviderId)}>
             {summary.providers.map((provider) => (
               <option key={provider.id} value={provider.id}>
@@ -2167,7 +2167,7 @@ function ProviderManager({ summary, onChanged, notify }: { summary: AdminSummary
           </label>
           <label className="check-line">
             <input type="checkbox" checked={form[provider.id]?.enabled ?? false} onChange={(event) => setForm((current) => ({ ...current, [provider.id]: { ...current[provider.id], enabled: event.target.checked } }))} />
-            启用 Provider
+            启用模型接口
           </label>
           <label className="check-line">
             <input type="checkbox" checked={activeProviderId === provider.id} readOnly />
@@ -2442,7 +2442,7 @@ function ProviderFields({
       </div>
       <label className="check-line">
         <input type="checkbox" name="enabled" checked={value.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
-        启用 Provider
+        启用模型接口
       </label>
     </>
   )
@@ -2513,7 +2513,7 @@ function ProviderManagerV2({ summary, onChanged, notify }: { summary: AdminSumma
         <div>
           <span>模型 API 管理</span>
           <strong>接口只维护模型能力和连接信息</strong>
-          <p>主备模型不在这里全局选择，由 Workflow 每个节点决定。未启用 Provider 不会出现在任何 Workflow 节点下拉框里。</p>
+          <p>主备模型不在这里全局选择，由 Workflow 的每个节点决定。未启用模型接口不会出现在任何 Workflow 节点下拉框里。</p>
         </div>
       </div>
       <div className="provider-sections">
@@ -2563,7 +2563,7 @@ function ProviderManagerV2({ summary, onChanged, notify }: { summary: AdminSumma
                     </div>
                     <label className="check-line">
                       <input type="checkbox" checked={form[provider.id]?.enabled ?? false} onChange={(event) => updateProvider(provider.id, { enabled: event.target.checked })} />
-                      启用 Provider
+                      启用模型接口
                     </label>
                     <button type="button" onClick={() => void save(provider.id)}>
                       <BadgeCheck size={16} />
@@ -2608,7 +2608,7 @@ function LegacyProviderManagerV2({ summary, onChanged, notify }: { summary: Admi
         <div>
           <span>模型接口库</span>
           <strong>仅管理 API 接口</strong>
-          <p>这里负责维护 Provider 的 API URL、模型名、Key 和启用状态。实际生图使用哪个主模型、备用模型，由 Workflow 管理页面决定。</p>
+          <p>这里负责维护模型接口的 API 地址、模型名、Key 和启用状态。实际生图使用哪个主模型、备用模型，由 Workflow 管理页面决定。</p>
         </div>
       </div>
       <div className="provider-grid">
@@ -2633,7 +2633,7 @@ function LegacyProviderManagerV2({ summary, onChanged, notify }: { summary: Admi
             </label>
             <label className="check-line">
               <input type="checkbox" checked={form[provider.id]?.enabled ?? false} onChange={(event) => setForm((current) => ({ ...current, [provider.id]: { ...current[provider.id], enabled: event.target.checked } }))} />
-              启用 Provider
+              启用模型接口
             </label>
             <button type="button" onClick={() => void save(provider.id)}>
               <BadgeCheck size={16} />
@@ -2660,8 +2660,8 @@ const generationPromptScopes: Array<{ id: PromptTemplateScope; label: string; he
   { id: "config_mode", label: "配置模式 Prompt", helper: "配置模式专用，强调严格执行用户选择的资产库配件。" },
   { id: "chat_mode", label: "对话模式 Prompt", helper: "对话模式专用，强调使用用户上传的配件参考图。" },
   { id: "chat_parser", label: "对话解析 Prompt", helper: "对话模式专用，把自然语言解析为标准 JSON，不明确时返回追问。" },
-  { id: "vehicle_recognition", label: "车辆识别 Prompt", helper: "图片识别 Workflow 使用，判断车辆、车型、视角和图片质量。" },
-  { id: "part_recognition", label: "配件识别 Prompt", helper: "图片识别 Workflow 使用，识别用户上传的配件参考图类别。" },
+  { id: "vehicle_recognition", label: "车辆识别提示词", helper: "图片识别 Workflow 使用，判断车辆、车型、视角和图片质量。" },
+  { id: "part_recognition", label: "配件识别提示词", helper: "图片识别 Workflow 使用，识别用户上传的配件参考图类别。" },
   { id: "category", label: "分类 Prompt", helper: "轮毂、卡钳、尾翼、前唇等配件类别的通用规则。" },
   { id: "part", label: "单配件 Prompt", helper: "绑定到资产库单个配件，配置模式生成时自动注入。" },
   { id: "combo", label: "组合 Prompt", helper: "处理轮毂+卡钳、轮毂+车高等高风险组合关系。" },
@@ -3343,7 +3343,7 @@ function GuardrailManager({ summary, onChanged }: { summary: AdminSummary; onCha
       <form className="admin-form wide" onSubmit={(event) => { event.preventDefault(); void save() }}>
         <PanelHeading label="风控 // SOP" title="对话与生成限制" />
         <label>
-          SOP 工作流
+          SOP Workflow
           <textarea value={form.sop} onChange={(event) => setForm((current) => ({ ...current, sop: event.target.value }))} />
         </label>
         <label>
@@ -3726,11 +3726,11 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
     const form = forms[id]
     if (!workflow || !form) return
     if (!enabledProviders.some((provider) => provider.id === form.providerId)) {
-      notify("error", "请先在模型 API 页面启用主 Provider，再保存 Workflow。")
+      notify("error", "请先在模型 API 页面启用主模型，再保存 Workflow。")
       return
     }
     if (form.fallbackProviderId && !enabledProviders.some((provider) => provider.id === form.fallbackProviderId)) {
-      notify("error", "请先在模型 API 页面启用备用 Provider，再保存 Workflow。")
+      notify("error", "请先在模型 API 页面启用备用模型，再保存 Workflow。")
       return
     }
     const response = await fetch("/api/admin/workflows", {
@@ -3768,13 +3768,13 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
         return (
           <article className="provider-card" key={workflow.id}>
             <PanelHeading label={workflow.mode === "config" ? "配置模式" : "对话模式"} title={form.title} />
-            <span>Workflow ID: {workflow.id}</span>
+            <span>Workflow ID：{workflow.id}</span>
             <label>
               标题
               <input value={form.title} onChange={(event) => updateForm(workflow.id, { title: event.target.value })} />
             </label>
             <label>
-              主 Provider
+              主模型
               <select value={form.providerId} onChange={(event) => updateForm(workflow.id, { providerId: event.target.value as ProviderId })}>
                 {!enabledProviders.some((provider) => provider.id === form.providerId) && (
                   <option value={form.providerId} disabled>
@@ -3789,7 +3789,7 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
               </select>
             </label>
             <label>
-              备用 Provider
+              备用模型
               <select value={form.fallbackProviderId} onChange={(event) => updateForm(workflow.id, { fallbackProviderId: event.target.value as ProviderId | "" })}>
                 <option value="">不启用</option>
                 {form.fallbackProviderId && !enabledProviders.some((provider) => provider.id === form.fallbackProviderId) && (
@@ -3805,7 +3805,7 @@ function WorkflowManager({ summary, onChanged, notify }: { summary: AdminSummary
               </select>
             </label>
             <label>
-              Prompt 模板 ID
+              提示词模板 ID
               <textarea value={form.promptTemplateIdsText} onChange={(event) => updateForm(workflow.id, { promptTemplateIdsText: event.target.value })} />
             </label>
             <div className="workflow-toggle-grid">
@@ -3849,7 +3849,7 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
               <th>时间</th>
               <th>用户</th>
               <th>模式</th>
-              <th>Provider</th>
+              <th>模型接口</th>
               <th>失败原因</th>
               <th>处理信息</th>
             </tr>
@@ -3909,7 +3909,7 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
             ))}
             {!summary.badCases.length && (
               <tr>
-                <td colSpan={5}>暂无 Bad Case 样本</td>
+                <td colSpan={5}>暂无失败样本</td>
               </tr>
             )}
           </tbody>
@@ -3939,9 +3939,9 @@ function UsageOpsTable({ summary }: { summary: AdminSummary }) {
         ))}
         {!summary.providerCosts.length && (
           <article className="admin-panel admin-metric-card">
-            <span>Provider 成本</span>
+            <span>模型接口成本</span>
             <strong>{formatAdminMoney(0)}</strong>
-            <small>暂无真实 provider 请求</small>
+            <small>暂无真实模型接口请求</small>
           </article>
         )}
       </div>
@@ -3967,7 +3967,7 @@ function UsageOpsTable({ summary }: { summary: AdminSummary }) {
               <th>用户</th>
               <th>模式</th>
               <th>状态</th>
-              <th>Provider</th>
+              <th>模型接口</th>
               <th>车辆</th>
               <th>用量</th>
               <th>成本</th>
@@ -3999,7 +3999,7 @@ function UsageOpsTable({ summary }: { summary: AdminSummary }) {
       </article>
 
       <article className="admin-panel data-table">
-        <PanelHeading label="用量明细" title="Provider 请求成本" count={`${summary.usage.length} 条`} />
+        <PanelHeading label="用量明细" title="模型接口请求成本" count={`${summary.usage.length} 条`} />
         <table className="admin-usage-ledger-table">
           <colgroup>
             <col className="ledger-col-time" />
@@ -4013,7 +4013,7 @@ function UsageOpsTable({ summary }: { summary: AdminSummary }) {
             <tr>
               <th>时间</th>
               <th>用户</th>
-              <th>Provider</th>
+              <th>模型接口</th>
               <th>用量</th>
               <th>成本</th>
               <th>生成记录</th>
@@ -4221,10 +4221,10 @@ function UserProfilesOpsTable({ summary }: { summary: AdminSummary }) {
         <article className="admin-panel admin-metric-card">
           <span>失败样本</span>
           <strong>{totalFailures}</strong>
-          <small>可和 Bad Case 页联动排查</small>
+          <small>可和失败样本页联动排查</small>
         </article>
         <article className="admin-panel admin-metric-card">
-          <span>Provider 成本</span>
+          <span>模型接口成本</span>
           <strong>{formatAdminMoney(totalCostCents)}</strong>
           <small>按用户生成记录汇总</small>
         </article>
@@ -4400,7 +4400,7 @@ function UsageTable({ summary }: { summary: AdminSummary }) {
           <tr>
             <th>时间</th>
             <th>用户</th>
-            <th>Provider</th>
+            <th>模型接口</th>
             <th>用量</th>
             <th>成本</th>
             <th>生成记录</th>

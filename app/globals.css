@@ -18606,3 +18606,57 @@ a {
     display: none !important;
   }
 }
+
+/* Mobile runtime guard: keep the H5 surface scrollable and its fixed layers deterministic in production builds. */
+@media (max-width: 760px) {
+  html:has(.mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)):not(:has(.auth-backdrop)):not(:has(.pricing-backdrop))),
+  body:has(.mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)):not(:has(.auth-backdrop)):not(:has(.pricing-backdrop))) {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+  }
+
+  .mobile-studio-app {
+    isolation: isolate !important;
+    height: auto !important;
+    min-height: 100svh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .mobile-studio-phone:not(.is-transitioning),
+  .mobile-mode-frame,
+  .mobile-screen {
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-floating-topbar {
+    z-index: 122 !important;
+  }
+
+  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-shared-mode-bar {
+    z-index: 121 !important;
+  }
+
+  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-access-banner-layer {
+    z-index: 120 !important;
+  }
+
+  .mobile-media-card {
+    position: relative;
+    z-index: 1;
+  }
+
+  @supports (min-height: 100dvh) {
+    .mobile-studio-app,
+    .mobile-studio-phone,
+    .mobile-mode-frame,
+    .mobile-screen {
+      min-height: 100dvh !important;
+    }
+  }
+}

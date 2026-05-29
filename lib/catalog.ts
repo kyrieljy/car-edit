@@ -823,100 +823,100 @@ function workflowEdges(ids: string[]): WorkflowEdgeConfig[] {
 }
 
 const recognitionNodes = [
-  workflowNode("start", "start", "Start", 60, 180),
-  workflowNode("input_validation", "input_validation", "Input validation", 270, 180, { description: "Validate vehicle image and request scope." }),
-  workflowNode("vehicle_detection", "vehicle_detection", "Vehicle detection", 500, 130, {
-    description: "Identify the source vehicle and camera view.",
+  workflowNode("start", "start", "开始", 60, 180),
+  workflowNode("input_validation", "input_validation", "输入校验", 270, 180, { description: "校验车辆图片、上传内容和识别范围。" }),
+  workflowNode("vehicle_detection", "vehicle_detection", "车辆识别", 500, 130, {
+    description: "识别原车车型、车身姿态和拍摄视角。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_vehicle_recognition_default",
   }),
-  workflowNode("part_detection", "part_detection", "Part reference detection", 500, 260, {
-    description: "Identify uploaded part reference category and usable views.",
+  workflowNode("part_detection", "part_detection", "配件识别", 500, 260, {
+    description: "识别上传配件参考图的类别、可用视角和关键视觉特征。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_part_recognition_default",
     required: false,
   }),
-  workflowNode("end", "end", "End", 760, 180),
+  workflowNode("end", "end", "结束", 760, 180),
 ]
 
 const configGenerationNodes = [
-  workflowNode("start", "start", "Start", 60, 180),
-  workflowNode("json_builder", "json_builder", "Build JSON", 280, 180, { description: "Build standard JSON from configuration selections." }),
-  workflowNode("prompt_builder", "prompt_builder", "Prompt Builder", 500, 180, {
-    description: "Build Effective Prompt v1 from base, config, category, part, combo, and negative templates.",
+  workflowNode("start", "start", "开始", 60, 180),
+  workflowNode("json_builder", "json_builder", "标准 JSON 组装", 280, 180, { description: "根据配置选择组装标准 JSON。" }),
+  workflowNode("prompt_builder", "prompt_builder", "提示词组装", 500, 180, {
+    description: "从基础、配置、分类、配件、组合和负面模板组装最终生图提示词。",
     promptTemplateId: "tpl_config_mode_default",
   }),
-  workflowNode("image_generation", "image_generation", "Image generation", 740, 180, {
-    description: "Render the configured vehicle edit.",
+  workflowNode("image_generation", "image_generation", "生图 / 修图", 740, 180, {
+    description: "调用图像模型生成配置好的车辆改装效果。",
     providerCapability: "image_generation",
     providerId: "provider_302_nano_banana2_async_edit",
     fallbackProviderId: "",
     failureStrategy: "stop",
     config: { callFailurePolicy: "stop" },
   }),
-  workflowNode("result_check", "result_check", "Result check", 980, 180, {
-    description: "Check that selected parts appeared and unselected parts stayed unchanged.",
+  workflowNode("result_check", "result_check", "结果检查", 980, 180, {
+    description: "检查已选配件是否出现，未选择区域是否保持不变。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_result_check_default",
   }),
-  workflowNode("retry", "retry", "Repair retry", 1220, 180, {
-    description: "Create one repair prompt if the result misses selected modifications.",
+  workflowNode("retry", "retry", "修复重试", 1220, 180, {
+    description: "当结果缺少已选改装项时，生成一次修复提示词。",
     enabled: false,
     promptTemplateId: "tpl_retry_default",
     failureStrategy: "retry",
     maxRetries: 0,
     config: { qualityFailurePolicy: "stop" },
   }),
-  workflowNode("save_record", "save_record", "Save record", 1460, 180),
-  workflowNode("end", "end", "End", 1680, 180),
+  workflowNode("save_record", "save_record", "保存记录", 1460, 180),
+  workflowNode("end", "end", "结束", 1680, 180),
 ]
 
 const chatGenerationNodes = [
   workflowNode("start", "start", "开始", 60, 180),
   workflowNode("input_validation", "input_validation", "上传校验", 280, 180, {
-    description: "本地校验文件数量、文件类型、上传大小和车辆画布。该节点不调用外部 API。",
+    description: "本地校验文件数量、文件类型、上传大小和车辆画布。该节点不调用外部接口。",
   }),
   workflowNode("guardrail", "guardrail", "本地安全检查", 500, 180, {
-    description: "本地检查请求安全、业务范围和硬性限制。该节点不调用外部 API。",
+    description: "本地检查请求安全、业务范围和硬性限制。该节点不调用外部接口。",
   }),
   workflowNode("vehicle_detection", "vehicle_detection", "车辆识别", 720, 110, {
-    description: "调用视觉 provider 识别原车和相机视角。若画布已有识别结果可复用；Chat Mode 不把识别车型当成最终身份。",
+    description: "调用视觉模型识别原车和相机视角。若画布已有识别结果可复用；对话模式不把识别车型当成最终身份。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_vehicle_recognition_default",
   }),
   workflowNode("part_detection", "part_detection", "配件识别", 720, 250, {
-    description: "调用视觉 provider 识别上传配件参考图的类别和视觉特征；识别结果仍会回到本地规则校验。",
+    description: "调用视觉模型识别上传配件参考图的类别和视觉特征；识别结果仍会回到本地规则校验。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_part_recognition_default",
     required: false,
   }),
   workflowNode("local_parser", "local_parser", "本地规则解析", 960, 180, {
-    description: "本地规则解析颜色、车身高度、配件、参考图、上下文选择和碳纤维颜色策略。该节点不调用外部 API。",
+    description: "本地规则解析颜色、车身高度、配件、参考图、上下文选择和碳纤维颜色策略。该节点不调用外部接口。",
   }),
-  workflowNode("intent_parser", "intent_parser", "LLM 兜底解析", 1200, 180, {
-    description: "仅在本地解析低置信且字段可补全时调用。模型只输出窄意图 fallbackIntent，不直接生成最终 standardJson。",
+  workflowNode("intent_parser", "intent_parser", "大模型兜底解析", 1200, 180, {
+    description: "仅在本地解析低置信且字段可补全时调用。模型只输出窄意图结果，不直接生成最终标准参数。",
     providerCapability: "llm",
     providerId: "openai-llm",
     promptTemplateId: "tpl_chat_parser_default",
     failureStrategy: "follow_up",
   }),
   workflowNode("follow_up_gate", "follow_up_gate", "追问 / 确认", 1440, 180, {
-    description: "本地处理追问、上下文确认、配件参考图要求和碳纤维 body_color / exposed_carbon 确认。该节点不调用外部 API。",
+    description: "本地处理追问、上下文确认、配件参考图要求和碳纤维颜色策略确认。该节点不调用外部接口。",
   }),
   workflowNode("json_builder", "json_builder", "标准 JSON 组装", 1680, 180, {
-    description: "在确定性解析、LLM 兜底回流和确认门完成后，本地组装 GenerationStandardJson。该节点不调用外部 API。",
+    description: "在确定性解析、大语言模型兜底回流和确认门完成后，本地组装标准生成参数。该节点不调用外部接口。",
   }),
-  workflowNode("prompt_builder", "prompt_builder", "Prompt 组装", 1920, 180, {
-    description: "本地组装 Chat Mode 的 Effective Prompt v1，并应用保护项、参考图分配和 provider 预算。",
+  workflowNode("prompt_builder", "prompt_builder", "提示词组装", 1920, 180, {
+    description: "本地组装对话模式的最终生图提示词，并应用保护项、参考图分配和模型预算。",
     promptTemplateId: "tpl_chat_mode_default",
   }),
   workflowNode("image_generation", "image_generation", "生图 / 修图", 2160, 180, {
-    description: "调用图像生成 provider 执行车辆改装效果生成。fallback provider 会按自身参考图预算重新选择上传图片。",
+    description: "调用图像生成模型执行车辆改装效果生成。备用模型会按自身参考图预算重新选择上传图片。",
     providerCapability: "image_generation",
     providerId: "provider_302_nano_banana2_async_edit",
     fallbackProviderId: "",
@@ -924,7 +924,7 @@ const chatGenerationNodes = [
     config: { callFailurePolicy: "retry_then_fallback" },
   }),
   workflowNode("result_check", "result_check", "结果检查", 2400, 180, {
-    description: "mock/local 只做本地轻量检查：是否有结果图、是否有可见修改需求。切换真实 vision provider 后，才会对比原图和结果图检查颜色、配件、车高和保护项。",
+    description: "本地模拟只做轻量检查：是否有结果图、是否有可见修改需求。切换真实视觉模型后，才会对比原图和结果图检查颜色、配件、车高和保护项。",
     providerCapability: "vision",
     providerId: "openai-llm",
     promptTemplateId: "tpl_result_check_default",
