@@ -680,8 +680,7 @@ function providerSummary(node: WorkflowNodeConfig, summary: AdminSummary) {
 function callFailurePolicy(node: WorkflowNodeConfig): CallFailurePolicy {
   const configured = typeof node.config?.callFailurePolicy === "string" ? node.config.callFailurePolicy : ""
   if (configured === "stop" || configured === "retry_once" || configured === "fallback" || configured === "retry_then_fallback") return configured
-  if (!node.providerCapability) return "stop"
-  return node.fallbackProviderId ? "retry_then_fallback" : "retry_once"
+  return "stop"
 }
 
 function qualityFailurePolicy(node: WorkflowNodeConfig): QualityFailurePolicy {

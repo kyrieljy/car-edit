@@ -920,8 +920,8 @@ const chatGenerationNodes = [
     providerCapability: "image_generation",
     providerId: "provider_302_nano_banana2_async_edit",
     fallbackProviderId: "",
-    failureStrategy: "fallback",
-    config: { callFailurePolicy: "retry_then_fallback" },
+    failureStrategy: "stop",
+    config: { callFailurePolicy: "stop" },
   }),
   workflowNode("result_check", "result_check", "结果检查", 2400, 180, {
     description: "本地模拟只做轻量检查：是否有结果图、是否有可见修改需求。切换真实视觉模型后，才会对比原图和结果图检查颜色、配件、车高和保护项。",

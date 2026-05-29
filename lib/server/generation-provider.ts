@@ -310,6 +310,7 @@ async function invoke302NanoBananaWsEdit(
       `payload=${formatBytes(payloadBytes)}`,
       `images=${images.length} [${imageSummary}]`,
       transportFailures.length ? `failures=${transportFailures.join(" | ")}` : "",
+      "alternate-host-retry=disabled-to-avoid-duplicate-billing",
     ].filter(Boolean).join("; ")
     throw new Error(`Nano-Banana-2 request failed before HTTP response. ${details}`, { cause: lastTransportError })
   }
@@ -520,16 +521,10 @@ function nanoBananaWsEndpointCandidates(endpoint: string) {
     const host = url.hostname.toLowerCase()
     if (!url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")) return [endpoint]
     if (host !== "api.302ai.cn" && host !== "api.302ai.com" && host !== "api.302.ai") return [endpoint]
-    const orderedHosts =
-      host === "api.302ai.com"
-        ? ["api.302ai.com", "api.302ai.cn"]
-        : ["api.302ai.cn", "api.302ai.com"]
-    return orderedHosts.map((hostname) => {
-      const candidate = new URL(endpoint)
-      candidate.protocol = "https:"
-      candidate.hostname = hostname
-      return candidate.toString()
-    })
+    const candidate = new URL(endpoint)
+    candidate.protocol = "https:"
+    if (host === "api.302.ai") candidate.hostname = "api.302ai.cn"
+    return [candidate.toString()]
   } catch {
     return [endpoint]
   }
@@ -760,10 +755,15 @@ async function waitFor302NanoBananaResult(raw: Record<string, unknown>, apiKey: 
     const resultUrl = predictionResultUrl(current, endpoint)
     if (!resultUrl) return current
     await delay(NANO_BANANA_WS_POLL_INTERVAL_MS)
-    const response = await fetch(resultUrl, {
-      method: "GET",
-      headers: providerRequestHeaders(apiKey, resultUrl),
-    })
+    let response: Response
+    try {
+      response = await fetch(resultUrl, {
+        method: "GET",
+        headers: providerRequestHeaders(apiKey, resultUrl),
+      })
+    } catch (error) {
+      throw new Error(`Nano-Banana-2 result polling failed after task submission. result=${safeSourceUrl(resultUrl)}; ${transportErrorSummary(error)}`, { cause: error })
+    }
     const payload = await readProviderPayload(response)
     if (!response.ok) {
       throw new Error(providerHttpErrorMessageForUi(payload.raw, payload, response, resultUrl))

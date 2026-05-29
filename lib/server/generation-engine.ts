@@ -433,12 +433,14 @@ async function invokeGenerationWithCallPolicy(input: {
   let response = await invokeGenerationProvider({ ...requestForProvider(input.provider), provider: input.provider, retryAttempt: 0 })
   if (!response.ok && providerConfigurationError(response.error)) return response
   if (!response.ok && providerSubmittedAsyncTaskError(response.error)) return response
+  if (!response.ok && providerMayHaveSubmittedBillableTask(input.provider)) return response
 
   if (!response.ok && (policy === "retry_once" || policy === "retry_then_fallback" || providerTransientHttpError(response.error))) {
     emitProgress({ step: "provider_retry", provider: input.provider.id, retryAttempt: 1, meta: { reason: response.error } })
     response = await invokeGenerationProvider({ ...requestForProvider(input.provider), provider: input.provider, retryAttempt: 1 })
     if (!response.ok && providerConfigurationError(response.error)) return response
     if (!response.ok && providerSubmittedAsyncTaskError(response.error)) return response
+    if (!response.ok && providerMayHaveSubmittedBillableTask(input.provider)) return response
   }
 
   if (!response.ok && input.fallbackProvider && (policy === "fallback" || policy === "retry_then_fallback")) {
@@ -459,18 +461,25 @@ function providerSubmittedAsyncTaskError(error: string | undefined) {
   return error.includes("Nano-Banana-2 task completed but did not return")
 }
 
+function providerMayHaveSubmittedBillableTask(provider: ProviderConfig) {
+  return isChargeOnSubmitImageProvider(provider)
+}
+
+function isChargeOnSubmitImageProvider(provider: ProviderConfig) {
+  return isNanoBananaWsProvider(provider) || is302OpenAiImageEndpoint(provider.baseUrl)
+}
+
 function providerTransientHttpError(error: string | undefined) {
   if (!error) return false
   return /HTTP\s+(?:408|429|5\d\d)\b/i.test(error) || /temporarily unavailable|Bad Gateway|Gateway Timeout|ECONNRESET|ETIMEDOUT/i.test(error)
 }
 
-function callFailurePolicy(node: WorkflowNodeConfig | undefined, hasFallback: boolean): CallFailurePolicy {
+function callFailurePolicy(node: WorkflowNodeConfig | undefined, _hasFallback: boolean): CallFailurePolicy {
   const configured = typeof node?.config?.callFailurePolicy === "string" ? node.config.callFailurePolicy : ""
   if (configured === "stop" || configured === "retry_once" || configured === "fallback" || configured === "retry_then_fallback") {
     return configured
   }
-  if (!node?.providerCapability) return "stop"
-  return hasFallback ? "fallback" : "retry_once"
+  return "stop"
 }
 
 function qualityFailurePolicy(
