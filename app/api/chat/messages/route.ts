@@ -18,8 +18,9 @@ import {
 import { previewGenerationWorkflow, runGenerationWorkflow } from "@/lib/server/generation-engine"
 import { isProviderSafetyBlockMessage, providerSafetyBlockMessage } from "@/lib/server/generation-provider"
 import { runMockGuardrail } from "@/lib/server/guardrail"
+import { readImageAsset } from "@/lib/server/image-assets"
 import { parseChatFallbackIntentWithLlmProvider } from "@/lib/server/llm-provider"
-import { readLocalImageByAppUrl, toArrayBuffer, writeChatUploadImage } from "@/lib/server/local-images"
+import { toArrayBuffer, writeChatUploadImage } from "@/lib/server/local-images"
 import { ndjsonProgressResponse, noopProgress, type ProgressEmitter, type ProgressLanguage } from "@/lib/server/progress-stream"
 import { recognizePartWithProvider, recognizeVehicleWithProvider } from "@/lib/server/vision-provider"
 import type { ChatAttachment, ChatFallbackIntent, ChatIntentParseResult, ChatMessage, GenerationStandardJson, GuardrailResult, PartCategory, PartColorPolicy, ProviderConfig } from "@/lib/types"
@@ -905,15 +906,16 @@ async function resolveChatCanvas(input: {
         : original
   if (!selected) return null
   const vehicleRecognition = vehicleRecognitionFromMessageHistory(messages, input.userId, selected.url)
+  const canvasUpload = await materializeChatCanvas(selected)
   const source = input.contextMode === "original" ? "original" : latestResult ? "latest" : "original"
   return {
-    url: selected.url,
-    fileName: selected.fileName,
-    mime: selected.mime || mimeFromPath(selected.url),
-    size: selected.size || 0,
+    url: canvasUpload.url,
+    fileName: canvasUpload.fileName,
+    mime: canvasUpload.mime,
+    size: canvasUpload.size,
     source,
     vehicleRecognition,
-    file: vehicleRecognition ? null : await fileFromPublicUrl(selected.url, selected.fileName, selected.mime),
+    file: vehicleRecognition ? null : await fileFromPublicUrl(canvasUpload.url, canvasUpload.fileName, canvasUpload.mime),
   }
 }
 
@@ -1053,9 +1055,34 @@ function isPartReferenceFollowUp(content: string) {
 }
 
 async function fileFromPublicUrl(url: string, fileName: string, mime = "") {
-  const image = await readLocalImageByAppUrl(url)
+  const image = await readImageAsset(url)
   if (!image) return null
   return new File([toArrayBuffer(image.bytes)], fileName || image.fileName, { type: mime || image.mime })
+}
+
+async function materializeChatCanvas(upload: SavedUpload): Promise<SavedUpload> {
+  if (upload.url.startsWith("/uploads/chat/") || upload.url.startsWith("/uploads/") || upload.url.startsWith("/results/") || upload.url.startsWith("/assets/")) {
+    return {
+      ...upload,
+      mime: upload.mime || mimeFromPath(upload.url),
+    }
+  }
+  const image = await readImageAsset(upload.url)
+  if (!image) {
+    return {
+      ...upload,
+      mime: upload.mime || mimeFromPath(upload.url),
+    }
+  }
+  const mime = image.mime || upload.mime || mimeFromPath(upload.url)
+  const fileName = `context-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
+  await writeChatUploadImage(fileName, image.bytes)
+  return {
+    url: `/uploads/chat/${fileName}`,
+    fileName,
+    mime,
+    size: image.bytes.byteLength,
+  }
 }
 
 function dryRunContent(preview: ReturnType<typeof previewGenerationWorkflow>, language: ResponseLanguage) {
@@ -1314,7 +1341,16 @@ function mimeFromPath(value: string) {
   const lower = value.toLowerCase()
   if (lower.endsWith(".webp")) return "image/webp"
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg"
+  if (lower.endsWith(".avif")) return "image/avif"
   return "image/png"
+}
+
+function extensionFromMime(mime: string) {
+  const lower = mime.toLowerCase()
+  if (lower.includes("jpeg") || lower.includes("jpg")) return "jpg"
+  if (lower.includes("webp")) return "webp"
+  if (lower.includes("avif")) return "avif"
+  return "png"
 }
 
 function mockVisionProvider(): ProviderConfig {

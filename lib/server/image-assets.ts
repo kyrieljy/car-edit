@@ -7,6 +7,10 @@ const IMAGE_FETCH_TIMEOUT_MS = 30_000
 export async function readImageAsset(url: string): Promise<LocalImageData | null> {
   const value = url.trim()
   if (!value) return null
+  if (value.startsWith("/api/proxy-image")) {
+    const nestedUrl = proxyImageTargetUrl(value)
+    return nestedUrl ? readImageAsset(nestedUrl) : null
+  }
   if (value.startsWith("/")) return readLocalImageByAppUrl(value)
 
   const parsedUrl = parseAllowedRemoteImageUrl(value)
@@ -82,6 +86,14 @@ export function parseAllowedRemoteImageUrl(value: string) {
 function fileNameFromUrl(url: URL) {
   const name = decodeURIComponent(url.pathname.split("/").pop() || "").trim()
   return name && name.includes(".") ? name : "image.png"
+}
+
+function proxyImageTargetUrl(value: string) {
+  try {
+    return new URLSearchParams(value.split("?")[1] || "").get("url") || ""
+  } catch {
+    return ""
+  }
 }
 
 function safeDownloadFileName(value: string, mime: string) {

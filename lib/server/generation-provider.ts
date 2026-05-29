@@ -1,5 +1,6 @@
 import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
+import { readImageAsset } from "./image-assets"
 import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
 
@@ -1171,6 +1172,14 @@ function formatBytes(value: number) {
 }
 
 async function readImageSource(url: string) {
+  const imageAsset = await readImageAsset(url)
+  if (imageAsset) {
+    return {
+      bytes: new Uint8Array(imageAsset.bytes),
+      mime: imageAsset.mime,
+      fileName: imageAsset.fileName,
+    }
+  }
   if (/^https?:\/\//i.test(url)) {
     let response: Response
     try {
