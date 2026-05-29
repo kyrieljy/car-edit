@@ -399,8 +399,17 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
     }
   }, [])
 
+  const mobileOverlayOpen = configHistoryOpen || profileOpen || authOpen || subscribeOpen || chatSidebarOpen
+
   return (
-    <main className="mobile-studio-app" data-theme={mobileTheme} data-mode={appMode} data-access-banner={accessBannerVisible ? "visible" : "hidden"} data-topbar={topbarDetached ? "detached" : "top"}>
+    <main
+      className="mobile-studio-app"
+      data-theme={mobileTheme}
+      data-mode={appMode}
+      data-access-banner={accessBannerVisible ? "visible" : "hidden"}
+      data-topbar={topbarDetached ? "detached" : "top"}
+      data-overlay-open={mobileOverlayOpen ? "true" : "false"}
+    >
       <MobileFloatingTopBar
         language={language}
         onLanguage={toggleLanguage}

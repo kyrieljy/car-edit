@@ -18609,8 +18609,8 @@ a {
 
 /* Mobile runtime guard: keep the H5 surface scrollable and its fixed layers deterministic in production builds. */
 @media (max-width: 760px) {
-  html:has(.mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)):not(:has(.auth-backdrop)):not(:has(.pricing-backdrop))),
-  body:has(.mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)):not(:has(.auth-backdrop)):not(:has(.pricing-backdrop))) {
+  html:has(.mobile-studio-app[data-overlay-open="false"]),
+  body:has(.mobile-studio-app[data-overlay-open="false"]) {
     height: auto !important;
     min-height: 100% !important;
     overflow-x: hidden !important;
@@ -18634,15 +18634,15 @@ a {
     overflow-y: visible !important;
   }
 
-  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-floating-topbar {
+  .mobile-studio-app[data-overlay-open="false"] .mobile-floating-topbar {
     z-index: 122 !important;
   }
 
-  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-shared-mode-bar {
+  .mobile-studio-app[data-overlay-open="false"] .mobile-shared-mode-bar {
     z-index: 121 !important;
   }
 
-  .mobile-studio-app:not(:has(.mobile-profile-page)):not(:has(.mobile-history-drawer)) .mobile-access-banner-layer {
+  .mobile-studio-app[data-overlay-open="false"] .mobile-access-banner-layer {
     z-index: 120 !important;
   }
 
