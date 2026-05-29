@@ -691,7 +691,7 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
     resolution: "0.5k",
     enable_sync_mode: true,
-    enable_base64_output: false,
+    enable_base64_output: true,
   }
 }
 
@@ -948,6 +948,13 @@ function supportsInputFidelity(modelName: string) {
   return normalized.includes("gpt-image-1") || normalized.includes("gpt-image-1.5") || normalized.includes("gpt-image-2")
 }
 
+function mimeFromImageBytes(bytes: Uint8Array) {
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png"
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") return "image/webp"
+  return ""
+}
+
 function providerTransportErrorMessage(provider: ProviderConfig, error: unknown) {
   const endpoint = effectiveTransportEndpoint(provider)
   const message = error instanceof Error ? error.message : "Image provider transport failed."
@@ -1148,9 +1155,11 @@ function findImageResult(raw: Record<string, unknown>): { url?: string; b64Json?
   const data = Array.isArray(raw.data) ? raw.data : []
   for (const item of data) {
     if (!item || typeof item !== "object") continue
-    const value = item as { url?: unknown; b64_json?: unknown }
-    if (typeof value.url === "string" && value.url) return { url: value.url }
+    const value = item as { url?: unknown; b64_json?: unknown } & Record<string, unknown>
     if (typeof value.b64_json === "string" && value.b64_json) return { b64Json: value.b64_json }
+    const base64Image = base64ImageFromRecord(value)
+    if (base64Image) return base64Image
+    if (typeof value.url === "string" && value.url) return { url: value.url }
   }
   const output = Array.isArray(raw.output) ? raw.output : []
   for (const item of output) {
@@ -1164,8 +1173,10 @@ function findImageResultInValue(value: unknown): { url?: string; b64Json?: strin
   if (typeof value === "string") return findImageResultInText(value)
   if (!value || typeof value !== "object") return null
   const record = value as Record<string, unknown>
-  if (typeof record.url === "string" && record.url) return { url: record.url }
   if (typeof record.b64_json === "string" && record.b64_json) return { b64Json: record.b64_json }
+  const base64Image = base64ImageFromRecord(record)
+  if (base64Image) return base64Image
+  if (typeof record.url === "string" && record.url) return { url: record.url }
   if (typeof record.image_url === "string" && record.image_url) return { url: record.image_url }
   if (record.image_url && typeof record.image_url === "object") {
     const nested = record.image_url as Record<string, unknown>
@@ -1198,6 +1209,24 @@ function findImageResultInValue(value: unknown): { url?: string; b64Json?: strin
   return null
 }
 
+function base64ImageFromRecord(record: Record<string, unknown>): { b64Json: string; mime?: string } | null {
+  const mime =
+    typeof record.mime === "string"
+      ? record.mime
+      : typeof record.mimeType === "string"
+        ? record.mimeType
+        : typeof record.mime_type === "string"
+          ? record.mime_type
+          : undefined
+  for (const key of ["base64", "b64", "image_base64", "imageBase64", "output_base64", "outputBase64", "result_base64", "resultBase64", "data"]) {
+    const value = record[key]
+    if (typeof value !== "string" || !value) continue
+    const parsed = parseBase64Image(value, mime)
+    if (parsed) return parsed
+  }
+  return null
+}
+
 function findImageResultInText(value: string): { url?: string; b64Json?: string; mime?: string } | null {
   const dataUrl = value.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/)
   if (dataUrl?.[0]) return { url: dataUrl[0] }
@@ -1206,6 +1235,16 @@ function findImageResultInText(value: string): { url?: string; b64Json?: string;
   const imageUrl = value.match(/https?:\/\/[^\s)"']+\.(?:png|jpe?g|webp)(?:\?[^\s)"']*)?/i)
   if (imageUrl?.[0]) return { url: imageUrl[0] }
   return null
+}
+
+function parseBase64Image(value: string, mime?: string): { b64Json: string; mime?: string } | null {
+  const trimmed = value.trim()
+  const dataUrl = trimmed.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/)
+  if (dataUrl?.[2]) return { b64Json: dataUrl[2].replace(/\s+/g, ""), mime: dataUrl[1] }
+  const compact = trimmed.replace(/\s+/g, "")
+  if (compact.length < 128 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return null
+  const detectedMime = mimeFromImageBytes(new Uint8Array(Buffer.from(compact.slice(0, 96), "base64")))
+  return detectedMime ? { b64Json: compact, mime: mime || detectedMime } : null
 }
 
 async function saveProviderImage(image: { url?: string; b64Json?: string; mime?: string }, providerId: ProviderId) {
@@ -1218,8 +1257,13 @@ async function saveProviderImage(image: { url?: string; b64Json?: string; mime?:
     bytes = parsed.bytes
     mime = parsed.mime
   } else if (image.url) {
-    const response = await fetch(image.url)
-    if (!response.ok) throw new Error(`下载生图结果失败：HTTP ${response.status}`)
+    let response: Response
+    try {
+      response = await fetch(image.url)
+    } catch (error) {
+      throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(image.url)}; ${transportErrorSummary(error)}`, { cause: error })
+    }
+    if (!response.ok) throw new Error(`Provider result image download failed after provider success. source=${safeSourceUrl(image.url)}; HTTP ${response.status}`)
     mime = response.headers.get("content-type")?.split(";")[0] || mimeFromPath(image.url)
     bytes = new Uint8Array(await response.arrayBuffer())
   } else {
@@ -1258,10 +1302,11 @@ function sanitizeValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeValue)
   if (!value || typeof value !== "object") return value
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, child]) => [
-      key,
-      key === "b64_json" || key.toLowerCase().includes("base64") ? "[base64 omitted]" : sanitizeValue(child),
-    ]),
+    Object.entries(value as Record<string, unknown>).map(([key, child]) => {
+      const lowerKey = key.toLowerCase()
+      const isBase64Image = typeof child === "string" && (lowerKey.includes("base64") || lowerKey === "b64_json" || parseBase64Image(child))
+      return [key, isBase64Image ? "[base64 omitted]" : sanitizeValue(child)]
+    }),
   )
 }
 
