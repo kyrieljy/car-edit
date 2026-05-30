@@ -55,10 +55,17 @@ The Yunwu OpenAI-compatible default is:
 
 - `provider_yunwu_image_edit`
 - `https://yunwu.ai/v1/images/edits`
-- `gpt-image-1-mini`
+- `gpt-image-2`
 - lowest-cost defaults: `quality=low`, `size=1024x1024`, `n=1`, `output_format=jpeg`, `output_compression=80`
 
-Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu while preserving the stored Yunwu API key. The Yunwu Nano path `https://yunwu.ai/fal-ai/nano-banana/edit` remains a candidate async adapter, but is not the default until its queue polling and billing behavior are verified.
+The Yunwu Nano provider is also configured:
+
+- `provider_yunwu_nano2_edit`
+- `https://yunwu.ai/fal-ai/nano-banana/edit`
+- `gemini-3.1-flash-image-preview`
+- request defaults: `num_images=1`, `output_format=jpeg`
+
+Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Image2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. Nano2 uses public image URL inputs, so test-server usage requires `PROVIDER_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, or `SITE_URL` to point at the public app origin.
 
 ## Audit Command
 

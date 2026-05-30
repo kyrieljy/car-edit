@@ -15,10 +15,10 @@ The current highest-priority issue is switching default image generation away fr
    - Run `npm run build`, then `pm2 restart car-edit --update-env`.
 2. Apply the existing SQLite workflow/provider switch:
    - `npm run provider:yunwu-default`
-   - Save the Yunwu API key in `/admin` for `provider_yunwu_image_edit`.
+   - Save the Yunwu API key in `/admin` for `provider_yunwu_image_edit` and, if Nano2 will be tested, `provider_yunwu_nano2_edit`.
 3. Check the real runtime logs after one user-approved Yunwu test:
    - `pm2 logs car-edit --lines 200`
-   - Confirm the provider is `provider_yunwu_image_edit`.
+   - Confirm the provider is `provider_yunwu_image_edit` for default Image2 tests, or `provider_yunwu_nano2_edit` for explicit Nano2 tests.
    - Confirm the result image is materialized to `/results/...`.
 4. If the problem remains, add temporary safe logging around the Yunwu image edit flow:
    - provider id/label

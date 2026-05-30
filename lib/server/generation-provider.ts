@@ -36,6 +36,8 @@ export type GenerationProviderResponse = {
 const FIXED_MOCK_RESULT_URL = "/assets/results/fixed-m3-render.png"
 const NANO_BANANA_WS_POLL_INTERVAL_MS = 4000
 const NANO_BANANA_WS_POLL_REQUEST_TIMEOUT_MS = 30_000
+const YUNWU_FAL_POLL_INTERVAL_MS = 3000
+const YUNWU_FAL_POLL_TIMEOUT_MS = 180_000
 const MAX_NANO_BANANA_WS_INPUT_IMAGES = 14
 const MAX_PROVIDER_RESULT_IMAGE_BYTES = 20 * 1024 * 1024
 type NanoBananaProviderInputImage = Awaited<ReturnType<typeof readImageSource>> & {
@@ -193,6 +195,9 @@ async function invokeOpenAiCompatibleImageGeneration(
 ): Promise<GenerationProviderResponse> {
   if (is302NanoBananaWsEditEndpoint(endpoint)) {
     return invoke302NanoBananaWsEdit(input, apiKey, started, endpoint)
+  }
+  if (isYunwuFalNanoBananaEditEndpoint(endpoint)) {
+    return invokeYunwuFalNanoBananaEdit(input, apiKey, started, endpoint)
   }
   if (is302GeminiOriginalImageEndpoint(endpoint)) {
     return invoke302GeminiOriginalImageEdit(input, apiKey, started, endpoint)
@@ -365,6 +370,56 @@ async function invoke302NanoBananaWsEdit(
   }
 }
 
+async function invokeYunwuFalNanoBananaEdit(
+  input: GenerationProviderRequest,
+  apiKey: string,
+  started: number,
+  endpoint: string,
+): Promise<GenerationProviderResponse> {
+  const imageUrls = [input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).slice(0, MAX_NANO_BANANA_WS_INPUT_IMAGES)
+  const images = await nanoBananaProviderInputImages(imageUrls, input.provider.id)
+  if (!images.length) throw new Error("No image was available for Yunwu Nano Banana edit.")
+  const requestPayload = yunwuFalNanoBananaPayload(nanoBananaSafePrompt(input.prompt), input.negativePrompt, images)
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: providerRequestHeaders(apiKey, endpoint, { "Content-Type": "application/json" }),
+    body: JSON.stringify(requestPayload),
+  })
+  const payload = await readProviderPayload(response)
+  const raw = payload.raw
+  if (!response.ok) {
+    return providerError(
+      input.provider,
+      started,
+      providerHttpErrorMessageForUi(raw, payload, response, endpoint),
+      providerHttpErrorRaw({ response: raw, requestShape: yunwuFalNanoBananaRequestShape(images, requestPayload) }, payload, response, endpoint),
+    )
+  }
+
+  let settled: Record<string, unknown>
+  try {
+    settled = await waitForYunwuFalResult(raw, apiKey, endpoint)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return providerError(input.provider, started, message, sanitizeRawResponse({ endpoint, error: message, initialResponse: raw }))
+  }
+  const imageResult = findImageResult(settled)
+  if (!imageResult) {
+    return providerError(input.provider, started, "Yunwu Nano Banana edit returned no recognizable image URL or base64 image.", sanitizeRawResponse({ endpoint, response: settled }))
+  }
+  const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
+  const usageUnits = estimateUsageUnits(settled)
+  return {
+    ok: true,
+    provider: input.provider.id,
+    resultImageUrl,
+    latencyMs: Date.now() - started,
+    usageUnits,
+    costCents: estimateCostCents(input.provider.id, usageUnits),
+    rawResponse: sanitizeRawResponse({ endpoint, response: settled }),
+  }
+}
+
 async function invokeOpenAiCompatibleChatImage(
   input: GenerationProviderRequest,
   apiKey: string,
@@ -486,6 +541,7 @@ function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_gene
   if (normalized.endsWith("/images/edits")) return { kind: "image_edit", url: normalized }
   if (is302GeminiOriginalImageEndpoint(normalized)) return { kind: "image_generation", url: normalized }
   if (is302NanoBananaWsEditEndpoint(normalized)) return { kind: "image_generation", url: normalized }
+  if (isYunwuFalNanoBananaEditEndpoint(normalized)) return { kind: "image_generation", url: normalized }
   return { kind: "image_edit", url: `${normalized}/images/edits` }
 }
 
@@ -523,6 +579,15 @@ function isYunwuImageEndpoint(endpoint: string) {
   try {
     const url = new URL(endpoint)
     return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/v1/images/edits") || url.pathname.endsWith("/v1/images/generations"))
+  } catch {
+    return false
+  }
+}
+
+function isYunwuFalNanoBananaEditEndpoint(endpoint: string) {
+  try {
+    const url = new URL(endpoint)
+    return url.hostname.toLowerCase() === "yunwu.ai" && url.pathname.endsWith("/fal-ai/nano-banana/edit")
   } catch {
     return false
   }
@@ -824,6 +889,16 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
   }
 }
 
+function yunwuFalNanoBananaPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[]) {
+  const text = [prompt, negativePrompt ? `Negative Prompt:\n${negativePrompt}` : ""].filter(Boolean).join("\n\n")
+  return {
+    prompt: text,
+    image_urls: images.map((image) => image.providerUrl),
+    num_images: 1,
+    output_format: yunwuNanoOutputFormat(),
+  }
+}
+
 function nanoBanana302SyncMode() {
   return process.env.NANO_BANANA_302_SYNC_MODE === "1"
 }
@@ -838,7 +913,7 @@ async function nanoBananaProviderInputImages(urls: string[], providerId: Provide
   const publicBaseUrl = providerInputPublicBaseUrl()
   if (!publicBaseUrl) {
     throw new Error(
-      "302 Nano-Banana-2 requires publicly reachable image URLs. Set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to the test-server origin before using the real 302 provider.",
+      "Nano-Banana image edit requires publicly reachable image URLs. Set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to the test-server origin before using the real provider.",
     )
   }
   return Promise.all(urls.map((url, index) => nanoBananaProviderInputImage(url, providerId, index, publicBaseUrl)))
@@ -921,6 +996,27 @@ function nanoBananaRequestShape(
     enableSyncMode: payload.enable_sync_mode,
     enableBase64Output: payload.enable_base64_output,
   }
+}
+
+function yunwuFalNanoBananaRequestShape(
+  images: NanoBananaProviderInputImage[],
+  payload: ReturnType<typeof yunwuFalNanoBananaPayload>,
+) {
+  return {
+    imageInputType: "public_url",
+    imageCount: images.length,
+    imageLocalPaths: images.map((image) => image.localUrl),
+    imageMimes: images.map((image) => image.mime),
+    promptChars: payload.prompt.length,
+    numImages: payload.num_images,
+    outputFormat: payload.output_format,
+  }
+}
+
+function yunwuNanoOutputFormat() {
+  const value = String(process.env.YUNWU_NANO_OUTPUT_FORMAT || "jpeg").trim().toLowerCase()
+  if (value === "jpeg" || value === "png" || value === "webp") return value
+  return "jpeg"
 }
 
 function log302NanoSubmitFailure(
@@ -1029,6 +1125,95 @@ async function fetch302PredictionResult(resultUrls: string[], apiKey: string): P
     failures.push(`${safeSourceUrl(resultUrl)}: ${providerHttpErrorMessageForUi(payload.raw, payload, response, resultUrl)}`)
   }
   throw new Error(`Nano-Banana-2 result polling failed after task submission. attempts=${failures.join(" | ") || "none"}`, { cause: lastError })
+}
+
+async function waitForYunwuFalResult(raw: Record<string, unknown>, apiKey: string, endpoint: string): Promise<Record<string, unknown>> {
+  let current = raw
+  const deadline = Date.now() + YUNWU_FAL_POLL_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    if (findImageResult(current)) return current
+    const status = falQueueStatus(current)
+    if (falQueueFailed(status)) throw new Error(falQueueError(current) || `Yunwu Nano Banana task failed with status: ${status}`)
+
+    const urls = yunwuFalQueueUrls(current, endpoint)
+    if (!urls.length) return current
+    await delay(YUNWU_FAL_POLL_INTERVAL_MS)
+    current = await fetchYunwuFalQueueUrls(falQueueCompleted(status) ? urls.responseUrls : [...urls.statusUrls, ...urls.responseUrls], apiKey, endpoint)
+  }
+  throw new Error(`Yunwu Nano Banana result polling timed out after ${Math.round(YUNWU_FAL_POLL_TIMEOUT_MS / 1000)}s.`)
+}
+
+async function fetchYunwuFalQueueUrls(urls: string[], apiKey: string, endpoint: string): Promise<Record<string, unknown>> {
+  const candidates = uniqueNonEmptyStrings(urls.flatMap((url) => yunwuFalQueueUrlCandidates(url, endpoint)))
+  const failures: string[] = []
+  let lastError: unknown
+  for (const url of candidates) {
+    let response: Response
+    try {
+      response = await fetchWithTimeout(url, {
+        method: "GET",
+        headers: providerRequestHeaders(apiKey, url),
+      }, NANO_BANANA_WS_POLL_REQUEST_TIMEOUT_MS)
+    } catch (error) {
+      lastError = error
+      failures.push(`${safeSourceUrl(url)}: ${transportErrorSummary(error)}`)
+      continue
+    }
+    const payload = await readProviderPayload(response)
+    if (response.ok) return payload.raw
+    failures.push(`${safeSourceUrl(url)}: ${providerHttpErrorMessageForUi(payload.raw, payload, response, url)}`)
+  }
+  throw new Error(`Yunwu Nano Banana result polling failed after task submission. attempts=${failures.join(" | ") || "none"}`, { cause: lastError })
+}
+
+function yunwuFalQueueUrls(raw: Record<string, unknown>, endpoint: string) {
+  const responseUrls: string[] = []
+  const statusUrls: string[] = []
+  const data = predictionData(raw)
+  for (const value of [data.response_url, data.responseUrl, raw.response_url, raw.responseUrl]) {
+    if (typeof value === "string" && value) responseUrls.push(value)
+  }
+  for (const value of [data.status_url, data.statusUrl, raw.status_url, raw.statusUrl]) {
+    if (typeof value === "string" && value) statusUrls.push(value)
+  }
+  const id = typeof data.request_id === "string" ? data.request_id : typeof data.requestId === "string" ? data.requestId : ""
+  if (id && !responseUrls.length && !statusUrls.length) {
+    const base = new URL(endpoint)
+    base.pathname = `/fal-ai/nano-banana/requests/${encodeURIComponent(id)}`
+    base.search = ""
+    responseUrls.push(base.toString())
+    statusUrls.push(`${base.toString()}/status`)
+  }
+  return { responseUrls: uniqueNonEmptyStrings(responseUrls), statusUrls: uniqueNonEmptyStrings(statusUrls), length: responseUrls.length + statusUrls.length }
+}
+
+function yunwuFalQueueUrlCandidates(value: string, endpoint: string) {
+  try {
+    const url = new URL(value)
+    if (url.hostname.toLowerCase() !== "queue.fal.run") return [value]
+    const proxy = new URL(endpoint)
+    proxy.pathname = url.pathname
+    proxy.search = url.search
+    return [proxy.toString(), value]
+  } catch {
+    return [value]
+  }
+}
+
+function falQueueStatus(raw: Record<string, unknown>) {
+  return String(predictionData(raw).status || "").toUpperCase()
+}
+
+function falQueueCompleted(status: string) {
+  return ["COMPLETED", "DONE", "SUCCESS", "SUCCEEDED"].includes(status)
+}
+
+function falQueueFailed(status: string) {
+  return ["FAILED", "ERROR", "CANCELED", "CANCELLED"].includes(status)
+}
+
+function falQueueError(raw: Record<string, unknown>) {
+  return predictionError(raw)
 }
 
 function predictionData(raw: Record<string, unknown>) {
