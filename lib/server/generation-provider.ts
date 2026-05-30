@@ -124,7 +124,7 @@ async function invokeOpenAiCompatibleImageEdit(
   formData.append("size", "1024x1024")
   if (is302ImageEndpoint(endpoint)) {
     append302FastImageOptions(formData)
-  } else if (supportsInputFidelity(input.provider.modelName)) {
+  } else if (!isYunwuImageEndpoint(endpoint) && supportsInputFidelity(input.provider.modelName)) {
     formData.append("input_fidelity", "high")
   }
 
@@ -510,6 +510,15 @@ function is302ImageEndpoint(endpoint: string) {
   }
 }
 
+function isYunwuImageEndpoint(endpoint: string) {
+  try {
+    const url = new URL(endpoint)
+    return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/v1/images/edits") || url.pathname.endsWith("/v1/images/generations"))
+  } catch {
+    return false
+  }
+}
+
 function is302ApiHost(host: string) {
   return host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com"
 }
@@ -789,7 +798,7 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     prompt: text,
     images: images.map(imageDataUrl),
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
-    resolution: "0.5k",
+    resolution: nanoBanana302Resolution(),
     enable_sync_mode: nanoBanana302SyncMode(),
     enable_base64_output: false,
   }
@@ -797,6 +806,12 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
 
 function nanoBanana302SyncMode() {
   return process.env.NANO_BANANA_302_SYNC_MODE === "1"
+}
+
+function nanoBanana302Resolution() {
+  const value = String(process.env.NANO_BANANA_302_RESOLUTION || "1k").trim().toLowerCase()
+  if (value === "1k" || value === "2k" || value === "4k") return value
+  return "1k"
 }
 
 function nanoBananaSafePrompt(prompt: string) {
