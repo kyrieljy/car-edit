@@ -40,6 +40,7 @@ const YUNWU_FAL_POLL_INTERVAL_MS = 3000
 const YUNWU_FAL_POLL_TIMEOUT_MS = 180_000
 const MAX_NANO_BANANA_WS_INPUT_IMAGES = 14
 const MAX_PROVIDER_RESULT_IMAGE_BYTES = 20 * 1024 * 1024
+const YUNWU_NANO2_GEMINI_ENDPOINT = "https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
 type NanoBananaProviderInputImage = Awaited<ReturnType<typeof readImageSource>> & {
   providerUrl: string
   localUrl: string
@@ -107,7 +108,7 @@ async function invokeOpenAiCompatibleGeneration(
   apiKey: string,
   started: number,
 ): Promise<GenerationProviderResponse> {
-  const endpoint = generationEndpoint(input.provider.baseUrl)
+  const endpoint = generationEndpoint(providerGenerationBaseUrl(input.provider))
   if (endpoint.kind === "chat_completions") {
     return invokeOpenAiCompatibleChatImage(input, apiKey, started, endpoint.url)
   }
@@ -537,6 +538,13 @@ function providerRequestHeaders(apiKey: string, endpoint: string, extra: Record<
     headers.Connection = "close"
   }
   return headers
+}
+
+function providerGenerationBaseUrl(provider: ProviderConfig) {
+  if (provider.id === "provider_yunwu_nano2_edit" && isYunwuFalNanoBananaEditEndpoint(provider.baseUrl)) {
+    return YUNWU_NANO2_GEMINI_ENDPOINT
+  }
+  return provider.baseUrl
 }
 
 function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_generation" | "chat_completions"; url: string } {
@@ -1591,19 +1599,20 @@ function providerTransportErrorMessage(provider: ProviderConfig, error: unknown)
 }
 
 function providerTransportErrorRaw(provider: ProviderConfig, error: unknown) {
+  const configuredEndpoint = generationEndpoint(providerGenerationBaseUrl(provider)).url
   return sanitizeRawResponse({
     provider: provider.id,
     label: provider.label,
     model: provider.modelName,
     endpoint: effectiveTransportEndpoint(provider),
-    configuredEndpoint: generationEndpoint(provider.baseUrl).url,
+    configuredEndpoint,
     error: error instanceof Error ? error.message : String(error),
     cause: transportCause(error),
   })
 }
 
 function effectiveTransportEndpoint(provider: ProviderConfig) {
-  const endpoint = generationEndpoint(provider.baseUrl).url
+  const endpoint = generationEndpoint(providerGenerationBaseUrl(provider)).url
   try {
     if (is302NanoBananaWsEditEndpoint(endpoint)) {
       return nanoBananaWsEndpointCandidates(endpoint).join(" -> ")
