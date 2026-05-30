@@ -41,7 +41,6 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
     const paintId = String(formData.get("paintId") || "factory")
     const stance = clamp(Number(formData.get("stance") || 0), 0, 100)
     const vehicleNote = String(formData.get("vehicleNote") || "")
-    const detectedVehicleModel = normalizeVehicleModel(String(formData.get("detectedVehicleModel") || ""))
     emitProgress({ step: "canvas_resolve" })
     const selections = parseSelections(String(formData.get("selections") || "{}"))
     const selectionOptions = parseSelectionOptions(String(formData.get("selectionOptions") || "{}"))
@@ -106,7 +105,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
       paintGradient: gradientPaint?.ok ? gradientPaint.gradient : undefined,
       stance,
       vehicleNote,
-      vehicleModel: detectedVehicleModel || normalizeVehicleModel(vehicleNote),
+      vehicleModel: normalizeVehicleModel(vehicleNote),
     })
     const job = await runGenerationWorkflow({
       userId: user.id,

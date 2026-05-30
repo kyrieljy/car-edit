@@ -960,7 +960,6 @@ export function CarModStudio() {
       const formData = new FormData()
       formData.append("vehicleImage", vehicleFile)
       formData.append("vehicleNote", vehicleNoteEdited ? vehicleNote.trim() : "")
-      formData.append("detectedVehicleModel", normalizeDetectedVehicleModel(vehicleNote))
       formData.append("paintId", paintId)
       formData.append("paintFinishEffect", paintFinishEffect)
       if (isGradientPaint) {

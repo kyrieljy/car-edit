@@ -1,0 +1,2059 @@
+{
+  "schema": "car-mod-effective-prompt-extract-v1",
+  "extractedAt": "2026-05-30T07:20:48.679Z",
+  "targetMoment": "2026-05-29 17:55 Asia/Shanghai, before first Git/GitHub deployment from local Playground project",
+  "conclusion": [
+    "The latest locally validated prompt behavior is Effective Prompt v1 / preset_oem_plus_v1 / version 3.0-effective-v1.",
+    "The strongest machine-verifiable evidence is docs/chat-mode-dry-run-test-results.json generatedAt=2026-05-22T08:37:58.035Z with 76/76 passing cases.",
+    "The current local SQLite active prompt preset and system prompt templates match code seed hashes; no older SQLite prompt override or DB backup was found inside the repo.",
+    "The observed NIO ET7 leakage is a later Config Mode standard-json regression, not a template text regression: auto-detected vehicle model is now passed into generation prompt unless reverted."
+  ],
+  "evidence": {
+    "dryRunResults": {
+      "file": "docs/chat-mode-dry-run-test-results.json",
+      "generatedAt": "2026-05-22T08:37:58.035Z",
+      "total": 76,
+      "passed": 76
+    },
+    "docs": [
+      "docs/EFFECTIVE_PROMPT_V1.md",
+      "docs/VEHICLE_MODEL_PROMPT_SAFETY.md",
+      "docs/CHAT_MODE_STRATEGY_GUIDE.md",
+      "docs/PART_ASSET_QA_AND_COLOR_POLICY_V1.md",
+      "docs/PROMPT_REAL_EFFECT_REGRESSION_CHECKLIST.md",
+      "docs/chatgpt-web-stability-2026-05-13/RUN_LOG.md",
+      "docs/chatgpt-web-stability-2026-05-13/prompts/F-C-hood-body-color-v2-success.txt",
+      "docs/chatgpt-web-stability-2026-05-13/prompts/F-B-HOOD-BODY-V2.txt"
+    ],
+    "initialGitCommit": "4b81f80 Initial car edit project, 2026-05-29 18:07:35 +0800",
+    "seedRefactorCommit": "291aacd Refactor static defaults out of SQLite seeds, 2026-05-29 18:59:30 +0800"
+  },
+  "activePromptPreset": {
+    "id": "preset_oem_plus_v1",
+    "title": "Effective Prompt v1 中文有效版",
+    "version": "3.0-effective-v1",
+    "body": "请对第一张上传的原车照片做真实照片局部编辑。第一张图片是唯一原车画布；后面的图片都是配件参考图，不是车身参考，不是场景参考，不是画布。\n\n绝对保留原图：背景、地面、墙面、车位线、其它车辆、室内/室外环境、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择的原厂部件。\n\n参考配件图的优先级低于原车图和后台配置。参考图只用于理解选中配件的局部形状、材质和安装位置，不继承参考图的背景、场景、整车、轮毂、颜色、文字、水印、人物、包装或展示台。\n\n如果某张配件参考图质量低、角度不适合、包含其它车辆、或与当前车辆视角不匹配，宁可忽略这张参考图，也不要改变原车、背景、车型、轮毂或未选择类别。",
+    "negativePrompt": "不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+    "bodyHash": "8a17e4bd439a2e0b",
+    "negativePromptHash": "a371c1bd00060ffe"
+  },
+  "promptTemplates": [
+    {
+      "id": "tpl_base_photo_edit",
+      "scope": "base",
+      "title": "通用基础 Prompt - 唯一画布与参考图角色",
+      "body": "任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 5,
+      "bodyHash": "80957bc09d850642",
+      "dbBodyHash": "80957bc09d850642",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_config_mode_default",
+      "scope": "config_mode",
+      "title": "配置模式 Prompt - 后台配置最高优先级",
+      "body": "本次生图以后台配置 JSON 为最高优先级。只允许执行 JSON 中明确选择的 paint、stance、parts 和 colorPolicy 分支。没有出现在 JSON parts 中的配件绝对不要出现；同一类别只执行当前选择的一个配件。不要根据常见改装审美额外添加未选择内容。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "7260ef381dfbefb0",
+      "dbBodyHash": "7260ef381dfbefb0",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_chat_mode_default",
+      "scope": "chat_mode",
+      "title": "对话模式 Prompt - 用户请求转局部编辑",
+      "body": "本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "31e1c2ddfc54588f",
+      "dbBodyHash": "31e1c2ddfc54588f",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_config_base_default",
+      "scope": "config_base",
+      "title": "配置模式基础 Prompt - 白名单",
+      "body": "前台 UI 选择就是本次允许编辑的白名单。如果某个类别没有被选择，必须保持原图不变。未选择轮毂时，轮毂款式、颜色、尺寸、辐条数量、轮唇、中心盖、轮胎和接地关系必须完全保持原图。未选择尾翼、排气、尾灯、后视镜、扩散器、前唇、侧裙或中网时，不要生成或替换这些部件。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 12,
+      "bodyHash": "b21ad80d7c751e40",
+      "dbBodyHash": "b21ad80d7c751e40",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_wheels",
+      "scope": "category",
+      "title": "分类 Prompt - 轮毂",
+      "body": "轮毂改装必须保持轮子圆形不变，不能椭圆、扭曲或断裂。轮毂中心必须对准原车轮心，大小要符合原车轮拱和轮胎比例。保留真实轮胎侧壁、刹车盘深度、轮辐透视、地面接触阴影和金属反光。未选择车高时不要改变姿态。",
+      "assetId": "",
+      "combinationKey": "wheels",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "2dc8216c7d8275e0",
+      "dbBodyHash": "2dc8216c7d8275e0",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_calipers",
+      "scope": "category",
+      "title": "分类 Prompt - 刹车卡钳",
+      "body": "刹车卡钳必须位于轮辐后方并贴合刹车盘，不能漂浮在轮毂表面，也不能盖住轮毂主体造型。卡钳大小要符合车辆比例，受轮辐自然遮挡，颜色清晰但不过曝。",
+      "assetId": "",
+      "combinationKey": "calipers",
+      "active": true,
+      "sortOrder": 20,
+      "bodyHash": "4d843b92e4eb5f31",
+      "dbBodyHash": "4d843b92e4eb5f31",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_rear_wing",
+      "scope": "category",
+      "title": "分类 Prompt - 尾翼 / 后扰流",
+      "body": "尾翼或 trunk lip spoiler 只能安装在第一张原图可见的后备箱上沿、尾箱盖或原厂扰流区域。低调 trunk lip 必须是一条薄而连续、贴合曲面的亮黑/碳纤维边缘；不要做成大 GT wing，不要竖支架，不要改变车尾角度，不要重画车尾，不要改变尾灯、车牌、排气或扩散器。",
+      "assetId": "",
+      "combinationKey": "rear-wing",
+      "active": true,
+      "sortOrder": 30,
+      "bodyHash": "c3b52619f8fa0426",
+      "dbBodyHash": "c3b52619f8fa0426",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_front_bumper",
+      "scope": "category",
+      "title": "分类 Prompt - 前唇 / 前包围",
+      "body": "前唇和前铲只能安装在原车前保险杠下沿。保留原车大灯、中网、进气口、车牌区域、机盖线和车头基础轮廓。前唇离地高度、投影阴影和碳纤维反光要真实，不能生成夸张赛车包围。",
+      "assetId": "",
+      "combinationKey": "front-bumper",
+      "active": true,
+      "sortOrder": 40,
+      "bodyHash": "cc6f92f1a9154b15",
+      "dbBodyHash": "cc6f92f1a9154b15",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_side_skirts",
+      "scope": "category",
+      "title": "分类 Prompt - 侧裙",
+      "body": "侧裙必须沿车身下侧门槛自然延伸，并与前后轮拱衔接顺畅。保持车门缝隙、侧面反光和原图透视，不能让侧裙穿入地面、遮挡轮胎或改变车身长度。",
+      "assetId": "",
+      "combinationKey": "side-skirts",
+      "active": true,
+      "sortOrder": 50,
+      "bodyHash": "d22132bda7e55d55",
+      "dbBodyHash": "d22132bda7e55d55",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_diffuser",
+      "scope": "category",
+      "title": "分类 Prompt - 后扩散器",
+      "body": "后扩散器必须安装在后保险杠下方，鳍片方向、深度和阴影要符合原图透视。不能改变尾灯、后备箱、车牌区域和排气位置。扩散器应增强车尾层次，而不是重画整个车尾。",
+      "assetId": "",
+      "combinationKey": "diffuser",
+      "active": true,
+      "sortOrder": 60,
+      "bodyHash": "80dc95c3d4db45a3",
+      "dbBodyHash": "80dc95c3d4db45a3",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_exhaust",
+      "scope": "category",
+      "title": "分类 Prompt - 排气",
+      "body": "排气尾喉必须出现在车尾后包围合理开口位置，数量、左右对称、金属材质、内腔暗部和烧蓝/钛色反光要真实。不要改变整个后包围结构、尾灯、车牌或相机角度。",
+      "assetId": "",
+      "combinationKey": "exhaust",
+      "active": true,
+      "sortOrder": 70,
+      "bodyHash": "dbbccd5cd4310de1",
+      "dbBodyHash": "dbbccd5cd4310de1",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_hood",
+      "scope": "category",
+      "title": "分类 Prompt - 机盖",
+      "body": "机盖改装只能作用于前保险杠、翼子板、前挡风玻璃和大灯缝线之间的机盖面板。必须保持第一张原车机盖安装边界、前沿、后沿、左右缝隙、灯眉关系和中央 power dome 的位置、宽度、高度。body_color 表示机盖必须喷成第一张原车相同车身漆，不要露出黑色碳纤维纹理；exposed_carbon 表示只在机盖表面显示裸露碳纤维纹理，不能扩散到车顶、后备箱、车门、保险杠、后视镜、轮毂或灯具。",
+      "assetId": "",
+      "combinationKey": "hood",
+      "active": true,
+      "sortOrder": 80,
+      "bodyHash": "9f05498196031ed8",
+      "dbBodyHash": "9f05498196031ed8",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_lights",
+      "scope": "category",
+      "title": "分类 Prompt - 灯具 / 灯膜",
+      "body": "灯膜或灯具处理只能改变可见灯罩色调、透明度或细节，不得改变大灯/尾灯外轮廓、内部灯组结构和位置。烟熏效果要保留灯具玻璃反光和边缘高光，不能把灯完全涂黑或生成错误灯型。",
+      "assetId": "",
+      "combinationKey": "lights",
+      "active": true,
+      "sortOrder": 90,
+      "bodyHash": "129eb4c34fce2733",
+      "dbBodyHash": "129eb4c34fce2733",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_wrap",
+      "scope": "category",
+      "title": "分类 Prompt - 改色 / 贴膜",
+      "body": "车身改色或贴膜只能作用于车身漆面板件，不能改变玻璃、灯具、轮毂、轮胎、牌照区域、黑色塑料饰条、碳纤维件、进气格栅和尾翼。必须保留原图高光、阴影、反射、车身折线和环境色温。",
+      "assetId": "",
+      "combinationKey": "wrap",
+      "active": true,
+      "sortOrder": 100,
+      "bodyHash": "a451daf7417f4bf7",
+      "dbBodyHash": "a451daf7417f4bf7",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_mirrors",
+      "scope": "category",
+      "title": "分类 Prompt - 后视镜",
+      "body": "后视镜改装只修改后视镜外壳或镜盖材质，必须保留原后视镜形状、角度、镜片位置、边缘缝隙和车门连接结构。碳纤维纹理要细腻，不能让后视镜变形或消失。",
+      "assetId": "",
+      "combinationKey": "mirrors",
+      "active": true,
+      "sortOrder": 110,
+      "bodyHash": "254930143c548b52",
+      "dbBodyHash": "254930143c548b52",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_category_grille",
+      "scope": "category",
+      "title": "分类 Prompt - 中网 / 格栅",
+      "body": "中网或格栅改装必须保留原车前脸比例、大灯位置、保险杠轮廓和品牌车型识别。只调整格栅内部样式、颜色或材质，不得重画整个车头，不得改变车标位置和进气口透视。",
+      "assetId": "",
+      "combinationKey": "grille",
+      "active": true,
+      "sortOrder": 120,
+      "bodyHash": "5fcc6a788d5f467f",
+      "dbBodyHash": "5fcc6a788d5f467f",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_wheel_stance",
+      "scope": "combo",
+      "title": "组合 Prompt - 轮毂 + 降低车高",
+      "body": "同时选择轮毂和降低车高时，轮心位置必须合理，轮胎与轮拱关系要真实。除非 stance 明确为激进贴地，否则不要让轮胎穿进翼子板或地面。",
+      "assetId": "",
+      "combinationKey": "wheels,stance_lowered",
+      "active": true,
+      "sortOrder": 20,
+      "bodyHash": "e75cfb8fb6d932fe",
+      "dbBodyHash": "e75cfb8fb6d932fe",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_wheel_caliper",
+      "scope": "combo",
+      "title": "组合 Prompt - 轮毂 + 卡钳",
+      "body": "同时选择轮毂和卡钳时，先保持新轮毂透视和轮辐结构，再把卡钳渲染在轮辐后方和刹车盘上，必须有正确遮挡和深度关系。",
+      "assetId": "",
+      "combinationKey": "wheels,calipers",
+      "active": true,
+      "sortOrder": 30,
+      "bodyHash": "311a0945fb578925",
+      "dbBodyHash": "311a0945fb578925",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_paint_carbon",
+      "scope": "combo",
+      "title": "组合 Prompt - 改色 + 碳纤维件",
+      "body": "同时选择车身改色和碳纤维配件时，车身漆面和外置碳纤维小件必须分开处理。只有 colorPolicy 为 body_color 的覆盖件才跟随车身同色；其余已选碳纤维小件保持碳纤维材质，但不能把车门、翼子板、玻璃、车顶或背景染黑。",
+      "assetId": "",
+      "combinationKey": "paint_change,carbon_parts",
+      "active": true,
+      "sortOrder": 40,
+      "bodyHash": "1fff8aa95508e492",
+      "dbBodyHash": "1fff8aa95508e492",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_aero_parts",
+      "scope": "combo",
+      "title": "组合 Prompt - 多个空气动力学套件",
+      "body": "当前唇、侧裙、尾翼、扩散器等多个空气动力学套件同时出现时，每个配件必须贴合自己的安装区域。不要把前唇、侧裙、扩散器和尾翼融合成一整块，也不要过度夸张。",
+      "assetId": "",
+      "combinationKey": "front-bumper,carbon_parts",
+      "active": true,
+      "sortOrder": 50,
+      "bodyHash": "84cf08c273936b30",
+      "dbBodyHash": "84cf08c273936b30",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_uploaded_reference",
+      "scope": "combo",
+      "title": "组合 Prompt - 多参考图",
+      "body": "所有参考图只服务于对应配件的形状、材质和安装关系。不要继承参考图里的车身、背景、文字、水印、车牌、轮毂、尾灯、排气、场景或拍摄角度。如果参考图角度难以对齐，宁可弱化配件，也不要改原车、背景或未选类别。",
+      "assetId": "",
+      "combinationKey": "uploaded_reference",
+      "active": true,
+      "sortOrder": 60,
+      "bodyHash": "534890704a86d5f3",
+      "dbBodyHash": "534890704a86d5f3",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_hood_body_color",
+      "scope": "combo",
+      "title": "组合 Prompt - 机盖车身同色",
+      "body": "当机盖 colorPolicy 为 body_color 时，这是 Seibon OE-style contour hood 的同色机盖改装，不是保持原厂普通平机盖。\n\n机盖必须喷成第一张原车相同的车身漆，或当前配置指定的车身同色漆；不能出现黑色碳纤维、裸碳纹理、黑色面板、开孔、散热孔或赛车通风口。\n\n但机盖造型必须明显可识别：请在同色漆面上做出清晰但真实的中央 power dome 隆起、左右两条从前沿延伸到风挡附近的长折线、前沿与灯眉附近的细微高低变化。\n\n这些特征必须通过同色高光、阴影、反射弯折和钣金曲面体现，视觉上能一眼看出不是原厂平机盖。不要只做轻微高光变化；如果机盖看起来和原图普通机盖几乎一样，则本次机盖改装失败。\n\n只允许修改机盖面板本身。其它车身、车顶、翼子板、前杠、格栅、大灯、轮毂、玻璃、车牌和背景全部保持原图。",
+      "assetId": "",
+      "combinationKey": "hood,hood_body_color",
+      "active": true,
+      "sortOrder": 70,
+      "bodyHash": "5c0cb87ebdcfc15c",
+      "dbBodyHash": "5c0cb87ebdcfc15c",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_combo_hood_exposed_carbon",
+      "scope": "combo",
+      "title": "组合 Prompt - 机盖裸碳",
+      "body": "当机盖 colorPolicy 为 exposed_carbon 时，只在机盖面板显示清晰但真实的裸露碳纤维纹理和反光。不能把碳纤维纹理扩散到车顶、后备箱、车门、翼子板、保险杠、后视镜、轮毂、灯具或未选择部件。",
+      "assetId": "",
+      "combinationKey": "hood,hood_exposed_carbon",
+      "active": true,
+      "sortOrder": 80,
+      "bodyHash": "d673b8d6bba172c3",
+      "dbBodyHash": "d673b8d6bba172c3",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_chat_parser_default",
+      "scope": "chat_parser",
+      "title": "对话解析 Prompt - 自然语言转标准 JSON",
+      "body": "请把用户的自然语言改装需求解析成稳定标准 JSON。必须提取：车辆信息、是否改色、目标颜色、车身高度/姿态、配件类别、配件来源、参考图对应关系、风格关键词、必须保留的约束。每个 parts 项必须包含 category、source、referenceImages、instruction、colorPolicy 和 colorPolicyPrompt。机盖默认 body_color，只有用户明确说裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood 时才设为 exposed_carbon。如果缺少关键字段，返回 needs_followup，并只问一个最关键的追问。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 7,
+      "bodyHash": "ddf5c9e294cca1ff",
+      "dbBodyHash": "ddf5c9e294cca1ff",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_chat_optimizer_default",
+      "scope": "chat_optimizer",
+      "title": "对话优化 Prompt - 明确改装需求",
+      "body": "把用户含糊的改装需求整理成一个明确、可执行的汽车局部改装指令，同时保留用户原意。若目标类别缺失，只提出一个最关键的追问；不要直接扩写成生图 Prompt。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "cffb5a19d9c7fdf3",
+      "dbBodyHash": "cffb5a19d9c7fdf3",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_vehicle_recognition_default",
+      "scope": "vehicle_recognition",
+      "title": "车辆识别 Prompt - 输入检测",
+      "body": "你是汽车车型识别助手。请判断用户上传图片是否为真实车辆照片，并返回严格 JSON。如果是车辆，必须给出一个确定、具体、规范化的最佳车型猜测，不要使用“可能是 / 疑似 / maybe / probably / looks like”等不确定话术。model 字段必须尽量包含品牌、车系/车型、车身形式和代号/世代；格式示例：BMW M4 coupe (F82)、Porsche 911 GT3 (992)、Toyota GR Supra coupe (A90)。不要只返回品牌或单个车系代号，例如不要只写 BMW、M4、911；如果画面信息不足但仍是车辆，也要填写最具体的 best guess，并用 confidence 表示不确定性。只有在完全无法判断为车辆或车辆主体不可识别时，model 才写 unknown，并给出 rejectReason。返回字段：isVehicle、model、make、series、generation、bodyStyle、view、confidence、qualityFlags、rejectReason。只返回 JSON，不要 Markdown。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 5,
+      "bodyHash": "30d0d305a7e1ec99",
+      "dbBodyHash": "30d0d305a7e1ec99",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_part_recognition_default",
+      "scope": "part_recognition",
+      "title": "配件识别 Prompt - 参考图检测",
+      "body": "请检查用户上传的配件参考图，判断它最可能属于哪类汽车改装件：轮毂、刹车卡钳、尾翼、前唇/前包围、侧裙、扩散器、排气、机盖、灯膜、贴膜/颜色、后视镜、中网。输出结构化结果，包含 category、confidence、visualFeatures、usableAsReference、rejectReason。不确定时标记 unknown，禁止编造品牌或型号。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 6,
+      "bodyHash": "72c07708fcc33317",
+      "dbBodyHash": "72c07708fcc33317",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_negative_default",
+      "scope": "negative",
+      "title": "默认 Negative Prompt",
+      "body": "不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "a371c1bd00060ffe",
+      "dbBodyHash": "a371c1bd00060ffe",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_result_check_default",
+      "scope": "result_check",
+      "title": "结果检查 Prompt - 质量验收",
+      "body": "请对比原车图、标准 JSON、最终生成图，判断生成结果是否合格。检查项：是否仍是同一辆车、背景是否被改变、拍摄角度是否被改变、光照和阴影是否一致、车身是否变形、轮毂是否圆且位置正确、所需配件是否全部出现、colorPolicy 是否被执行、未选择区域是否保持不变、是否有水印/文字/人物/明显 AI 伪影。输出 passed、score、missingElements、wrongElements、badCaseTags、summary、retryPrompt。不合格时 retryPrompt 只描述需要修复的失败点。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "35f231aba6cf30b4",
+      "dbBodyHash": "35f231aba6cf30b4",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    },
+    {
+      "id": "tpl_retry_default",
+      "scope": "retry",
+      "title": "修复重试 Prompt - 只修失败点",
+      "body": "这是一次修复重试，不是重新设计。请只修复结果检查中指出的失败点：缺失配件、颜色错误、轮毂变形、卡钳位置错误、背景变化、角度变化、车身扭曲、水印文字等。已经正确的内容必须保持不变。必须恢复原车身份、原背景、原拍摄角度、原光照和真实照片质感。不要新增未选择配件，不要改变用户没有要求修改的区域。",
+      "assetId": "",
+      "combinationKey": "",
+      "active": true,
+      "sortOrder": 10,
+      "bodyHash": "b8df782d2b4920b0",
+      "dbBodyHash": "b8df782d2b4920b0",
+      "dbMatchesSeed": true,
+      "dbUpdatedAt": 1780048204544
+    }
+  ],
+  "criticalAssets": [
+    {
+      "id": "bbs-lmr-ds-sld",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DS-SLD",
+      "color": "Diamond Silver disk / Silver rim",
+      "finish": "diamond-cut silver",
+      "promptHint": "只安装 BBS LM-R DS-SLD 轮毂。保持轮胎直径、胎壁厚度、刹车盘深度、轮拱位置和真实金属反光。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "bbs-lmr-ds-sld-ref-1",
+          "assetId": "bbs-lmr-ds-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-sld/01-exact-ds-sld.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "BBS LM-R 多参考图：第一张控制准确配色和材质，后续图片只参考轮毂结构、轮唇层次和造型。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-sld-ref-2",
+          "assetId": "bbs-lmr-ds-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-sld/02-lineup-hero.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "BBS LM-R 多参考图：第一张控制准确配色和材质，后续图片只参考轮毂结构、轮唇层次和造型。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-sld-ref-3",
+          "assetId": "bbs-lmr-ds-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-sld/03-shape-dbSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "BBS LM-R 多参考图：第一张控制准确配色和材质，后续图片只参考轮毂结构、轮唇层次和造型。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-sld-ref-4",
+          "assetId": "bbs-lmr-ds-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-sld/04-shape-dsBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "BBS LM-R 多参考图：第一张控制准确配色和材质，后续图片只参考轮毂结构、轮唇层次和造型。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-sld-ref-5",
+          "assetId": "bbs-lmr-ds-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-sld/05-shape-dbBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "BBS LM-R 多参考图：第一张控制准确配色和材质，后续图片只参考轮毂结构、轮唇层次和造型。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "bbs-lmr-db-sld",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DB-SLD",
+      "color": "Diamond Black disk / Silver rim",
+      "finish": "diamond black with silver lip",
+      "promptHint": "只安装 BBS LM-R DB-SLD 轮毂。使用钻石黑中心盘和银色抛光轮唇，保持轮毂圆形、透视和真实刹车可见关系。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "bbs-lmr-db-sld-ref-1",
+          "assetId": "bbs-lmr-db-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-sld/01-exact-db-sld.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "BBS LM-R DB-SLD 参考组：第一张控制配色，其余图片只参考造型和结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-sld-ref-2",
+          "assetId": "bbs-lmr-db-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-sld/02-lineup-hero.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "BBS LM-R DB-SLD 参考组：第一张控制配色，其余图片只参考造型和结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-sld-ref-3",
+          "assetId": "bbs-lmr-db-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-sld/03-shape-dsSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "BBS LM-R DB-SLD 参考组：第一张控制配色，其余图片只参考造型和结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-sld-ref-4",
+          "assetId": "bbs-lmr-db-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-sld/04-shape-dsBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "BBS LM-R DB-SLD 参考组：第一张控制配色，其余图片只参考造型和结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-sld-ref-5",
+          "assetId": "bbs-lmr-db-sld",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-sld/05-shape-dbBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "BBS LM-R DB-SLD 参考组：第一张控制配色，其余图片只参考造型和结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "bbs-lmr-ds-bkbd",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DS-BKBD",
+      "color": "Diamond Silver disk / Black Bright rim",
+      "finish": "silver face with black bright lip",
+      "promptHint": "只安装 BBS LM-R DS-BKBD 轮毂。保持银色盘面、亮黑轮唇、多片式螺丝、圆形几何和正确轮胎贴合关系。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "bbs-lmr-ds-bkbd-ref-1",
+          "assetId": "bbs-lmr-ds-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-bkbd/01-exact-ds-bkbd.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "BBS LM-R DS-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-bkbd-ref-2",
+          "assetId": "bbs-lmr-ds-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-bkbd/02-lineup-hero.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "BBS LM-R DS-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-bkbd-ref-3",
+          "assetId": "bbs-lmr-ds-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-bkbd/03-shape-dsSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "BBS LM-R DS-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-bkbd-ref-4",
+          "assetId": "bbs-lmr-ds-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-bkbd/04-shape-dbSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "BBS LM-R DS-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-ds-bkbd-ref-5",
+          "assetId": "bbs-lmr-ds-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-ds-bkbd/05-shape-dbBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "BBS LM-R DS-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "bbs-lmr-db-bkbd",
+      "categoryId": "wheels",
+      "brand": "BBS",
+      "model": "LM-R",
+      "variant": "DB-BKBD",
+      "color": "Diamond Black disk / Black Bright rim",
+      "finish": "diamond black with black bright lip",
+      "promptHint": "只安装 BBS LM-R DB-BKBD 轮毂。保持钻石黑盘面、亮黑轮唇、多片式深度和前后轮正确透视。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "bbs-lmr-db-bkbd-ref-1",
+          "assetId": "bbs-lmr-db-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-bkbd/01-exact-db-bkbd.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "BBS LM-R DB-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-bkbd-ref-2",
+          "assetId": "bbs-lmr-db-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-bkbd/02-lineup-hero.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "BBS LM-R DB-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-bkbd-ref-3",
+          "assetId": "bbs-lmr-db-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-bkbd/03-shape-dsSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "BBS LM-R DB-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-bkbd-ref-4",
+          "assetId": "bbs-lmr-db-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-bkbd/04-shape-dbSld.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "BBS LM-R DB-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "bbs-lmr-db-bkbd-ref-5",
+          "assetId": "bbs-lmr-db-bkbd",
+          "url": "/assets/parts/references/multi-ref-v1/bbs-lmr-db-bkbd/05-shape-dsBkbd.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "BBS LM-R DB-BKBD 参考组：第一张控制材质和配色，其余图片只参考结构。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "brembo-gt-red",
+      "categoryId": "calipers",
+      "brand": "Brembo",
+      "model": "GT",
+      "variant": "Red",
+      "color": "Racing red",
+      "finish": "gloss powder coat",
+      "promptHint": "只在轮辐后方添加红色 Brembo GT 刹车卡钳。卡钳必须贴合刹车盘并被轮辐自然遮挡，不能覆盖轮毂主体造型。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "brembo-gt-red-ref-1",
+          "assetId": "brembo-gt-red",
+          "url": "/assets/parts/references/multi-ref-v1/brembo-gt-red/01-red-drilled.jpg",
+          "role": "install_context",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "Brembo 红色卡钳参考图：只参考安装位置、颜色和刹车盘关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "brembo-gt-red-ref-2",
+          "assetId": "brembo-gt-red",
+          "url": "/assets/parts/references/multi-ref-v1/brembo-gt-red/02-red-slotted-type-1.jpg",
+          "role": "install_context",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "Brembo 红色卡钳参考图：只参考安装位置、颜色和刹车盘关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "brembo-gt-red-ref-3",
+          "assetId": "brembo-gt-red",
+          "url": "/assets/parts/references/multi-ref-v1/brembo-gt-red/03-red-slotted-type-3.jpg",
+          "role": "install_context",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "Brembo 红色卡钳参考图：只参考安装位置、颜色和刹车盘关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "ap-racing-yellow",
+      "categoryId": "calipers",
+      "brand": "AP Racing",
+      "model": "Pro 5000R",
+      "variant": "Yellow",
+      "color": "Track yellow",
+      "finish": "gloss powder coat",
+      "promptHint": "在可见轮辐后方添加黄色 AP Racing Pro 5000R 刹车卡钳。比例、安装角度和遮挡关系必须符合轮毂与刹车盘透视。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "ap-racing-yellow-ref-1",
+          "assetId": "ap-racing-yellow",
+          "url": "/assets/parts/references/multi-ref-v1/ap-racing-yellow/01-banner-12-source.jpg",
+          "role": "install_context",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "AP Racing 黄色卡钳参考图：只参考颜色、卡钳轮廓和安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "ap-racing-yellow-ref-2",
+          "assetId": "ap-racing-yellow",
+          "url": "/assets/parts/references/multi-ref-v1/ap-racing-yellow/02-banner-5-page.jpg",
+          "role": "install_context",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "AP Racing 黄色卡钳参考图：只参考颜色、卡钳轮廓和安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "ap-racing-yellow-ref-3",
+          "assetId": "ap-racing-yellow",
+          "url": "/assets/parts/references/multi-ref-v1/ap-racing-yellow/03-pro-5000-r-section.jpg",
+          "role": "install_context",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "AP Racing 黄色卡钳参考图：只参考颜色、卡钳轮廓和安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "m-performance-carbon-wing",
+      "categoryId": "rear-wing",
+      "brand": "M Performance",
+      "model": "Carbon GT Wing",
+      "variant": "Medium",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只在后备箱合理位置安装中等尺寸碳纤维尾翼。匹配后备箱透视和安装点，不改变尾灯、后保险杠、车牌或背景。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "m-performance-carbon-wing-ref-1",
+          "assetId": "m-performance-carbon-wing",
+          "url": "/assets/parts/references/multi-ref-v1/m-performance-carbon-wing/01-rear2.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "尾翼参考组：只参考安装宽度、高度、支架关系和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "m-performance-carbon-wing-ref-2",
+          "assetId": "m-performance-carbon-wing",
+          "url": "/assets/parts/references/multi-ref-v1/m-performance-carbon-wing/02-angle-2.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "尾翼参考组：只参考安装宽度、高度、支架关系和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "m-performance-carbon-wing-ref-3",
+          "assetId": "m-performance-carbon-wing",
+          "url": "/assets/parts/references/multi-ref-v1/m-performance-carbon-wing/03-angle-3.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "尾翼参考组：只参考安装宽度、高度、支架关系和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "f82-m4-kies-carbon-trunk-lip-spoiler",
+      "categoryId": "rear-wing",
+      "brand": "Kies Motorsports",
+      "model": "Carbon Trunk Lip Spoiler",
+      "variant": "F82 M4",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只沿后备箱上沿安装低矮碳纤维 trunk lip spoiler。保持薄而连续、贴合可见后备箱弧线，不要变成高脚大尾翼。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "f82-m4-kies-carbon-trunk-lip-spoiler-ref-1",
+          "assetId": "f82-m4-kies-carbon-trunk-lip-spoiler",
+          "url": "/assets/parts/references/multi-ref-v1/f82-m4-kies-carbon-trunk-lip-spoiler/01-kies-main.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "F82 M4 trunk lip 多角度参考图：只参考低矮连续 lip 的宽度、厚度、弧线、上翘幅度、贴合边缘和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "f82-m4-kies-carbon-trunk-lip-spoiler-ref-2",
+          "assetId": "f82-m4-kies-carbon-trunk-lip-spoiler",
+          "url": "/assets/parts/references/multi-ref-v1/f82-m4-kies-carbon-trunk-lip-spoiler/02-kies-angle.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "F82 M4 trunk lip 多角度参考图：只参考低矮连续 lip 的宽度、厚度、弧线、上翘幅度、贴合边缘和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "f82-m4-kies-carbon-trunk-lip-spoiler-ref-3",
+          "assetId": "f82-m4-kies-carbon-trunk-lip-spoiler",
+          "url": "/assets/parts/references/multi-ref-v1/f82-m4-kies-carbon-trunk-lip-spoiler/03-kies-detail.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "F82 M4 trunk lip 多角度参考图：只参考低矮连续 lip 的宽度、厚度、弧线、上翘幅度、贴合边缘和碳纤维材质。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "varis-front-lip",
+      "categoryId": "front-bumper",
+      "brand": "Varis",
+      "model": "Carbon Front Lip",
+      "variant": "Street",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只在前保险杠下沿添加碳纤维前唇/前铲。保留原车进气口、中网、大灯、地面阴影和相机角度。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "varis-front-lip-ref-1",
+          "assetId": "varis-front-lip",
+          "url": "/assets/parts/references/multi-ref-v1/varis-front-lip/01-product-main.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "前唇多参考图：产品图参考形状，安装图只参考前杠下沿贴合位置，不继承背景或整车。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "varis-front-lip-ref-2",
+          "assetId": "varis-front-lip",
+          "url": "/assets/parts/references/multi-ref-v1/varis-front-lip/02-installed-front.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "前唇多参考图：产品图参考形状，安装图只参考前杠下沿贴合位置，不继承背景或整车。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "varis-front-lip-ref-3",
+          "assetId": "varis-front-lip",
+          "url": "/assets/parts/references/multi-ref-v1/varis-front-lip/03-product-angle-8.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "前唇多参考图：产品图参考形状，安装图只参考前杠下沿贴合位置，不继承背景或整车。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "varis-front-lip-ref-4",
+          "assetId": "varis-front-lip",
+          "url": "/assets/parts/references/multi-ref-v1/varis-front-lip/04-product-angle-6.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "前唇多参考图：产品图参考形状，安装图只参考前杠下沿贴合位置，不继承背景或整车。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "varis-front-lip-ref-5",
+          "assetId": "varis-front-lip",
+          "url": "/assets/parts/references/multi-ref-v1/varis-front-lip/05-installed-front-7.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "前唇多参考图：产品图参考形状，安装图只参考前杠下沿贴合位置，不继承背景或整车。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "rsc-f80-side-skirts",
+      "categoryId": "side-skirts",
+      "brand": "RSC",
+      "model": "F80 Side Skirts",
+      "variant": "Carbon",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只沿左右门槛下沿安装碳纤维侧裙延伸件。跟随原图透视，不改变车门、轮毂、后视镜或车身颜色。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "rsc-f80-side-skirts-ref-1",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/01-side-skirt-6.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-side-skirts-ref-2",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/02-side-skirt-3.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-side-skirts-ref-3",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/03-side-skirt-5.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-side-skirts-ref-4",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/04-side-skirt-2.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-side-skirts-ref-5",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/05-side-skirt-4.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-side-skirts-ref-6",
+          "assetId": "rsc-f80-side-skirts",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-side-skirts/06-side-skirt-7.jpg",
+          "role": "full_part_reference",
+          "view": "reference-6",
+          "priority": 6,
+          "promptHint": "侧裙参考组：只参考门槛线安装位置、长度、碳纤维边缘厚度和接触阴影。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "rsc-f80-carbon-diffuser",
+      "categoryId": "diffuser",
+      "brand": "RSC",
+      "model": "F80 Carbon Diffuser",
+      "variant": "Aggressive",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只在后保险杠下方安装碳纤维扩散器。保留排气开口、尾灯、车牌区域、保险杠主体形状和真实地面阴影。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-1",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/01-product-square.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-2",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/02-installed-dsc08708.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-3",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/03-installed-close.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-4",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/04-installed-green-rear.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-5",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/05-installed-violet-rear.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "rsc-f80-carbon-diffuser-ref-6",
+          "assetId": "rsc-f80-carbon-diffuser",
+          "url": "/assets/parts/references/multi-ref-v1/rsc-f80-carbon-diffuser/06-product-diffuser1.png",
+          "role": "full_part_reference",
+          "view": "reference-6",
+          "priority": 6,
+          "promptHint": "后扩散器参考组：只参考鳍片几何、后杠贴合关系和碳纤维材质，不继承参考车背景。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "akrapovic-quad-tip",
+      "categoryId": "exhaust",
+      "brand": "Akrapovic",
+      "model": "Quad Tip",
+      "variant": "Titanium",
+      "color": "Burnt titanium",
+      "finish": "brushed titanium",
+      "promptHint": "只在后保险杠排气开口处安装四出钛合金尾嘴。尾嘴必须对齐原有开口，保持保险杠、扩散器、车牌和尾灯不变。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "akrapovic-quad-tip-ref-1",
+          "assetId": "akrapovic-quad-tip",
+          "url": "/assets/parts/references/multi-ref-v1/akrapovic-quad-tip/01-tail-pipe-product.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "Akrapovic 尾嘴参考图：只参考金属材质、出口形状和后杠安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "akrapovic-quad-tip-ref-2",
+          "assetId": "akrapovic-quad-tip",
+          "url": "/assets/parts/references/multi-ref-v1/akrapovic-quad-tip/02-tail-pipe-angle.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "Akrapovic 尾嘴参考图：只参考金属材质、出口形状和后杠安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "akrapovic-quad-tip-ref-3",
+          "assetId": "akrapovic-quad-tip",
+          "url": "/assets/parts/references/multi-ref-v1/akrapovic-quad-tip/03-tail-pipe-detail.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "Akrapovic 尾嘴参考图：只参考金属材质、出口形状和后杠安装关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "seibon-oe-carbon-hood",
+      "categoryId": "hood",
+      "brand": "Seibon",
+      "model": "OE Carbon Hood",
+      "variant": "F80/F82",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只替换 Seibon OE-style 机盖面板。默认按原车车身同色喷漆；只有 colorPolicy 为 exposed_carbon 时，才在机盖表面显示裸露碳纤维纹理，且不能扩散到其它部位。",
+      "defaultColorPolicy": "body_color",
+      "allowedColorPolicies": [
+        "body_color",
+        "exposed_carbon"
+      ],
+      "generationReferences": [
+        {
+          "id": "seibon-oe-carbon-hood-ref-1",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-2",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-3",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-4",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/04-hd14bmwf80-oe-04.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-5",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/05-hd14bmwf80-oe-05.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-6",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/06-hd14bmwf80-oe-07.jpg",
+          "role": "full_part_reference",
+          "view": "reference-6",
+          "priority": 6,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "seibon-oe-carbon-hood-ref-7",
+          "assetId": "seibon-oe-carbon-hood",
+          "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/07-hd14bmwf80-oe-08.jpg",
+          "role": "full_part_reference",
+          "view": "reference-7",
+          "priority": 7,
+          "promptHint": "Seibon OE 机盖多角度参考图：只参考机盖边界、左右折线、中央 power dome、曲面高低关系、前沿/后沿比例和安装贴合关系。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "vland-f80-smoked-tail-lights",
+      "categoryId": "lights",
+      "brand": "VLAND",
+      "model": "F80 Smoked Tail Lights",
+      "variant": "Smoked",
+      "color": "smoked red lens",
+      "finish": "gloss smoked lens",
+      "promptHint": "只对可见尾灯应用烟熏灯罩效果。保留灯具外轮廓、后备箱、保险杠、车牌和周围钣金不变。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-1",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/01-smoked-1.webp",
+          "role": "material_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-2",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/02-smoked-2.webp",
+          "role": "material_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-3",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/03-smoked-3.webp",
+          "role": "material_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-4",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/04-smoked-4.webp",
+          "role": "material_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-5",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/05-smoked-5.webp",
+          "role": "material_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-6",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/06-smoked-6.webp",
+          "role": "material_reference",
+          "view": "reference-6",
+          "priority": 6,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "vland-f80-smoked-tail-lights-ref-7",
+          "assetId": "vland-f80-smoked-tail-lights",
+          "url": "/assets/parts/references/multi-ref-v1/vland-f80-smoked-tail-lights/07-smoked-7.webp",
+          "role": "material_reference",
+          "view": "reference-7",
+          "priority": 7,
+          "promptHint": "烟熏尾灯参考图：只参考灯罩色调、透明度和原厂灯具外轮廓。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "carbon-mirror-caps",
+      "categoryId": "mirrors",
+      "brand": "OEM+",
+      "model": "Mirror Caps",
+      "variant": "Carbon",
+      "color": "Carbon black",
+      "finish": "visible carbon fiber",
+      "promptHint": "只替换后视镜外壳为可见碳纤维镜盖。保留后视镜形状、镜片、支架、车门、车窗和原图反射。",
+      "defaultColorPolicy": "body_color",
+      "allowedColorPolicies": [
+        "body_color",
+        "exposed_carbon"
+      ],
+      "generationReferences": [
+        {
+          "id": "carbon-mirror-caps-ref-1",
+          "assetId": "carbon-mirror-caps",
+          "url": "/assets/parts/references/multi-ref-v1/carbon-mirror-caps/01-apr-official.jpg",
+          "role": "full_part_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "碳纤维后视镜盖参考图：只参考镜盖纹理、外壳形状和安装边界。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "carbon-mirror-caps-ref-2",
+          "assetId": "carbon-mirror-caps",
+          "url": "/assets/parts/references/multi-ref-v1/carbon-mirror-caps/02-map-angle-1.jpg",
+          "role": "full_part_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "碳纤维后视镜盖参考图：只参考镜盖纹理、外壳形状和安装边界。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "carbon-mirror-caps-ref-3",
+          "assetId": "carbon-mirror-caps",
+          "url": "/assets/parts/references/multi-ref-v1/carbon-mirror-caps/03-map-angle-2.jpg",
+          "role": "full_part_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "碳纤维后视镜盖参考图：只参考镜盖纹理、外壳形状和安装边界。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "carbon-mirror-caps-ref-4",
+          "assetId": "carbon-mirror-caps",
+          "url": "/assets/parts/references/multi-ref-v1/carbon-mirror-caps/04-map-angle-3.jpg",
+          "role": "full_part_reference",
+          "view": "reference-4",
+          "priority": 4,
+          "promptHint": "碳纤维后视镜盖参考图：只参考镜盖纹理、外壳形状和安装边界。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "carbon-mirror-caps-ref-5",
+          "assetId": "carbon-mirror-caps",
+          "url": "/assets/parts/references/multi-ref-v1/carbon-mirror-caps/05-map-angle-4.jpg",
+          "role": "full_part_reference",
+          "view": "reference-5",
+          "priority": 5,
+          "promptHint": "碳纤维后视镜盖参考图：只参考镜盖纹理、外壳形状和安装边界。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    },
+    {
+      "id": "3m-2080-s261-satin-dark-gray",
+      "categoryId": "wrap",
+      "brand": "3M",
+      "model": "2080 S261",
+      "variant": "Satin Dark Gray",
+      "color": "satin dark gray",
+      "finish": "satin wrap",
+      "promptHint": "只把车身漆面改为 3M Satin Dark Gray 缎面深灰。保留所有饰条、玻璃、轮毂、灯具、碳纤维件、贴纸和原图光照。",
+      "defaultColorPolicy": "part_reference_color",
+      "allowedColorPolicies": [
+        "part_reference_color"
+      ],
+      "generationReferences": [
+        {
+          "id": "3m-2080-s261-satin-dark-gray-ref-1",
+          "assetId": "3m-2080-s261-satin-dark-gray",
+          "url": "/assets/parts/references/multi-ref-v1/3m-2080-s261-satin-dark-gray/01-exact-swatch.jpg",
+          "role": "material_reference",
+          "view": "primary",
+          "priority": 1,
+          "promptHint": "3M 缎面深灰色卡参考图：只作为车身漆面材质和颜色参考。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "3m-2080-s261-satin-dark-gray-ref-2",
+          "assetId": "3m-2080-s261-satin-dark-gray",
+          "url": "/assets/parts/references/multi-ref-v1/3m-2080-s261-satin-dark-gray/02-exact-swatch-506.jpg",
+          "role": "material_reference",
+          "view": "reference-2",
+          "priority": 2,
+          "promptHint": "3M 缎面深灰色卡参考图：只作为车身漆面材质和颜色参考。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        },
+        {
+          "id": "3m-2080-s261-satin-dark-gray-ref-3",
+          "assetId": "3m-2080-s261-satin-dark-gray",
+          "url": "/assets/parts/references/multi-ref-v1/3m-2080-s261-satin-dark-gray/03-2080-color-poster.jpg",
+          "role": "material_reference",
+          "view": "reference-3",
+          "priority": 3,
+          "promptHint": "3M 缎面深灰色卡参考图：只作为车身漆面材质和颜色参考。",
+          "uploadToModel": true,
+          "active": true,
+          "createdAt": 0
+        }
+      ],
+      "promptTestStatus": "pass",
+      "generationReady": true
+    }
+  ],
+  "testedDryRunCases": [
+    {
+      "id": "B1",
+      "group": "B 基础生成",
+      "title": "原车图 + 改成纳多灰",
+      "expected": "dry run ready；parts=[]；paint.action=change；stance=0；prompt 不包含车身姿态段。",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "change",
+        "target": "纳多灰"
+      },
+      "stance": {
+        "value": 0,
+        "label": "保持原车高度"
+      },
+      "parts": [],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "d8e01c44e24cff16",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439066658-bad14c216c71a.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: change\n- 目标: 纳多灰\n- 指令: Change only the vehicle body paint to 纳多灰. Preserve the source vehicle identity, body shape, panel gaps, headlights, glass, wheels, tires, license plate shape, black plastic trim, carbon fiber parts, grille, rear wing or spoiler, camera angle, lighting, and background. Do not tint glass, lights, wheels, tires, license plate, black plastic trim, carbon fiber parts, grille, rear wing or spoiler, ground, nearby cars, or the background with the requested body color.\n\n## 已选配件\n- 没有选择配件替换。只执行已请求的车身颜色或车高姿态变化，不要凭空新增外观配件。\n\n## 用户请求\n改成纳多灰\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run 已完成，没有调用外部 AI。\n画布：/uploads/chat/vehicle-1779439066658-bad14c216c71a.jpg\n配件参考图：0 张\n摘要：chat | User uploaded vehicle, preserve exact identity | 纳多灰 | 车身高度不变 | no part"
+    },
+    {
+      "id": "B2",
+      "group": "B 基础生成",
+      "title": "原车图 + 降低一点",
+      "expected": "dry run ready；parts=[]；paint.keep_original；stance=50（轻微降低）。",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 50,
+        "label": "轻微降低"
+      },
+      "parts": [],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "11066092111d7fc9",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439066806-887cc760612688.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 车身姿态\n- 数值: 50\n- 标签: 轻微降低\n- 指令: 相对当前原图轻微降低车身姿态：明显减少轮胎上沿与轮拱之间的垂直间隙，让车身相对轮胎和地面更低，保持街道可行驶姿态。不要藏轮，不要让翼子板压住轮胎，不要压扁轮胎。 硬约束：只改变悬挂高度、轮拱间隙、车身相对轮胎和地面的高度关系；不要缩放、拉伸、裁切、平移或重画整辆车；不要移动地面、轮胎接地点、背景、相机角度、车牌、灯、玻璃、轮毂尺寸或轮胎外径；保持车轮圆形、轮胎接地阴影和原图透视真实。\n\n## 已选配件\n- 没有选择配件替换。只执行已请求的车身颜色或车高姿态变化，不要凭空新增外观配件。\n\n## 用户请求\n降低一点\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run 已完成，没有调用外部 AI。\n画布：/uploads/chat/vehicle-1779439066806-887cc760612688.jpg\n配件参考图：0 张\n摘要：chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 轻微降低 | no part"
+    },
+    {
+      "id": "P1",
+      "group": "P part color policy",
+      "title": "hood keyword hit asks body-color vs exposed carbon",
+      "expected": "partColorPolicyChoiceRequired=true; category=hood",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "BMW M4 coupe (F82)",
+      "paint": null,
+      "stance": null,
+      "parts": [],
+      "partColorPolicyChoices": [
+        {
+          "categoryId": "hood",
+          "categoryLabel": "Hood",
+          "options": [
+            {
+              "colorPolicy": "body_color",
+              "label": "Body color"
+            },
+            {
+              "colorPolicy": "exposed_carbon",
+              "label": "Exposed carbon"
+            }
+          ]
+        }
+      ],
+      "promptHiddenHash": "e3b0c44298fc1c14",
+      "promptHidden": "",
+      "assistantContent": "Should the hood match the body color, or stay exposed carbon?"
+    },
+    {
+      "id": "P2",
+      "group": "P part color policy",
+      "title": "confirmed exposed carbon hood proceeds to catalog asset",
+      "expected": "ready; seibon hood selected; colorPolicy=exposed_carbon",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 0,
+        "label": "保持原车高度"
+      },
+      "parts": [
+        {
+          "category": "hood",
+          "source": "asset_library",
+          "assetId": "seibon-oe-carbon-hood",
+          "brand": "Seibon",
+          "model": "OE-Style Carbon Fiber Hood",
+          "variant": "HD14BMWF80-OE",
+          "color": "carbon fiber black",
+          "colorPolicy": "exposed_carbon",
+          "referenceImageUrl": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg",
+          "referenceImages": [
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/04-hd14bmwf80-oe-04.jpg",
+              "uploadToModel": true
+            }
+          ]
+        }
+      ],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "bfc3c45ba71408a4",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439072551-e984e2ee647eb8.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 已选配件\n### 1. 机盖 (hood)\n- 来源: asset_library\n- 资产: Seibon OE-Style Carbon Fiber Hood HD14BMWF80-OE\n- 目录颜色: carbon fiber black\n- 材质/表面: gloss carbon fiber weave\n- colorPolicy: exposed_carbon\n- colorPolicyPrompt: Use exposed carbon fiber only on the hood panel. Do not spread carbon texture to roof, trunk, doors, bumpers, mirrors, wheels, lights, windshield, or unrelated body panels.\n- 指令: 只替换 Seibon OE-style 机盖面板。默认按原车车身同色喷漆；只有 colorPolicy 为 exposed_carbon 时，才在机盖表面显示裸露碳纤维纹理，且不能扩散到其它部位。\n- 配件参考图:\n1. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n2. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n3. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n4. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/04-hd14bmwf80-oe-04.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n- 分类模板:\n机盖改装只能作用于前保险杠、翼子板、前挡风玻璃和大灯缝线之间的机盖面板。必须保持第一张原车机盖安装边界、前沿、后沿、左右缝隙、灯眉关系和中央 power dome 的位置、宽度、高度。body_color 表示机盖必须喷成第一张原车相同车身漆，不要露出黑色碳纤维纹理；exposed_carbon 表示只在机盖表面显示裸露碳纤维纹理，不能扩散到车顶、后备箱、车门、保险杠、后视镜、轮毂或灯具。\n- 配件模板:\n只替换 Seibon OE-style 机盖面板。默认按原车车身同色喷漆；只有 colorPolicy 为 exposed_carbon 时，才在机盖表面显示裸露碳纤维纹理，且不能扩散到其它部位。\n\n## 组合规则\n- 组合 Prompt - 机盖裸碳: 当机盖 colorPolicy 为 exposed_carbon 时，只在机盖面板显示清晰但真实的裸露碳纤维纹理和反光。不能把碳纤维纹理扩散到车顶、后备箱、车门、翼子板、保险杠、后视镜、轮毂、灯具或未选择部件。\n\n## 用户请求\nadd HD14BMWF80-OE hood\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run completed. No external AI call was made.\nSource canvas: /uploads/chat/vehicle-1779439072551-e984e2ee647eb8.jpg\nPart references: 4\nSummary: chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 车身高度不变 | Seibon OE-Style Carbon Fiber Hood HD14BMWF80-OE (exposed carbon)"
+    },
+    {
+      "id": "P3",
+      "group": "P part color policy",
+      "title": "explicit body-color hood does not ask",
+      "expected": "ready; seibon hood selected; colorPolicy=body_color",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 0,
+        "label": "保持原车高度"
+      },
+      "parts": [
+        {
+          "category": "hood",
+          "source": "asset_library",
+          "assetId": "seibon-oe-carbon-hood",
+          "brand": "Seibon",
+          "model": "OE-Style Carbon Fiber Hood",
+          "variant": "HD14BMWF80-OE",
+          "color": "carbon fiber black",
+          "colorPolicy": "body_color",
+          "referenceImageUrl": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg",
+          "referenceImages": [
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg",
+              "uploadToModel": true
+            },
+            {
+              "role": "shape_reference",
+              "url": "/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/04-hd14bmwf80-oe-04.jpg",
+              "uploadToModel": true
+            }
+          ]
+        }
+      ],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "dc1b24c982c69367",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439072705-34b3cf28f670b.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 已选配件\n### 1. 机盖 (hood)\n- 来源: asset_library\n- 资产: Seibon OE-Style Carbon Fiber Hood HD14BMWF80-OE\n- 目录颜色: carbon fiber black\n- 材质/表面: gloss carbon fiber weave\n- colorPolicy: body_color\n- colorPolicyPrompt: Paint-match only the hood panel to the source vehicle body color. Preserve the exact hood boundary, front edge, rear edge, left/right panel gaps, headlight relationship, windshield edge, and body shape.\n- 指令: 只替换 Seibon OE-style 机盖面板。默认按原车车身同色喷漆；只有 colorPolicy 为 exposed_carbon 时，才在机盖表面显示裸露碳纤维纹理，且不能扩散到其它部位。\n- 配件参考图:\n1. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n2. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n3. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n4. /assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/04-hd14bmwf80-oe-04.jpg | 角色=shape_reference | 视角=product_angle | 上传给模型=true | 提示=Use only the referenced part. Do not inherit donor vehicle body color, wheels, plates, background, text, watermark, lighting graphic, or unrelated objects.\n- 分类模板:\n机盖改装只能作用于前保险杠、翼子板、前挡风玻璃和大灯缝线之间的机盖面板。必须保持第一张原车机盖安装边界、前沿、后沿、左右缝隙、灯眉关系和中央 power dome 的位置、宽度、高度。body_color 表示机盖必须喷成第一张原车相同车身漆，不要露出黑色碳纤维纹理；exposed_carbon 表示只在机盖表面显示裸露碳纤维纹理，不能扩散到车顶、后备箱、车门、保险杠、后视镜、轮毂或灯具。\n- 配件模板:\n只替换 Seibon OE-style 机盖面板。默认按原车车身同色喷漆；只有 colorPolicy 为 exposed_carbon 时，才在机盖表面显示裸露碳纤维纹理，且不能扩散到其它部位。\n\n## 组合规则\n- 组合 Prompt - 机盖车身同色: 当机盖 colorPolicy 为 body_color 时，这是 Seibon OE-style contour hood 的同色机盖改装，不是保持原厂普通平机盖。\n\n机盖必须喷成第一张原车相同的车身漆，或当前配置指定的车身同色漆；不能出现黑色碳纤维、裸碳纹理、黑色面板、开孔、散热孔或赛车通风口。\n\n但机盖造型必须明显可识别：请在同色漆面上做出清晰但真实的中央 power dome 隆起、左右两条从前沿延伸到风挡附近的长折线、前沿与灯眉附近的细微高低变化。\n\n这些特征必须通过同色高光、阴影、反射弯折和钣金曲面体现，视觉上能一眼看出不是原厂平机盖。不要只做轻微高光变化；如果机盖看起来和原图普通机盖几乎一样，则本次机盖改装失败。\n\n只允许修改机盖面板本身。其它车身、车顶、翼子板、前杠、格栅、大灯、轮毂、玻璃、车牌和背景全部保持原图。\n\n## 用户请求\nadd body color HD14BMWF80-OE hood\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run completed. No external AI call was made.\nSource canvas: /uploads/chat/vehicle-1779439072705-34b3cf28f670b.jpg\nPart references: 4\nSummary: chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 车身高度不变 | Seibon OE-Style Carbon Fiber Hood HD14BMWF80-OE"
+    },
+    {
+      "id": "P8b",
+      "group": "P part color policy",
+      "title": "uploaded carbon hood and mirror references ask both policies",
+      "expected": "partColorPolicyChoicesRequired=true; categories=hood,mirrors",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "BMW M4 coupe (F82)",
+      "paint": null,
+      "stance": null,
+      "parts": [],
+      "partColorPolicyChoices": [
+        {
+          "categoryId": "hood",
+          "categoryLabel": "Hood",
+          "options": [
+            {
+              "colorPolicy": "body_color",
+              "label": "Body color"
+            },
+            {
+              "colorPolicy": "exposed_carbon",
+              "label": "Exposed carbon"
+            }
+          ]
+        },
+        {
+          "categoryId": "mirrors",
+          "categoryLabel": "Mirrors",
+          "options": [
+            {
+              "colorPolicy": "body_color",
+              "label": "Body color"
+            },
+            {
+              "colorPolicy": "exposed_carbon",
+              "label": "Exposed carbon"
+            }
+          ]
+        }
+      ],
+      "promptHiddenHash": "e3b0c44298fc1c14",
+      "promptHidden": "",
+      "assistantContent": "Please confirm the color policy for these carbon-fiber parts:\nHood: Body color / Exposed carbon\nMirrors: Body color / Exposed carbon"
+    },
+    {
+      "id": "P8c",
+      "group": "P part color policy",
+      "title": "confirmed hood and mirror policies proceed together",
+      "expected": "ready; uploaded hood and mirrors use confirmed color policies",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 0,
+        "label": "保持原车高度"
+      },
+      "parts": [
+        {
+          "category": "hood",
+          "source": "uploaded_reference",
+          "assetId": "",
+          "brand": "",
+          "model": "",
+          "variant": "carbon-hood-reference.jpg",
+          "color": "",
+          "colorPolicy": "exposed_carbon",
+          "referenceImageUrl": "/uploads/chat/part-1779439073177-3fa7fd288874d8.jpg",
+          "referenceImages": [
+            {
+              "role": "full_part_reference",
+              "url": "/uploads/chat/part-1779439073177-3fa7fd288874d8.jpg",
+              "uploadToModel": true
+            }
+          ]
+        },
+        {
+          "category": "mirrors",
+          "source": "uploaded_reference",
+          "assetId": "",
+          "brand": "",
+          "model": "",
+          "variant": "carbon-mirror-caps.jpg",
+          "color": "",
+          "colorPolicy": "body_color",
+          "referenceImageUrl": "/uploads/chat/part-1779439073177-6d142084695308.jpg",
+          "referenceImages": [
+            {
+              "role": "full_part_reference",
+              "url": "/uploads/chat/part-1779439073177-6d142084695308.jpg",
+              "uploadToModel": true
+            }
+          ]
+        }
+      ],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "3e7d33582f40b418",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439073175-108763b5dcd9e.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 已选配件\n### 1. 机盖 (hood)\n- 来源: uploaded_reference\n- 参考图: /uploads/chat/part-1779439073177-3fa7fd288874d8.jpg\n- colorPolicy: exposed_carbon\n- colorPolicyPrompt: Use exposed carbon fiber only on the hood panel. Do not spread carbon texture to roof, trunk, doors, bumpers, mirrors, wheels, lights, windshield, or unrelated body panels.\n- 指令: Install the uploaded 机盖 reference group onto the matching area of the source vehicle. Modify only this selected part category and preserve all unrelated original details.\n- 配件参考图:\n1. /uploads/chat/part-1779439073177-3fa7fd288874d8.jpg | 角色=full_part_reference | 视角=primary uploaded reference | 上传给模型=true | 提示=Uploaded 机盖 reference. Visual features: mock category from file name: hood. Use only for this part group.\n- 分类模板:\n机盖改装只能作用于前保险杠、翼子板、前挡风玻璃和大灯缝线之间的机盖面板。必须保持第一张原车机盖安装边界、前沿、后沿、左右缝隙、灯眉关系和中央 power dome 的位置、宽度、高度。body_color 表示机盖必须喷成第一张原车相同车身漆，不要露出黑色碳纤维纹理；exposed_carbon 表示只在机盖表面显示裸露碳纤维纹理，不能扩散到车顶、后备箱、车门、保险杠、后视镜、轮毂或灯具。\n\n### 2. 后视镜 (mirrors)\n- 来源: uploaded_reference\n- 参考图: /uploads/chat/part-1779439073177-6d142084695308.jpg\n- colorPolicy: body_color\n- colorPolicyPrompt: Paint-match only the mirror caps or mirror housings to the source vehicle body color. Preserve the mirror glass, mirror shape, mounting base, seam lines, door panel, window glass, reflections, and camera angle.\n- 指令: Install the uploaded 后视镜 reference group onto the matching area of the source vehicle. Modify only this selected part category and preserve all unrelated original details.\n- 配件参考图:\n1. /uploads/chat/part-1779439073177-6d142084695308.jpg | 角色=full_part_reference | 视角=primary uploaded reference | 上传给模型=true | 提示=Uploaded 后视镜 reference. Visual features: mock category from file name: mirrors. Use only for this part group.\n- 分类模板:\n后视镜改装只修改后视镜外壳或镜盖材质，必须保留原后视镜形状、角度、镜片位置、边缘缝隙和车门连接结构。碳纤维纹理要细腻，不能让后视镜变形或消失。\n\n## 组合规则\n- 组合 Prompt - 多参考图: 所有参考图只服务于对应配件的形状、材质和安装关系。不要继承参考图里的车身、背景、文字、水印、车牌、轮毂、尾灯、排气、场景或拍摄角度。如果参考图角度难以对齐，宁可弱化配件，也不要改原车、背景或未选类别。\n- 组合 Prompt - 机盖裸碳: 当机盖 colorPolicy 为 exposed_carbon 时，只在机盖面板显示清晰但真实的裸露碳纤维纹理和反光。不能把碳纤维纹理扩散到车顶、后备箱、车门、翼子板、保险杠、后视镜、轮毂、灯具或未选择部件。\n\n## 用户请求\nUse the uploaded vehicle as the canvas and install the uploaded part reference image(s) onto the matching vehicle area.\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run completed. No external AI call was made.\nSource canvas: /uploads/chat/vehicle-1779439073175-108763b5dcd9e.jpg\nPart references: 2\nSummary: chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 车身高度不变 | 机盖 uploaded_reference (exposed carbon) / 后视镜 uploaded_reference"
+    },
+    {
+      "id": "S2",
+      "group": "S stance presets",
+      "title": "flush fitment maps to flush preset",
+      "expected": "dry run ready; stance=70",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 70,
+        "label": "齐边低趴"
+      },
+      "parts": [],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "e9186a83c592adf6",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439073762-cfa00f250e465.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 车身姿态\n- 数值: 70\n- 标签: 齐边低趴\n- 指令: 相对当前原图降低到齐边低趴姿态：让轮胎上沿非常接近轮眉，轮拱间隙接近 0 到 1 指宽，形成 flush fitment。轮胎上沿贴近翼子板边缘但不要穿进翼子板，车轮和轮胎必须保持完整圆形。 硬约束：只改变悬挂高度、轮拱间隙、车身相对轮胎和地面的高度关系；不要缩放、拉伸、裁切、平移或重画整辆车；不要移动地面、轮胎接地点、背景、相机角度、车牌、灯、玻璃、轮毂尺寸或轮胎外径；保持车轮圆形、轮胎接地阴影和原图透视真实。\n\n## 已选配件\n- 没有选择配件替换。只执行已请求的车身颜色或车高姿态变化，不要凭空新增外观配件。\n\n## 用户请求\n做齐边低趴，轮眉齐边\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run 已完成，没有调用外部 AI。\n画布：/uploads/chat/vehicle-1779439073762-cfa00f250e465.jpg\n配件参考图：0 张\n摘要：chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 齐边低趴 | no part"
+    },
+    {
+      "id": "S3",
+      "group": "S stance presets",
+      "title": "air suspension wording maps to aired-out preset",
+      "expected": "dry run ready; stance=90",
+      "ok": true,
+      "statusCode": 200,
+      "vehicleModel": "User uploaded vehicle, preserve exact identity",
+      "paint": {
+        "action": "keep_original",
+        "target": "原车漆面"
+      },
+      "stance": {
+        "value": 90,
+        "label": "气动避震"
+      },
+      "parts": [],
+      "partColorPolicyChoices": [],
+      "promptHiddenHash": "b2ff30266a4769bb",
+      "promptHidden": "# Effective Prompt v1 中文有效版\n\n请对第一张上传的原车照片做真实照片局部编辑。第一张上传图片是唯一原车画布；后续上传图片全部是配件参考图，只能参考已选配件的形状、材质和安装关系，绝对不要继承参考图里的其它车辆、背景、光线、相机角度、轮毂、贴纸或未选择部件。\n\n## 模板层\n### 通用基础 Prompt - 唯一画布与参考图角色\n任务类型：真实照片局部编辑。第一张原车照片是唯一画布，所有输出必须看起来像在这张原图上做局部修图。必须保留原图背景、地面、墙面、车位线、其它车辆、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择部件。后续图片全部是配件参考图，不是画布，不是车身参考，不是场景参考。\n\n### 对话模式 Prompt - 用户请求转局部编辑\n本次生图来自用户自然语言需求。请只执行用户明确要求的改装项，保持请求范围尽量小。若用户上传配件参考图，第一张仍是唯一原车画布，后续图片只用于对应配件的造型、材质、比例和安装意图。若用户提到机盖裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood，机盖 colorPolicy 为 exposed_carbon；否则机盖默认 body_color。\n\n## 原车画布\n{\n  \"model\": \"User uploaded vehicle, preserve exact identity\",\n  \"view\": \"front three-quarter\",\n  \"sourceImageUrl\": \"/uploads/chat/vehicle-1779439073907-f5c9fa2e851d5.jpg\",\n  \"confidence\": 0.88\n}\n\n## 车身颜色\n- 动作: keep_original\n- 目标: 原车漆面\n- 指令: 保持原车车身漆面颜色、色相、光泽、反射和钓金面连续性。\n\n## 车身姿态\n- 数值: 90\n- 标签: 气动避震\n- 指令: 相对当前原图改为气动避震 aired-out stance：车身极低，轮眉轻微盖住轮胎上沿，轮胎上半部有清晰 tire tuck 藏轮效果，侧裙和前唇非常接近地面。允许翼子板视觉上轻微压过轮胎上沿，但不要切断轮胎、不要压扁轮胎、不要让轮胎穿进地面。 硬约束：只改变悬挂高度、轮拱间隙、车身相对轮胎和地面的高度关系；不要缩放、拉伸、裁切、平移或重画整辆车；不要移动地面、轮胎接地点、背景、相机角度、车牌、灯、玻璃、轮毂尺寸或轮胎外径；保持车轮圆形、轮胎接地阴影和原图透视真实。\n\n## 已选配件\n- 没有选择配件替换。只执行已请求的车身颜色或车高姿态变化，不要凭空新增外观配件。\n\n## 用户请求\n改成气动低趴，贴地一点\n\n## 保留规则\n- 必须保留第一张原图中的同一辆车、同一车型、同一车身比例、同一相机角度、同一裁切、同一光照方向、同一反射、同一背景和车牌区域形状。\n- 只修改标准 JSON 中已选择的类别。所有未选择配件、轮毂、贴纸、车窗、车门、后视镜、饰条和未选择钣金区域都保持原图。\n- 配件比例、透视、遮挡、接触阴影和反光必须符合第一张原车视角。\n- 如果某个配件在第一张原车视角中不可见，不要为了展示它而改变相机角度、扩展画面或重画车身另一侧。\n\n## 负向约束\n不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
+      "assistantContent": "Dry run 已完成，没有调用外部 AI。\n画布：/uploads/chat/vehicle-1779439073907-f5c9fa2e851d5.jpg\n配件参考图：0 张\n摘要：chat | User uploaded vehicle, preserve exact identity | 原车漆面 | 气动避震 | no part"
+    }
+  ],
+  "explicitRulesToRestore": {
+    "vehicleModelSafety": [
+      "Auto-recognized vehicle model names are UI/debug data only.",
+      "Config Mode may pass a concrete model into GenerationStandardJson.vehicle.model only when the user manually edits/confirms the model input.",
+      "Otherwise use User uploaded vehicle, preserve exact identity.",
+      "Chat Mode always uses User uploaded vehicle, preserve exact identity."
+    ],
+    "defaultNoStance": "If user does not explicitly choose/request height, standardJson.stance.value=0 and prompt must not include ## 车身姿态.",
+    "stancePresets": [
+      {
+        "value": 25,
+        "label": "轻微升高",
+        "policy": "slightly increase wheel arch and ground clearance only; do not make off-road lift"
+      },
+      {
+        "value": 50,
+        "label": "轻微降低",
+        "policy": "reduce tire-to-arch gap; no tire tuck and no flattened tires"
+      },
+      {
+        "value": 70,
+        "label": "齐边低趴",
+        "policy": "tire top very close to fender, 0-1 finger gap, flush fitment, wheels remain round"
+      },
+      {
+        "value": 90,
+        "label": "气动避震",
+        "policy": "aired-out stance, slight tire tuck, very low body, no wheel/ground/camera distortion"
+      }
+    ],
+    "hoodBodyColor": "When hood colorPolicy=body_color, it is a Seibon OE-style contour hood painted body color, not an unchanged flat OEM hood; visible same-color power dome and long contour lines are required; no black carbon/weave/vents/openings.",
+    "hoodExposedCarbon": "When hood colorPolicy=exposed_carbon, carbon weave appears only on hood panel and must not spread to other parts.",
+    "referenceRole": "Image 1 is the only editable canvas; all later images are part references only and must not donate background, vehicle, paint, wheels, lighting, text, watermark, or scene."
+  },
+  "currentDbComparison": {
+    "promptPresets": [
+      {
+        "id": "preset_b664e458",
+        "version": "1.2",
+        "active": false,
+        "bodyHash": "cc0ff0e555f2a1b9",
+        "negativePromptHash": "a0dbfe7cd374d0ad",
+        "isSeedPreset": false,
+        "matchesSeed": null
+      },
+      {
+        "id": "preset_oem_plus_v1",
+        "version": "3.0-effective-v1",
+        "active": true,
+        "bodyHash": "8a17e4bd439a2e0b",
+        "negativePromptHash": "a371c1bd00060ffe",
+        "isSeedPreset": true,
+        "matchesSeed": true
+      }
+    ],
+    "systemTemplatesTotal": 30,
+    "systemTemplatesMatchingDbSeed": 30,
+    "extraDbSystemTemplateOverridesVisibleToRuntime": false,
+    "note": "Current db.prompts()/promptTemplates() logic returns code seed for system templates first and filters DB rows with the same system ids, so old DB overrides for system template IDs would be hidden unless explicitly migrated into code seed."
+  },
+  "laterRegressionCandidates": [
+    {
+      "area": "Config Mode vehicle model safety",
+      "files": [
+        "components/car-mod-studio.tsx",
+        "app/api/generations/route.ts",
+        "lib/generation-core.ts"
+      ],
+      "currentBehavior": "Frontend appends detectedVehicleModel even when vehicleNoteEdited=false; API passes detectedVehicleModel into buildConfigStandardJson; prompt can include NIO ET7 or other wrong recognition.",
+      "expectedEffectiveBehavior": "Only manually edited/confirmed vehicleNote may enter generation prompt. Auto recognition stays UI/history/debug only."
+    },
+    {
+      "area": "Seed/SQLite boundary",
+      "files": [
+        "lib/server/db.ts"
+      ],
+      "currentBehavior": "Runtime promptTemplates() ignores DB rows whose IDs are in promptTemplateSeed.",
+      "expectedEffectiveBehavior": "If a system prompt is admin-edited and meant to be source-of-truth, it must be exported/migrated into code seed or a versioned project config pack before deployment."
+    }
+  ]
+}

@@ -10,6 +10,7 @@
     "config:export": "node scripts/export-project-config.mjs",
     "config:sync-seeds": "node scripts/sync-code-seeds.mjs",
     "config:validate": "node scripts/validate-project-config.mjs",
+    "prompt:validate": "node scripts/validate-prompt-pack.mjs",
     "provider:yunwu-default": "node scripts/switch-yunwu-default.mjs",
     "runtime:history": "node scripts/inspect-runtime-history.mjs",
     "lint": "next lint",
