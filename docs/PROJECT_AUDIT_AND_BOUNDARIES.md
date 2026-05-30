@@ -51,21 +51,21 @@ For system providers from code seed, non-secret fields such as label, base URL, 
 
 302 Nano-Banana-2 follows the async image-edit spec at `https://doc.302.ai/420136733e0` by default on the Alibaba Cloud test server: `enable_sync_mode=false`, `enable_base64_output=false`, and the initial POST returns a task id plus `urls.get`. Polling tries the configured/domestic host first and the documented `api.302.ai` URL second. Set `NANO_BANANA_302_SYNC_MODE=1` only for a controlled local/provider test.
 
-The Yunwu OpenAI-compatible default is:
+The Yunwu default is Nano Banana 2:
+
+- `provider_yunwu_nano2_edit`
+- `https://yunwu.ai/fal-ai/nano-banana-2/edit`
+- `gemini-3.1-flash-image-preview`
+- lowest-cost defaults: `num_images=1`, `resolution=0.5K`, `aspect_ratio=auto`, `output_format=jpeg`, `sync_mode=false`, `limit_generations=true`
+
+The Yunwu Image2 provider is also configured:
 
 - `provider_yunwu_image_edit`
 - `https://yunwu.ai/v1/images/edits`
 - `gpt-image-2`
 - lowest-cost defaults: `quality=low`, `size=1024x1024`, `n=1`, `output_format=jpeg`, `output_compression=80`
 
-The Yunwu Nano provider is also configured:
-
-- `provider_yunwu_nano2_edit`
-- `https://yunwu.ai/fal-ai/nano-banana/edit`
-- `gemini-3.1-flash-image-preview`
-- request defaults: `num_images=1`, `output_format=jpeg`
-
-Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Image2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. Nano2 uses public image URL inputs, so test-server usage requires `PROVIDER_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, or `SITE_URL` to point at the public app origin.
+Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Nano2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. Nano2 uses public image URL inputs, so test-server usage requires `PROVIDER_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, or `SITE_URL` to point at the public app origin.
 
 ## Audit Command
 

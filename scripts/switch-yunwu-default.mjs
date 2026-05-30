@@ -2,7 +2,7 @@ import { openProjectDb, parseArgs, defaultDbPath } from "./project-config-utils.
 
 const YUNWU_IMAGE2_PROVIDER_ID = "provider_yunwu_image_edit"
 const YUNWU_NANO2_PROVIDER_ID = "provider_yunwu_nano2_edit"
-const YUNWU_DEFAULT_PROVIDER_ID = YUNWU_IMAGE2_PROVIDER_ID
+const YUNWU_DEFAULT_PROVIDER_ID = YUNWU_NANO2_PROVIDER_ID
 const DISABLED_302_PROVIDER_IDS = ["provider_302_nano_banana2_async_edit", "provider_80fce082"]
 const IMAGE_WORKFLOW_MODES = new Set(["config", "chat"])
 
@@ -17,7 +17,7 @@ try {
   upsertProvider({
     id: YUNWU_NANO2_PROVIDER_ID,
     label: "Yunwu Nano Banana 2 Edit",
-    baseUrl: "https://yunwu.ai/fal-ai/nano-banana/edit",
+    baseUrl: "https://yunwu.ai/fal-ai/nano-banana-2/edit",
     modelName: "gemini-3.1-flash-image-preview",
   })
   upsertProvider({

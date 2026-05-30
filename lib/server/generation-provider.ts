@@ -587,7 +587,7 @@ function isYunwuImageEndpoint(endpoint: string) {
 function isYunwuFalNanoBananaEditEndpoint(endpoint: string) {
   try {
     const url = new URL(endpoint)
-    return url.hostname.toLowerCase() === "yunwu.ai" && url.pathname.endsWith("/fal-ai/nano-banana/edit")
+    return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/fal-ai/nano-banana/edit") || url.pathname.endsWith("/fal-ai/nano-banana-2/edit"))
   } catch {
     return false
   }
@@ -895,7 +895,12 @@ function yunwuFalNanoBananaPayload(prompt: string, negativePrompt: string, image
     prompt: text,
     image_urls: images.map((image) => image.providerUrl),
     num_images: 1,
+    aspect_ratio: "auto",
     output_format: yunwuNanoOutputFormat(),
+    safety_tolerance: "4",
+    sync_mode: false,
+    resolution: yunwuNanoResolution(),
+    limit_generations: true,
   }
 }
 
@@ -1009,8 +1014,17 @@ function yunwuFalNanoBananaRequestShape(
     imageMimes: images.map((image) => image.mime),
     promptChars: payload.prompt.length,
     numImages: payload.num_images,
+    aspectRatio: payload.aspect_ratio,
+    resolution: payload.resolution,
     outputFormat: payload.output_format,
+    limitGenerations: payload.limit_generations,
   }
+}
+
+function yunwuNanoResolution() {
+  const value = String(process.env.YUNWU_NANO_RESOLUTION || "0.5K").trim().toUpperCase()
+  if (value === "512" || value === "0.5K" || value === "1K" || value === "2K" || value === "4K") return value === "512" ? "0.5K" : value
+  return "0.5K"
 }
 
 function yunwuNanoOutputFormat() {
@@ -1179,7 +1193,8 @@ function yunwuFalQueueUrls(raw: Record<string, unknown>, endpoint: string) {
   const id = typeof data.request_id === "string" ? data.request_id : typeof data.requestId === "string" ? data.requestId : ""
   if (id && !responseUrls.length && !statusUrls.length) {
     const base = new URL(endpoint)
-    base.pathname = `/fal-ai/nano-banana/requests/${encodeURIComponent(id)}`
+    const requestBasePath = base.pathname.replace(/\/edit\/?$/, "/requests")
+    base.pathname = `${requestBasePath}/${encodeURIComponent(id)}`
     base.search = ""
     responseUrls.push(base.toString())
     statusUrls.push(`${base.toString()}/status`)
