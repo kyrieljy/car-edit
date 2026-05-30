@@ -68,7 +68,7 @@ Stored in code:
 Important provider defaults currently expected in code:
 
 - Yunwu Nano Banana 2 via the Gemini-compatible `generateContent` endpoint for default image generation/editing
-- Yunwu GPT Image 2 Edit is configured as an enabled optional provider
+- Yunwu GPT Image 2 Edit is configured as an enabled optional provider on `https://yunwu.ai/v1/images/edits`
 - 302 Nano Banana 2 is retained but disabled by default after domestic test-server connectivity failures
 - 302 GPT Image 2 is retained but disabled by default after domestic test-server connectivity failures
 - GPT-5.4 mini style vision/LLM provider

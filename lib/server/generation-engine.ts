@@ -364,6 +364,17 @@ function is302OpenAiImageEndpoint(baseUrl: string) {
   }
 }
 
+function isYunwuOpenAiImageEndpoint(baseUrl: string) {
+  const endpoint = providerImageEndpoint(baseUrl)
+  try {
+    const url = new URL(endpoint)
+    return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
+  } catch {
+    const normalized = endpoint.toLowerCase()
+    return normalized.includes("yunwu.ai") && (normalized.includes("/images/edits") || normalized.includes("/images/generations"))
+  }
+}
+
 function providerImageEndpoint(baseUrl: string) {
   const normalized = (baseUrl || "").replace(/\/+$/, "")
   if (normalized.endsWith("/images/edits") || normalized.endsWith("/images/generations")) return normalized
@@ -479,7 +490,7 @@ function providerMayHaveSubmittedBillableTask(provider: ProviderConfig) {
 }
 
 function isChargeOnSubmitImageProvider(provider: ProviderConfig) {
-  return isNanoBananaWsProvider(provider) || is302OpenAiImageEndpoint(provider.baseUrl)
+  return isNanoBananaWsProvider(provider) || is302OpenAiImageEndpoint(provider.baseUrl) || isYunwuOpenAiImageEndpoint(provider.baseUrl)
 }
 
 function providerTransientHttpError(error: string | undefined) {

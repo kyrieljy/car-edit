@@ -138,7 +138,8 @@ async function invokeOpenAiCompatibleImageEdit(
 
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("没有可发送给生图 Provider 的车辆图片。")
-  formData.set("size", providerOutputImageSize(endpoint, images[0]))
+  const outputSize = providerOutputImageSize(endpoint, images[0])
+  formData.set("size", outputSize)
   images.forEach((image) => {
     formData.append("image", new Blob([image.bytes], { type: image.mime }), image.fileName)
   })
@@ -151,6 +152,9 @@ async function invokeOpenAiCompatibleImageEdit(
   })
   const payload = await readProviderPayload(response)
   const raw = payload.raw
+  if (!response.ok && isYunwuImageEndpoint(endpoint)) {
+    logYunwuImageSubmitFailure(input.provider.id, endpoint, response, yunwuImageEditRequestShape(images, input.prompt, input.negativePrompt, outputSize), raw)
+  }
   if (!response.ok) {
     Object.assign(raw, {
       error: { message: providerHttpErrorMessageForUi(raw, payload, response, endpoint) },
@@ -1050,6 +1054,26 @@ function yunwuFalNanoBananaRequestShape(
   }
 }
 
+function yunwuImageEditRequestShape(
+  images: Array<{ mime: string }>,
+  prompt: string,
+  negativePrompt: string,
+  outputSize: string,
+) {
+  const outputFormat = yunwuImageOutputFormat()
+  return {
+    imageInputType: "multipart",
+    imageCount: images.length,
+    imageMimes: images.map((image) => image.mime),
+    promptChars: [prompt, negativePrompt].filter(Boolean).join("\n\n").length,
+    n: 1,
+    size: outputSize,
+    quality: yunwuImageQuality(),
+    outputFormat,
+    outputCompression: outputFormat === "jpeg" || outputFormat === "webp" ? yunwuImageOutputCompression() : undefined,
+  }
+}
+
 function yunwuNanoResolution() {
   const value = String(process.env.YUNWU_NANO_RESOLUTION || "0.5K").trim().toUpperCase()
   if (value === "512" || value === "0.5K" || value === "1K" || value === "2K" || value === "4K") return value === "512" ? "0.5K" : value
@@ -1100,6 +1124,28 @@ function logYunwuFalSubmitFailure(
 ) {
   console.warn(
     "[provider:yunwu-nano] submit failed",
+    JSON.stringify(
+      sanitizeRawResponse({
+        providerId,
+        endpoint,
+        httpStatus: response.status,
+        statusText: response.statusText,
+        requestShape,
+        response: raw,
+      }),
+    ),
+  )
+}
+
+function logYunwuImageSubmitFailure(
+  providerId: ProviderId,
+  endpoint: string,
+  response: Response,
+  requestShape: ReturnType<typeof yunwuImageEditRequestShape>,
+  raw: Record<string, unknown>,
+) {
+  console.warn(
+    "[provider:yunwu-image2] submit failed",
     JSON.stringify(
       sanitizeRawResponse({
         providerId,

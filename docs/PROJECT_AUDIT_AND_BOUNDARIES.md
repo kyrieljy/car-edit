@@ -63,7 +63,7 @@ The Yunwu Image2 provider is also configured:
 - `provider_yunwu_image_edit`
 - `https://yunwu.ai/v1/images/edits`
 - `gpt-image-2`
-- lowest-cost defaults: `quality=low`, `size=1024x1024`, `n=1`, `output_format=jpeg`, `output_compression=80`
+- lowest-cost defaults: `quality=low`, `size=1024x1024`, `n=1`, `output_format=jpeg`, `output_compression=80`, no automatic retry/fallback for charge-on-submit failures
 
 Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Nano2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. The Gemini-compatible Nano2 endpoint uses inline image input, so it can be tested locally after explicit approval; real tests still spend provider credits.
 
