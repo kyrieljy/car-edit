@@ -582,6 +582,7 @@ function seed(conn: DatabaseSync) {
 
   seedMembershipPlans(conn, now)
   seedAccountMessages(conn, now)
+  seedProviderConfigs(conn, now)
   if (!shouldSeedLegacyStaticConfig()) return
 
   const categoryStatement = conn.prepare(`
@@ -716,16 +717,18 @@ function seed(conn: DatabaseSync) {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(promptSeed.id, promptSeed.title, promptSeed.version, promptSeed.body, promptSeed.negativePrompt, 1, now)
   seedPromptTemplatesV1(conn, now)
+}
 
+function seedProviderConfigs(conn: DatabaseSync, now: number) {
   const providerStatement = conn.prepare(`
     INSERT INTO provider_configs
     (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
-      label = CASE WHEN provider_configs.label = '' THEN excluded.label ELSE provider_configs.label END,
-      base_url = CASE WHEN provider_configs.base_url = '' THEN excluded.base_url ELSE provider_configs.base_url END,
-      model_name = CASE WHEN provider_configs.model_name = '' THEN excluded.model_name ELSE provider_configs.model_name END,
-      capabilities_json = CASE WHEN provider_configs.capabilities_json = '' OR provider_configs.capabilities_json = '[]' THEN excluded.capabilities_json ELSE provider_configs.capabilities_json END
+      label = excluded.label,
+      base_url = excluded.base_url,
+      model_name = excluded.model_name,
+      capabilities_json = excluded.capabilities_json
   `)
   for (const provider of providerSeed) {
     providerStatement.run(provider.id, provider.label, provider.baseUrl, provider.modelName, JSON.stringify(provider.capabilities), provider.enabled ? 1 : 0, provider.id === "mock" ? 1 : 0, "", "", now)
@@ -3047,18 +3050,37 @@ function mapAssetRow(row: Row, references: Map<string, PartAssetReference[]>): P
 
 function mapProviderRow(row?: Row, fallback?: ProviderConfig): ProviderConfig {
   if (!row) return fallback as ProviderConfig
+  const fallbackBaseUrl = fallback?.baseUrl || ""
+  const codeOwned = Boolean(fallback)
   return {
     id: row.id as ProviderId,
-    label: String(row.label || fallback?.label || ""),
-    baseUrl: String(row.base_url || fallback?.baseUrl || ""),
-    modelName: String(row.model_name || fallback?.modelName || ""),
-    capabilities: safeJson<ProviderConfig["capabilities"]>(String(row.capabilities_json || ""), fallback?.capabilities ?? ["image_generation"]),
+    label: codeOwned ? fallback?.label ?? "" : String(row.label || ""),
+    baseUrl: codeOwned ? normalizeProviderBaseUrl(fallbackBaseUrl, fallbackBaseUrl) : String(row.base_url || ""),
+    modelName: codeOwned ? fallback?.modelName ?? "" : String(row.model_name || ""),
+    capabilities: codeOwned ? fallback?.capabilities ?? ["image_generation"] : safeJson<ProviderConfig["capabilities"]>(String(row.capabilities_json || ""), ["image_generation"]),
     enabled: Boolean(row.enabled),
     active: Boolean(row.active),
     hasApiKey: Boolean(row.api_key_masked),
     maskedKey: String(row.api_key_masked ?? ""),
     updatedAt: Number(row.updated_at || fallback?.updatedAt || 0),
   }
+}
+
+function normalizeProviderBaseUrl(value: string, fallbackBaseUrl: string) {
+  if (!value || !fallbackBaseUrl) return value || fallbackBaseUrl
+  try {
+    const current = new URL(value)
+    const fallback = new URL(fallbackBaseUrl)
+    if (current.hostname.toLowerCase() === "api.302.ai" && fallback.hostname.toLowerCase() !== "api.302.ai" && fallback.hostname.toLowerCase().startsWith("api.302ai.")) {
+      current.protocol = fallback.protocol
+      current.hostname = fallback.hostname
+      current.port = fallback.port
+      return current.toString()
+    }
+  } catch {
+    return value
+  }
+  return value
 }
 
 function mapPromptPresetRow(row: Row): PromptPreset {
@@ -3578,6 +3600,7 @@ function normalizeCategoryAliases(value: unknown) {
 }
 
 function mapGeneration(row: Row): GenerationJob {
+  const standardJson = safeJson<GenerationStandardJson | null>(String(row.standard_json || "null"), null)
   return {
     id: String(row.id),
     status: row.status as GenerationJob["status"],
@@ -3591,7 +3614,8 @@ function mapGeneration(row: Row): GenerationJob {
     stance: Number(row.stance),
     selections: safeJson<SelectionMap>(String(row.selections_json || "{}"), {}),
     selectionOptions: safeJson<PartSelectionOptions>(String(row.selection_options_json || "{}"), {}),
-    standardJson: safeJson<GenerationStandardJson | null>(String(row.standard_json || "null"), null),
+    displayVehicleModel: displayVehicleModelFromStandardJson(standardJson),
+    standardJson,
     workflowId: String(row.workflow_id || ""),
     promptVersion: String(row.prompt_version || ""),
     promptSummary: String(row.prompt_summary),
@@ -3604,6 +3628,15 @@ function mapGeneration(row: Row): GenerationJob {
     usageUnits: Number(row.usage_units),
     createdAt: Number(row.created_at),
   }
+}
+
+function displayVehicleModelFromStandardJson(standardJson: GenerationStandardJson | null) {
+  const model = String(standardJson?.vehicle?.model || "").replace(/\s+/g, " ").trim()
+  if (!model) return ""
+  const normalized = model.toLowerCase()
+  if (normalized === "user uploaded vehicle, preserve exact identity") return ""
+  if (["unknown", "n/a", "na", "none", "null", "vehicle model pending"].includes(normalized)) return ""
+  return model
 }
 
 function mapAuthUser(row: Row): AuthUser {

@@ -1,61 +1,57 @@
 # DECISIONS
 
-Last updated: 2026-05-29 Asia/Shanghai
+Last updated: 2026-05-30 Asia/Shanghai
 
-Only current decisions are kept here. Historical implementation notes were removed.
+Only current decisions are kept here. Historical implementation notes and completed mobile-auth details have been removed.
 
-## 1. UI Changes Stay User-Directed
+## 1. Runtime SQLite Is Not Source Code
 
-The user wants to judge UI visually. Implement the requested screenshot/text/behavior change and avoid broad subjective redesigns.
+SQLite holds environment-specific runtime state and admin overrides. Default providers, workflows, catalog/prompt/billing baselines, and UI/API behavior belong in code.
 
-## 2. Desktop And Mobile Are Separate Surfaces
+Do not commit local SQLite as a fix for missing defaults. Do not assume provider keys can be moved with SQLite unless the environment secret is identical.
 
-Desktop UI lives mainly in `components/car-mod-studio.tsx`; mobile UI lives in `components/mobile/mobile-studio-app.tsx`. Shared business state remains in the controller. Do not change PC visuals while fixing mobile unless the user asks or shared behavior requires it.
+## 2. Provider Keys Are Environment Secrets
 
-## 3. Mobile Access Banner Is Immediate UX Guard
+API keys must be saved in each real environment through admin or a controlled secret workflow. If decryption fails, check `CAR_MOD_SECRET` / PM2 env before changing provider code.
 
-The mobile banner handles not-logged-in and quota-empty states before business API calls. Blocked actions shake the banner only. Backend 401/402 checks remain the authority and must not be removed.
+## 3. Real Provider Failures Must Stay Visible
 
-## 4. Not Logged In Does Not Auto-Open Login On Business Actions
+Do not silently replace a failed real generation with mock/original/demo output. This is especially important while debugging 302 because failed submits can still charge credits.
 
-Mobile business actions are unusable when logged out. They shake the banner instead of opening login automatically. The login banner itself can still be used as the login entry.
+## 4. Provider Images Must Be Materialized Locally
 
-## 5. Quota-Empty Actions Do Not Auto-Open Subscription
+New durable generation/history/chat records should use app-local image paths or app-origin proxied/downloadable images, not raw `file.302` or other provider-hosted URLs.
 
-Clicking generate/send/regenerate at zero quota shakes the banner and does not call generation/chat APIs. The quota banner itself remains the subscription entry.
+Old external URLs may remain in historical records and can only be migrated if the server can still fetch them.
 
-## 6. Mobile Profile Uses Full-Screen Subpages
+## 5. 302 Polling Must Respect The Configured Host
 
-Profile edit, phone bind, password change, and messages use animated page transitions with back/save actions. Do not return to inline-expanded forms.
+302 may return prediction/result URLs on a different host such as `api.302.ai`. The app should normalize compatible 302 polling URLs to the host used by the selected provider endpoint so the test server does not accidentally route through a blocked host.
 
-## 7. Account Messages Are Explicit-Read
+## 6. Real Provider Tests Require User Approval
 
-A message is unread until the user opens it. Opening an open message collapses it. “All read” marks every unread message read. Payment/subscription events create persisted messages.
+Do not run live Nano/GPT Image/provider smoke tests without explicit approval. A failed result retrieval can still deduct credits.
 
-## 8. Subscription Navigation Returns To Source
+## 7. Desktop And Mobile Are Separate UI Surfaces
 
-Subscription opened from home returns home. Subscription opened from profile returns profile. Mobile entry and exit should animate.
+Desktop and mobile share backend/state contracts but have separate visual surfaces. Fix the reported surface without broad redesign unless shared logic is the cause.
 
-## 9. Free Plan Is Not A Downgrade Button
+## 8. Generation Uses Standard JSON
 
-Paid users should not get a misleading Free downgrade action. Current behavior is to show the current plan/disabled state; expiration returns the account to Free.
+Config and Chat must converge on `GenerationStandardJson`. The first image is the vehicle canvas; later images are references. Prompt/provider code should preserve unselected vehicle details.
 
-## 10. Refresh Quota Entry Is Hidden
+## 9. Workflow Provider Selection Is Capability-Based
 
-The visible “刷新额度” row is removed from account UIs. Billing status refresh helpers and APIs remain for internal sync.
+Workflow steps must validate provider capability. Image steps need image-capable providers, recognition steps need vision-capable providers, LLM steps need text/LLM providers, and vector steps need embedding/vector providers.
 
-## 11. Payment Is Still Mock
+## 10. Admin Is Still Internal Tooling
 
-Mock checkout/payment is enough for local prototype UI. Real payment must add provider integration, webhooks, idempotency, refunds, failure/cancel handling, and operational views before production claims.
+The admin console can support testing and operations, but it is not yet a production-grade operations platform. Production user/order/quota/provider-cost workflows and audit hardening remain future work.
 
-## 12. Generation Uses Standard JSON
+## 11. Verification Is Sequential
 
-Config and Chat must converge on `GenerationStandardJson`. Prompt and provider code should preserve the first image as the canvas and treat later images as references only.
+Run `npm.cmd run build` before `npx.cmd tsc --noEmit`. Do not run them in parallel because `.next/types` can race.
 
-## 13. No Silent Provider Fallback
+## 12. Avoid Unsafe Logging
 
-Real provider failure must be surfaced honestly. Do not show mock/original/demo output as if it was a successful real generation.
-
-## 14. Development Verification Is Practical
-
-Use `npx.cmd tsc --noEmit` as the main check. Browser automation may be unavailable. Avoid `npm.cmd run build` while the dev server is active.
+Temporary provider diagnostics may log endpoint hosts, response status, safe IDs, and response shape. They must not log API keys, base64 images, user photos, or full signed provider URLs.

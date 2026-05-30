@@ -5,6 +5,11 @@
   "scripts": {
     "build": "next build",
     "dev": "node scripts/start-next-dev.mjs",
+    "audit:project": "node scripts/audit-project-state.mjs",
+    "config:apply": "node scripts/apply-project-config.mjs",
+    "config:export": "node scripts/export-project-config.mjs",
+    "config:sync-seeds": "node scripts/sync-code-seeds.mjs",
+    "config:validate": "node scripts/validate-project-config.mjs",
     "lint": "next lint",
     "start": "next start",
     "smoke": "node scripts/smoke.mjs"

@@ -41,6 +41,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
     const paintId = String(formData.get("paintId") || "factory")
     const stance = clamp(Number(formData.get("stance") || 0), 0, 100)
     const vehicleNote = String(formData.get("vehicleNote") || "")
+    const detectedVehicleModel = normalizeVehicleModel(String(formData.get("detectedVehicleModel") || ""))
     emitProgress({ step: "canvas_resolve" })
     const selections = parseSelections(String(formData.get("selections") || "{}"))
     const selectionOptions = parseSelectionOptions(String(formData.get("selectionOptions") || "{}"))
@@ -105,6 +106,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
       paintGradient: gradientPaint?.ok ? gradientPaint.gradient : undefined,
       stance,
       vehicleNote,
+      vehicleModel: detectedVehicleModel || normalizeVehicleModel(vehicleNote),
     })
     const job = await runGenerationWorkflow({
       userId: user.id,
@@ -275,6 +277,26 @@ function findConflict(selections: SelectionMap, assets: Array<{ id: string; cate
     counts.set(asset.categoryId, (counts.get(asset.categoryId) || 0) + 1)
   })
   return Array.from(counts.entries()).find(([, count]) => count > 1)?.[0]
+}
+
+function normalizeVehicleModel(value: string) {
+  const model = value.replace(/\s+/g, " ").trim()
+  if (!model) return ""
+  const normalized = model.toLowerCase()
+  const placeholders = new Set([
+    "unknown",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "vehicle model pending",
+    "user uploaded vehicle, preserve exact identity",
+    "车型待识别",
+    "待识别",
+    "未知",
+    "未识别",
+  ])
+  return placeholders.has(normalized) || placeholders.has(model) ? "" : model
 }
 
 async function saveUpload(file: File) {

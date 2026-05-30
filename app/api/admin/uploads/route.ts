@@ -1,7 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises"
-import path from "node:path"
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireAdminUser } from "@/lib/server/auth"
+import { writePartUploadImage } from "@/lib/server/local-images"
 import { validateImageUpload } from "@/lib/upload-limits"
 
 export const runtime = "nodejs"
@@ -22,9 +21,7 @@ export async function POST(request: Request) {
 
     const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg"
     const fileName = `part-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "parts")
-    await mkdir(uploadDir, { recursive: true })
-    await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()))
+    await writePartUploadImage(fileName, Buffer.from(await file.arrayBuffer()))
 
     return NextResponse.json({ imageUrl: `/uploads/parts/${fileName}` }, { status: 201 })
   } catch (error) {

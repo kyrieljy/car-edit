@@ -1,6 +1,7 @@
 import { createDecipheriv, createHash } from "node:crypto"
 import { DatabaseSync } from "node:sqlite"
 
+const live = process.argv.includes("--live")
 const db = new DatabaseSync("data/car_mod_effect.sqlite")
 const rows = db
   .prepare(
@@ -10,13 +11,14 @@ const rows = db
 
 const providers = rows.map((row) => ({
   id: String(row.id),
-  label: String(row.label || ""),
-  baseUrl: String(row.base_url || ""),
+  label: normalizedProviderLabel(String(row.id), String(row.label || "")),
+  baseUrl: normalize302BaseUrl(String(row.base_url || "")),
   modelName: String(row.model_name || ""),
   capabilities: safeJson(String(row.capabilities_json || "[]"), []),
   enabled: Boolean(row.enabled),
   active: Boolean(row.active),
-  apiKey: decryptSecret(String(row.api_key_cipher || "")),
+  apiKey: live ? decryptSecret(String(row.api_key_cipher || "")) : "",
+  hasStoredKey: Boolean(row.api_key_cipher || row.api_key_masked),
   maskedKey: String(row.api_key_masked || ""),
 }))
 
@@ -43,8 +45,23 @@ for (const provider of providers) {
       baseUrl: provider.baseUrl,
       status: "skipped",
       reason: "provider disabled",
-      hasKey: Boolean(provider.apiKey),
+      hasStoredKey: provider.hasStoredKey,
       maskedKey: provider.maskedKey,
+    })
+    continue
+  }
+  if (!live) {
+    print({
+      id: provider.id,
+      label: provider.label,
+      model: provider.modelName,
+      baseUrl: provider.baseUrl,
+      active: provider.active,
+      capabilities: provider.capabilities,
+      status: "dry_run",
+      hasStoredKey: provider.hasStoredKey,
+      maskedKey: provider.maskedKey,
+      reason: "No provider request sent. Re-run with --live only after user approval because live checks can spend credits.",
     })
     continue
   }
@@ -184,6 +201,25 @@ function findInlineData(value) {
 function chatEndpoint(baseUrl) {
   const normalized = (baseUrl || "").replace(/\/+$/, "")
   return normalized.endsWith("/chat/completions") ? normalized : `${normalized}/chat/completions`
+}
+
+function normalize302BaseUrl(value) {
+  try {
+    const url = new URL(value)
+    if (url.hostname.toLowerCase() === "api.302.ai") {
+      url.protocol = "https:"
+      url.hostname = "api.302ai.cn"
+      return url.toString()
+    }
+  } catch {
+    return value
+  }
+  return value
+}
+
+function normalizedProviderLabel(id, label) {
+  if (id === "provider_302_nano_banana2_async_edit") return "302-Nano Banana 2 Async Edit"
+  return label
 }
 
 function imageGenerationPayload(modelName, prompt) {

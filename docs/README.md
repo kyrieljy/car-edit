@@ -14,6 +14,8 @@ Do not read every document here during handoff. Pick the document for the subsys
 - `ADMIN_CATALOG_QA_CHECKLIST.md`: checklist for catalog asset operations.
 - `CHAT_MODE_REAL_API_SMOKE_CHECKLIST.md`: manual real-provider Chat smoke checklist; only run with user approval.
 - `PROMPT_REAL_EFFECT_REGRESSION_CHECKLIST.md`: manual real-effect prompt regression checklist; only run with user approval.
+- `PROJECT_AUDIT_AND_BOUNDARIES.md`: project/runtime DB boundary, image persistence policy, provider policy, audit command.
+- `DEPLOYMENT_AND_CONFIG_MIGRATION.md`: config export/apply/compare flow for keeping local and test server aligned.
 
 ## Historical Or Condensed
 

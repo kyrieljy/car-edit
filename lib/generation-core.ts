@@ -28,6 +28,7 @@ type BuildConfigSpecInput = {
   paintGradient?: PaintGradient
   stance: number
   vehicleNote: string
+  vehicleModel?: string
 }
 
 type BuildChatSpecInput = {
@@ -336,10 +337,11 @@ export function buildConfigStandardJson(input: BuildConfigSpecInput): Generation
 
   const configPaint = buildConfigPaint(input.paint, input.paintFinishEffect ?? "gloss", input.paintGradient)
   const configStance = configStanceFromValue(input.stance)
+  const vehicleModel = input.vehicleModel?.trim() || input.vehicleNote.trim() || "User uploaded vehicle, preserve exact identity"
   return {
     mode: "config",
     vehicle: {
-      model: input.vehicleNote.trim() || "User uploaded vehicle, preserve exact identity",
+      model: vehicleModel,
       view: "前 45 度",
       sourceImageUrl: input.sourceImageUrl,
       confidence: 0.86,

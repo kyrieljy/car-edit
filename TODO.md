@@ -1,95 +1,178 @@
 # TODO
 
-Last updated: 2026-05-29 Asia/Shanghai
+Last updated: 2026-05-30 Asia/Shanghai
 
-This is the active task list only. Old completed work has been removed from this handoff.
+This is the active task list for the next Codex window. It has been cleaned up from the older mobile-polish list. Start with `PROJECT_CONTEXT.md` before using this file.
 
-## Next Likely Work
+## P0 - 302 Result Retrieval Blocker
 
-1. Continue user-directed mobile UI polish from screenshots/browser state.
-2. Verify recent flows visually when the user asks:
-   - mobile access/quota banner
-   - mobile auth page and form transitions
-   - mobile profile subpages
-   - message badge/read/collapse/all-read behavior
-   - subscription entry/return animation
-   - mobile payment method modal overflow
-3. Keep fixing only the reported surface. Do not broaden the redesign.
+The current highest-priority issue is that the test server still pays for 302 Nano-Banana-2 requests but does not successfully return the generated image to the app.
 
-## Product Work Still Pending
+1. Confirm deployment state on the test server:
+   - `cd /root/car-edit`
+   - `git log --oneline -5`
+   - Make sure commit `a78694a Normalize 302 prediction polling host` or a later commit is present.
+   - Run `npm run build`, then `pm2 restart car-edit --update-env`.
+2. Check the real runtime logs after one user-approved 302 test:
+   - `pm2 logs car-edit --lines 200`
+   - Confirm whether Nano result polling now uses `api.302ai.cn` or the configured host.
+   - It must not poll raw `https://api.302.ai/ws/api/v3/predictions/.../result`.
+3. If the problem remains, add temporary safe logging around the Nano flow:
+   - provider id/label
+   - selected endpoint host only
+   - submit status
+   - returned `id` and returned `urls.get` host/path only
+   - polling status and response shape
+   - image output field names found
+   - Never log API keys, request images, returned base64, full signed URLs, or user photos.
+4. Re-check 302 docs against the implementation only if logs show response-shape mismatch:
+   - Nano-Banana-2 edit currently expects either base64 output or a retrievable result image.
+   - GPT Image 2 currently requests base64-style output when possible so the server can save locally.
+5. Do not run repeated real provider tests without explicit user approval. Each failed submit may still charge credits.
 
-User/account:
+## P0 - Image Persistence And History
 
-- production SMS provider
-- password reset
-- real WeChat OAuth
-- account binding/unbinding rules
-- role/session/rate-limit hardening
-- account audit review UI
+The correct behavior is: provider images are materialized to app-local files, then displayed/downloaded through the app origin.
 
-Payment/billing:
+Check these flows on local and test server:
 
-- real WeChat Pay/Alipay/Stripe integration
-- webhook verification
-- idempotent order state machine
-- payment failure/cancel/refund handling
-- invoice/billing history
-- explicit upgrade/downgrade/renewal rules
-- quota reconciliation jobs
+1. Config Mode generation:
+   - generated image displays from app origin, not `file.302.ai`
+   - saved result can be downloaded without leaving the app route
+   - history thumbnail uses a local/proxied image path
+2. Chat Mode generation:
+   - uploaded vehicle and part images remain visible after reload
+   - generated result remains visible after reload
+   - continue/regenerate uses local materialized input images and does not fail with `Input image fetch failed before provider`
+3. Compare save:
+   - generated compare collage saves/downloads from app origin
+   - no `the operation is insecure` canvas error
+4. Existing old records:
+   - old `file.302` URLs may be unrecoverable if expired or unreachable
+   - do not treat expired old records as a new generation bug unless fresh records also fail
 
-Operations/admin:
+Relevant files:
 
-- user management view
-- order/payment view
-- quota adjustment/history view
-- generation records view
-- failure records view
-- provider cost/statistics view
-- account message/admin station-letter tooling
+- `lib/server/generation-provider.ts`
+- `lib/server/image-materializer.ts`
+- `lib/server/image-assets.ts`
+- `lib/client/image-download.ts`
+- `app/api/proxy-image/route.ts`
+- `app/api/download-image/route.ts`
+- `app/uploads/[fileName]/route.ts`
+- `app/results/[fileName]/route.ts`
 
-Car feature work:
+## P1 - Mobile Test-Server QA
 
-- license plate local edit/mask feature
-- additional local detail tools under mobile Details
-- prompt/result QA for selected-only edits
+Re-test these on Android browser, iOS Safari, and PC mobile emulation after P0 is fixed.
 
-Platform/storage:
+1. Android scroll/touch:
+   - page can drag/scroll in Config Mode and Chat Mode
+   - buttons do not show the browser blue tap background
+   - fixed top bar stays clickable and visually stable
+2. Chat history drawer:
+   - list items show thumbnails when images are available
+   - title uses recognized vehicle when available, not only `User uploaded...`
+   - opening a record with images is smooth enough on Android
+   - selected record restores visible chat content
+3. Config result panel:
+   - original/generated/compare image area is not blank
+   - recognized vehicle label is visible on mobile
+   - bottom action controls do not cover important image content
+4. Save/download:
+   - generated image save works in Config Mode
+   - generated image download works in Chat Mode
+   - compare collage save works
 
-- production database and migrations
-- object storage/CDN for uploads/results/assets
-- backup/restore
-- dev/prod seed separation
-- WeChat Mini Program, Android, iOS only after the web product stabilizes
+## P1 - Admin Provider And Workflow QA
 
-## Verification
+1. Provider defaults:
+   - 302 Nano Banana 2 exists and is enabled by default
+   - 302 GPT Image 2 exists and is enabled by default
+   - GPT-5.4 mini style provider exists and is enabled by default
+   - Qwen 3.6 style provider exists and is enabled by default
+2. Workflow defaults:
+   - recognition/LLM steps default to GPT-5.4 mini style provider
+   - image generation steps default to Nano Banana 2
+3. Capability boundaries:
+   - image generation steps accept only image-capable providers
+   - vision recognition steps accept only vision-capable providers
+   - LLM steps accept only text/LLM-capable providers
+   - vector steps accept only embedding/vector-capable providers
+4. Runtime secrets:
+   - API keys must be saved per environment in admin
+   - SQLite from one machine should not be copied as a key source unless the same secret is used
+   - if provider key decrypt fails, check PM2 env before editing code
 
-For normal code/UI changes:
+## P2 - Product Gaps Before Public Release
+
+These are not needed to unblock the current 302 bug, but remain required before a serious public launch.
+
+1. License plate:
+   - plate mask/cover
+   - plate preservation
+   - other-country plate styles
+2. Production auth:
+   - real SMS provider
+   - real WeChat OAuth
+   - password reset
+   - account bind/unbind
+   - session/rate-limit/risk controls
+   - security audit trail
+3. Production billing:
+   - WeChat Pay, Alipay, Stripe
+   - order state machine
+   - webhook verification
+   - idempotency
+   - refunds
+   - subscription/quota sync
+   - quota deduction audit
+4. Production storage:
+   - production DB
+   - object storage
+   - CDN
+   - backup/restore
+   - migrations and seed separation
+5. Operations console:
+   - user operations
+   - orders/payments
+   - quota adjustments and audit
+   - generation/failure records
+   - provider cost statistics
+   - bad-case review workflow
+
+## Verification Commands
+
+For docs-only changes:
 
 ```powershell
+git diff --check
+git status --short
+```
+
+For code changes, run in this order:
+
+```powershell
+npm.cmd run build
 npx.cmd tsc --noEmit
 ```
 
-Use a simple HTTP smoke if Browser automation is unavailable:
+Do not run build and `tsc` in parallel because `.next/types` can race.
 
-```powershell
-Invoke-WebRequest http://localhost:3000/
-```
-
-Run `npm.cmd run build` only when the dev server is stopped or when build verification is explicitly needed.
-
-For Chat logic changes:
+For chat logic changes:
 
 ```powershell
 node scripts\chat-mode-dry-run-tests.mjs
 ```
 
-For real provider tests: ask first, because they spend credits.
+For real provider tests, ask first because they spend credits.
 
 ## Do Not Do
 
 - Do not reset SQLite without explicit approval.
+- Do not commit `data/car_mod_effect.sqlite` or any secret-bearing runtime DB.
 - Do not spend real provider credits without explicit approval.
+- Do not log API keys, base64 images, user photos, or full signed provider URLs.
 - Do not silently show mock/original/demo images as successful provider output.
-- Do not reintroduce free-canvas/React Flow workflow editing.
-- Do not expose provider keys or internal provider IDs in normal user UI.
+- Do not reintroduce raw external provider image URLs as the normal saved output.
 - Do not revert unrelated user changes.

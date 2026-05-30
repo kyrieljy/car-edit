@@ -35,6 +35,7 @@ export type GenerationProviderResponse = {
 
 const FIXED_MOCK_RESULT_URL = "/assets/results/fixed-m3-render.png"
 const NANO_BANANA_WS_POLL_INTERVAL_MS = 4000
+const NANO_BANANA_WS_POLL_REQUEST_TIMEOUT_MS = 30_000
 const MAX_NANO_BANANA_WS_INPUT_IMAGES = 14
 const MAX_PROVIDER_RESULT_IMAGE_BYTES = 20 * 1024 * 1024
 const PROVIDER_SAFETY_BLOCK_MESSAGE =
@@ -725,6 +726,21 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`request timed out after ${Math.round(timeoutMs / 1000)}s`, { cause: error })
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 function imageGenerationPayload(input: { modelName: string; prompt: string; negativePrompt: string; imageReferences: string[]; size?: string; fast302?: boolean }) {
   const payload: Record<string, unknown> = {
     model: input.modelName,
@@ -774,9 +790,13 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     images: images.map(imageDataUrl),
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
     resolution: "0.5k",
-    enable_sync_mode: true,
-    enable_base64_output: true,
+    enable_sync_mode: nanoBanana302SyncMode(),
+    enable_base64_output: false,
   }
+}
+
+function nanoBanana302SyncMode() {
+  return process.env.NANO_BANANA_302_SYNC_MODE === "1"
 }
 
 function nanoBananaSafePrompt(prompt: string) {
@@ -836,24 +856,33 @@ async function waitFor302NanoBananaResult(raw: Record<string, unknown>, apiKey: 
       completedWithoutImagePolls = 0
     }
 
-    const resultUrl = predictionResultUrl(current, endpoint)
-    if (!resultUrl) return current
+    const resultUrls = predictionResultUrls(current, endpoint)
+    if (!resultUrls.length) return current
     await delay(NANO_BANANA_WS_POLL_INTERVAL_MS)
+    current = await fetch302PredictionResult(resultUrls, apiKey)
+  }
+}
+
+async function fetch302PredictionResult(resultUrls: string[], apiKey: string): Promise<Record<string, unknown>> {
+  const failures: string[] = []
+  let lastError: unknown
+  for (const resultUrl of resultUrls) {
     let response: Response
     try {
-      response = await fetch(resultUrl, {
+      response = await fetchWithTimeout(resultUrl, {
         method: "GET",
         headers: providerRequestHeaders(apiKey, resultUrl),
-      })
+      }, NANO_BANANA_WS_POLL_REQUEST_TIMEOUT_MS)
     } catch (error) {
-      throw new Error(`Nano-Banana-2 result polling failed after task submission. result=${safeSourceUrl(resultUrl)}; ${transportErrorSummary(error)}`, { cause: error })
+      lastError = error
+      failures.push(`${safeSourceUrl(resultUrl)}: ${transportErrorSummary(error)}`)
+      continue
     }
     const payload = await readProviderPayload(response)
-    if (!response.ok) {
-      throw new Error(providerHttpErrorMessageForUi(payload.raw, payload, response, resultUrl))
-    }
-    current = payload.raw
+    if (response.ok) return payload.raw
+    failures.push(`${safeSourceUrl(resultUrl)}: ${providerHttpErrorMessageForUi(payload.raw, payload, response, resultUrl)}`)
   }
+  throw new Error(`Nano-Banana-2 result polling failed after task submission. attempts=${failures.join(" | ") || "none"}`, { cause: lastError })
 }
 
 function predictionData(raw: Record<string, unknown>) {
@@ -880,16 +909,24 @@ function predictionError(raw: Record<string, unknown>) {
   return providerErrorMessage(data)
 }
 
-function predictionResultUrl(raw: Record<string, unknown>, endpoint: string) {
+function predictionResultUrls(raw: Record<string, unknown>, endpoint: string) {
   const data = predictionData(raw)
   const urls = data.urls && typeof data.urls === "object" ? (data.urls as Record<string, unknown>) : {}
-  if (typeof urls.get === "string" && urls.get) return normalize302PredictionResultUrl(urls.get, endpoint)
+  if (typeof urls.get === "string" && urls.get) {
+    return uniqueNonEmptyStrings([
+      normalize302PredictionResultUrl(urls.get, endpoint),
+      urls.get,
+    ])
+  }
   const id = typeof data.id === "string" ? data.id : ""
-  if (!id) return ""
+  if (!id) return []
   const url = new URL(endpoint)
   url.pathname = `/ws/api/v3/predictions/${id}/result`
   url.search = ""
-  return normalize302PredictionResultUrl(url.toString(), endpoint)
+  return uniqueNonEmptyStrings([
+    normalize302PredictionResultUrl(url.toString(), endpoint),
+    official302PredictionResultUrl(id),
+  ])
 }
 
 function normalize302PredictionResultUrl(resultUrl: string, endpoint: string) {
@@ -904,6 +941,20 @@ function normalize302PredictionResultUrl(resultUrl: string, endpoint: string) {
   } catch {
     return resultUrl
   }
+}
+
+function official302PredictionResultUrl(id: string) {
+  return `https://api.302.ai/ws/api/v3/predictions/${encodeURIComponent(id)}/result`
+}
+
+function uniqueNonEmptyStrings(values: string[]) {
+  const seen = new Set<string>()
+  return values.filter((value) => {
+    const clean = value.trim()
+    if (!clean || seen.has(clean)) return false
+    seen.add(clean)
+    return true
+  })
 }
 
 function append302FastImageOptions(formData: FormData) {

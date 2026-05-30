@@ -1,16 +1,16 @@
 # AGENTS
 
-Last updated: 2026-05-29 Asia/Shanghai
+Last updated: 2026-05-30 Asia/Shanghai
 
 This file is for the next Codex window.
 
 ## Read Order
 
-Read only these by default:
+Read these first:
 
 1. `PROJECT_CONTEXT.md`
-2. `ARCHITECTURE.md`
-3. `TODO.md`
+2. `TODO.md`
+3. `ARCHITECTURE.md`
 4. `DECISIONS.md`
 5. `AGENTS.md`
 
@@ -18,38 +18,40 @@ Then inspect only the files needed for the newest user request. Do not bulk-read
 
 ## Current Handoff
 
-The recent work focused on mobile auth/quota gating, profile, subscription/payment UI, and account messages.
+The active blocker is test-server 302 image retrieval.
 
-Current notable behavior:
+Known state:
 
-- Mobile not-logged-in and quota-empty states use the green banner under the mode switch.
-- Blocked mobile business actions shake the banner and do not call consuming APIs.
-- Mobile profile rows open animated subpages, not inline forms.
-- Mobile message notification is icon-only with unread badge.
-- Account messages are persisted and marked read only when opened.
-- Subscription success refreshes billing and message badge through `ACCOUNT_MESSAGES_REFRESH_EVENT`.
-- The visible refresh-quota entry has been removed.
+- Local code can generate in scenarios that the test server still fails.
+- Test server can submit 302 Nano requests and 302 deducts credits.
+- The app still may fail to retrieve or materialize the final provider image on the test server.
+- A recent failure showed 302 returning a polling URL on `api.302.ai`; code now normalizes compatible 302 polling URLs to the selected endpoint host in commit `a78694a`.
+- Recent commits also changed generated/history/download/chat-continuation image handling to materialize provider images locally and avoid durable `file.302` URLs for new records.
+
+Do not run more real provider tests without explicit user approval.
 
 ## How To Work
 
-1. Start from the newest user request, screenshot, or browser comment.
-2. Use `rg` to find components/selectors before editing.
-3. Keep the change narrow.
-4. Use `apply_patch` for manual edits.
-5. Run the relevant verification command.
-6. Report exactly what changed and whether verification ran.
+1. Start from the newest user request and current server/browser state.
+2. Read `PROJECT_CONTEXT.md` and `TODO.md` before touching code.
+3. Use `rg` to find code paths and CSS selectors before editing.
+4. Keep edits narrow and explain the exact boundary being changed.
+5. Use `apply_patch` for manual edits.
+6. Run the relevant verification command.
+7. If a real provider call is needed, ask first and explain that credits may be charged.
 
 ## Key Files
 
 - Shared controller and desktop UI: `components/car-mod-studio.tsx`
-- Mobile app/profile/banner/messages: `components/mobile/mobile-studio-app.tsx`
-- Chat UI/composer/history: `components/chat-mode.tsx`
-- Auth UI: `components/auth-modal.tsx`
-- Subscription/payment UI: `components/subscribe-modal.tsx`
-- Account client: `lib/account-client.ts`
-- Account event constant: `lib/account-events.ts`
-- Types: `lib/types.ts`
-- SQLite/auth/billing/messages: `lib/server/db.ts`
+- Mobile app shell/history/profile/config/chat: `components/mobile/mobile-studio-app.tsx`
+- Desktop Chat UI: `components/chat-mode.tsx`
+- Admin console: `components/admin-console.tsx`
+- Workflow designer: `components/workflow-designer.tsx`
+- Provider execution: `lib/server/generation-provider.ts`
+- Local image materialization: `lib/server/image-materializer.ts`
+- Image path/proxy helpers: `lib/server/image-assets.ts`
+- Client download helper: `lib/client/image-download.ts`
+- SQLite/auth/billing/history/provider config: `lib/server/db.ts`
 - Global CSS: `app/globals.css`
 
 ## Verification Commands
@@ -57,19 +59,21 @@ Current notable behavior:
 From:
 
 ```powershell
-C:\Users\54901\Documents\Playground\car-mod-effect-studio
+D:\car-mod-effect-studio
 ```
 
-TypeScript:
+Docs-only:
 
 ```powershell
+git diff --check
+git status --short
+```
+
+Code:
+
+```powershell
+npm.cmd run build
 npx.cmd tsc --noEmit
-```
-
-HTTP smoke:
-
-```powershell
-Invoke-WebRequest http://localhost:3000/
 ```
 
 Chat dry-run when touching Chat logic:
@@ -84,17 +88,17 @@ Dev server:
 npm.cmd run dev -- -H 0.0.0.0 -p 3000
 ```
 
-Use `npm.cmd run build` only when the dev server is stopped or build verification is explicitly needed.
-
 ## Known Pitfalls
 
+- Real provider tests spend credits.
+- 302 may return result URLs on hosts different from the selected endpoint.
+- Old `file.302` URLs can expire and may be impossible to recover.
 - Browser automation has recently failed with `windows sandbox failed: spawn setup refresh`.
 - `app/globals.css` has many late mobile override blocks.
 - Some mobile selectors reuse desktop class names.
-- The parent `Playground` git status is noisy.
-- Local SQLite data changes during testing; do not reset it without approval.
-- Real provider tests spend credits.
+- Local SQLite changes during testing; do not reset it without approval.
+- Do not commit runtime DB files or secrets.
 
 ## Documentation Hygiene
 
-Keep these handoff docs compact. If a detail belongs to a specific subsystem, put it in the relevant topic doc under `docs/` and link it from `docs/README.md`; do not append long chronological logs to the root handoff files.
+Keep root handoff docs compact and current. Remove stale completed work instead of appending a chronology. If a detail belongs to a specific subsystem, put it in the relevant topic doc under `docs/` and link it from `docs/README.md`.
