@@ -1005,10 +1005,10 @@ export function ChatMode({
             </label>
           </div>
 
-          {(notice || isGenerating) && (
+          {(notice || (!mobileVariant && isGenerating)) && (
             <div className="chat-composer-status-stack">
               {notice && <div className="chat-notice">{notice}</div>}
-              {isGenerating && <div className="chat-generating">{generationStatusText}</div>}
+              {!mobileVariant && isGenerating && <div className="chat-generating">{generationStatusText}</div>}
             </div>
           )}
         </div>
