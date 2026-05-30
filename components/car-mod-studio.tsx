@@ -1,7 +1,7 @@
 "use client"
 
 import type { CSSProperties, MouseEvent, PointerEvent as ReactPointerEvent } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowDownToLine,
@@ -534,6 +534,9 @@ export function CarModStudio() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const partsDropdownRef = useRef<HTMLDivElement | null>(null)
   const assetRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const historyRefreshSeqRef = useRef(0)
+  const vehicleRecognitionSeqRef = useRef(0)
+  const vehicleNoteEditedRef = useRef(false)
   const [language, setLanguage] = useState<Language>("zh")
   const [appMode, setAppMode] = useState<AppMode>("config")
   const [shellMode, setShellMode] = useState<AppMode>("config")
@@ -543,7 +546,7 @@ export function CarModStudio() {
   const [vehicleFile, setVehicleFile] = useState<File | null>(null)
   const [vehiclePreview, setVehiclePreview] = useState("")
   const [vehicleNote, setVehicleNote] = useState("")
-  const [vehicleNoteEdited, setVehicleNoteEdited] = useState(false)
+  const [vehicleNoteEdited, setVehicleNoteEditedState] = useState(false)
   const [vehicleRecognitionError, setVehicleRecognitionError] = useState("")
   const [isRecognizingVehicle, setIsRecognizingVehicle] = useState(false)
   const [expandedCategory, setExpandedCategory] = useState("")
@@ -582,6 +585,29 @@ export function CarModStudio() {
   const [isMobileViewport, setIsMobileViewport] = useState(false)
 
   const t = cleanStudioCopy[language]
+  const authUserId = authUser?.id ?? ""
+
+  const setVehicleNoteEdited = (value: boolean) => {
+    vehicleNoteEditedRef.current = value
+    setVehicleNoteEditedState(value)
+  }
+
+  const refreshHistory = useCallback(async () => {
+    const refreshSeq = ++historyRefreshSeqRef.current
+    if (!authUserId) {
+      setHistory([])
+      return
+    }
+    try {
+      const response = await fetch("/api/garage", { cache: "no-store" })
+      if (!response.ok) return
+      const body = (await response.json()) as { generations?: GenerationJob[] }
+      if (refreshSeq !== historyRefreshSeqRef.current) return
+      setHistory(applyStoredHistoryVehicleModels((body.generations ?? []).filter(isRenderableGeneration)))
+    } catch {
+      // History refresh is opportunistic; keep the current list if the request fails.
+    }
+  }, [authUserId])
 
   useEffect(() => {
     const query = window.matchMedia("(max-width: 760px)")
@@ -643,24 +669,8 @@ export function CarModStudio() {
   }, [])
 
   useEffect(() => {
-    if (!authUser) {
-      setHistory([])
-      return
-    }
-    let ignore = false
-    fetch("/api/garage")
-      .then((response) => {
-        if (!response.ok) return { generations: [] }
-        return response.json()
-      })
-      .then((body: { generations?: GenerationJob[] }) => {
-        if (!ignore) setHistory(applyStoredHistoryVehicleModels((body.generations ?? []).filter(isRenderableGeneration)))
-      })
-      .catch(() => undefined)
-    return () => {
-      ignore = true
-    }
-  }, [authUser])
+    void refreshHistory()
+  }, [refreshHistory])
 
   useEffect(() => {
     if (!vehicleFile) return
@@ -772,7 +782,12 @@ export function CarModStudio() {
       ? "Upload vehicle to detect"
       : "上传车辆后自动识别"
 
+  const historyTitleForItem = (item: GenerationJob) =>
+    displayVehicleModelForHistory(item, item.id === job?.id || item.sourceImageUrl === vehiclePreview ? vehicleNote : "") || historyVehicleTitleFallback(language)
+
   const recognizeVehicle = async (file: File) => {
+    const recognitionSeq = ++vehicleRecognitionSeqRef.current
+    const isCurrentRecognition = () => recognitionSeq === vehicleRecognitionSeqRef.current
     const formData = new FormData()
     formData.append("vehicleImage", file)
     setIsRecognizingVehicle(true)
@@ -783,35 +798,45 @@ export function CarModStudio() {
         body: formData,
       })
       const body = await response.json().catch(() => ({}))
+      if (!isCurrentRecognition()) return
       if (!response.ok) {
         const message = String(body.error || `Vehicle recognition failed. HTTP ${response.status}`)
         if (response.status === 401) setAuthOpen(true)
         setNotice(message)
         setVehicleRecognitionError(message)
-        setVehicleNote("")
-        setVehicleNoteEdited(false)
+        if (!vehicleNoteEditedRef.current) {
+          setVehicleNote("")
+          setVehicleNoteEdited(false)
+        }
         return
       }
       const detectedModel = extractDetectedVehicleModel(body)
       if (detectedModel) {
-        setVehicleNote(detectedModel)
-        setVehicleNoteEdited(false)
+        if (!vehicleNoteEditedRef.current) {
+          setVehicleNote(detectedModel)
+          setVehicleNoteEdited(false)
+        }
         setVehicleRecognitionError("")
       } else {
         const message = language === "en" ? "Recognition completed, but no vehicle model was returned." : "识别已完成，但模型没有返回车型。"
-        setVehicleNote("")
-        setVehicleNoteEdited(false)
+        if (!vehicleNoteEditedRef.current) {
+          setVehicleNote("")
+          setVehicleNoteEdited(false)
+        }
         setVehicleRecognitionError(message)
         setNotice(message)
       }
     } catch (error) {
+      if (!isCurrentRecognition()) return
       const message = error instanceof Error ? error.message : "Vehicle recognition failed."
       setNotice(message)
       setVehicleRecognitionError(message)
-      setVehicleNote("")
-      setVehicleNoteEdited(false)
+      if (!vehicleNoteEditedRef.current) {
+        setVehicleNote("")
+        setVehicleNoteEdited(false)
+      }
     } finally {
-      setIsRecognizingVehicle(false)
+      if (isCurrentRecognition()) setIsRecognizingVehicle(false)
     }
   }
 
@@ -960,6 +985,8 @@ export function CarModStudio() {
       const formData = new FormData()
       formData.append("vehicleImage", vehicleFile)
       formData.append("vehicleNote", vehicleNoteEdited ? vehicleNote.trim() : "")
+      const displayModel = displayVehicleNote && !isInternalVehicleModel(displayVehicleNote) ? displayVehicleNote : ""
+      if (displayModel) formData.append("displayVehicleModel", displayModel)
       formData.append("paintId", paintId)
       formData.append("paintFinishEffect", paintFinishEffect)
       if (isGradientPaint) {
@@ -992,7 +1019,6 @@ export function CarModStudio() {
       if (!isRenderableGeneration(created)) {
         throw new Error(created.failureReason || t.generationFailed)
       }
-      const displayModel = displayVehicleNote && !isInternalVehicleModel(displayVehicleNote) ? displayVehicleNote : ""
       const createdWithDisplayModel = displayModel ? { ...created, displayVehicleModel: displayModel } : created
       if (displayModel) storeHistoryVehicleModel(created.id, displayModel)
       setGenerationDurationSeconds(Math.max(1, Math.ceil((Date.now() - generationStartedAt) / 1000)))
@@ -1098,9 +1124,14 @@ export function CarModStudio() {
   }
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" })
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined)
     setAuthUser(null)
     setBilling(null)
+    setHistory([])
+    clearStoredHistoryVehicleModels()
+    clearCurrentConfig()
+    setAuthOpen(false)
+    setSubscribeOpen(false)
     setProfileOpen(false)
   }
 
@@ -1230,9 +1261,10 @@ export function CarModStudio() {
         setViewMode={setViewMode}
         job={job}
         history={history}
+        syncHistory={refreshHistory}
         selectHistoryJob={selectHistoryJob}
         deleteHistoryJob={deleteHistoryJob}
-        formatHistoryTitle={(item) => displayVehicleModelForHistory(item, item.id === job?.id || item.sourceImageUrl === vehiclePreview ? vehicleNote : "")}
+        formatHistoryTitle={historyTitleForItem}
         isGenerating={isGenerating}
         generationElapsedSeconds={generationElapsedSeconds}
         generationDurationSeconds={generationDurationSeconds}
@@ -1825,8 +1857,8 @@ export function CarModStudio() {
                   canGenerate={canGenerate}
                   saveResult={saveResult}
                   selectedPaintLabel={selectedPaintLabel}
-                  vehicleNote={vehicleDisplayName}
                   history={history}
+                  historyTitleForItem={historyTitleForItem}
                   onHistorySelect={selectHistoryJob}
                   onHistoryDelete={deleteHistoryJob}
                 />
@@ -2492,8 +2524,8 @@ function ResultPanel({
   canGenerate,
   saveResult,
   selectedPaintLabel,
-  vehicleNote,
   history,
+  historyTitleForItem,
   onHistorySelect,
   onHistoryDelete,
 }: {
@@ -2516,8 +2548,8 @@ function ResultPanel({
   canGenerate: boolean
   saveResult: (exportMode?: ViewMode) => void
   selectedPaintLabel: string
-  vehicleNote: string
   history: GenerationJob[]
+  historyTitleForItem: (job: GenerationJob) => string
   onHistorySelect: (job: GenerationJob) => void
   onHistoryDelete: (job: GenerationJob) => void
 }) {
@@ -2634,7 +2666,7 @@ function ResultPanel({
                     <div className={item.id === job?.id ? "history-thumb selected" : "history-thumb"} key={item.id}>
                       <button onClick={() => onHistorySelect(item)} title="Open render history">
                         <img src={canvasSafeImageUrl(item.resultImageUrl)} alt={item.id} />
-                        <span>{displayVehicleModelForHistory(item, item.id === job?.id || item.sourceImageUrl === vehiclePreview ? vehicleNote : "")}</span>
+                        <span>{historyTitleForItem(item)}</span>
                       </button>
                       <button
                         type="button"
@@ -2683,7 +2715,7 @@ function getSelectableColorPolicies(asset: PartAsset): PartColorPolicy[] {
 
 function isInternalVehicleModel(value: unknown) {
   const model = cleanVehicleModelText(value).toLowerCase()
-  return !model || model === "user uploaded vehicle, preserve exact identity"
+  return !model || model === "user uploaded vehicle, preserve exact identity" || isInternalHistoryIdentifier(model)
 }
 
 function displayVehicleModelForHistory(item: GenerationJob, fallback = "") {
@@ -2728,12 +2760,25 @@ function forgetHistoryVehicleModel(jobId: string) {
   window.localStorage.setItem(HISTORY_VEHICLE_MODEL_STORAGE_KEY, JSON.stringify(modelMap))
 }
 
+function clearStoredHistoryVehicleModels() {
+  if (typeof window === "undefined") return
+  window.localStorage.removeItem(HISTORY_VEHICLE_MODEL_STORAGE_KEY)
+}
+
+function historyVehicleTitleFallback(language: Language) {
+  return language === "zh" ? "\u672a\u8bc6\u522b\u8f66\u578b" : "Vehicle"
+}
+
 function normalizeDetectedVehicleModel(value: unknown) {
   const model = cleanVehicleModelText(value)
   if (!model) return ""
   const normalized = model.toLowerCase()
   const placeholders = ["unknown", "n/a", "na", "none", "null", "vehicle model pending", "车型待识别", "待识别", "未知", "未识别"]
-  return placeholders.includes(normalized) || placeholders.includes(model) ? "" : model
+  return placeholders.includes(normalized) || placeholders.includes(model) || isInternalHistoryIdentifier(model) ? "" : model
+}
+
+function isInternalHistoryIdentifier(value: string) {
+  return /^(gen|upload|garage|job|usage)_[a-z0-9-]+$/i.test(value.trim())
 }
 
 function extractDetectedVehicleModel(payload: unknown): string {

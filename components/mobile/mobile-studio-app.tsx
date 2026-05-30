@@ -187,6 +187,7 @@ type MobileStudioAppProps = {
   setViewMode: (mode: ViewMode) => void
   job: GenerationJob | null
   history: GenerationJob[]
+  syncHistory: () => void
   selectHistoryJob: (job: GenerationJob) => void
   deleteHistoryJob: (job: GenerationJob) => void
   isGenerating: boolean
@@ -422,6 +423,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
             return
           }
           if (appMode === "config") {
+            void props.syncHistory()
             setConfigHistoryOpen(true)
             return
           }
@@ -1496,8 +1498,8 @@ function MobileHistorySheet({
 }
 
 function mobileHistoryTitle(item: GenerationJob) {
-  const candidates = [item.displayVehicleModel, item.standardJson?.vehicle?.model, item.id]
-  return candidates.map((value) => cleanMobileHistoryTitle(value)).find(Boolean) || item.id
+  const candidates = [item.displayVehicleModel, item.standardJson?.vehicle?.model]
+  return candidates.map((value) => cleanMobileHistoryTitle(value)).find(Boolean) || "Vehicle"
 }
 
 function cleanMobileHistoryTitle(value: unknown) {
@@ -1506,6 +1508,7 @@ function cleanMobileHistoryTitle(value: unknown) {
   const normalized = text.toLowerCase()
   if (normalized === "user uploaded vehicle, preserve exact identity") return ""
   if (normalized === "vehicle model pending" || normalized === "unknown" || normalized === "n/a") return ""
+  if (/^(gen|upload|garage|job|usage)_[a-z0-9-]+$/i.test(text)) return ""
   return text
 }
 

@@ -181,6 +181,7 @@ function initSchema(conn: DatabaseSync) {
       vehicle_upload_id TEXT NOT NULL,
       mode TEXT NOT NULL DEFAULT 'config',
       provider TEXT NOT NULL,
+      display_vehicle_model TEXT NOT NULL DEFAULT '',
       paint_id TEXT NOT NULL,
       stance INTEGER NOT NULL,
       selections_json TEXT NOT NULL,
@@ -529,6 +530,7 @@ function migrateSchema(conn: DatabaseSync) {
   const generationColumns = conn.prepare("PRAGMA table_info(generation_jobs)").all() as Array<{ name: string }>
   const generationColumnDefaults: Array<[string, string]> = [
     ["mode", "TEXT NOT NULL DEFAULT 'config'"],
+    ["display_vehicle_model", "TEXT NOT NULL DEFAULT ''"],
     ["selection_options_json", "TEXT NOT NULL DEFAULT '{}'"],
     ["standard_json", "TEXT NOT NULL DEFAULT '{}'"],
     ["workflow_id", "TEXT NOT NULL DEFAULT ''"],
@@ -1795,6 +1797,7 @@ export function createGeneration(input: {
   provider: ProviderId
   vehicleUploadId: string
   sourceImageUrl: string
+  displayVehicleModel?: string
   resultImageUrl?: string
   paintId: string
   stance: number
@@ -1822,8 +1825,8 @@ export function createGeneration(input: {
   database()
     .prepare(`
       INSERT INTO generation_jobs
-      (id, user_id, vehicle_upload_id, mode, provider, paint_id, stance, selections_json, selection_options_json, standard_json, workflow_id, prompt_version, prompt_summary, prompt_hidden, result_check_json, retry_count, failure_reason, cost_cents, bad_case_tags_json, status, result_image_url, usage_units, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, vehicle_upload_id, mode, provider, display_vehicle_model, paint_id, stance, selections_json, selection_options_json, standard_json, workflow_id, prompt_version, prompt_summary, prompt_hidden, result_check_json, retry_count, failure_reason, cost_cents, bad_case_tags_json, status, result_image_url, usage_units, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       generationId,
@@ -1831,6 +1834,7 @@ export function createGeneration(input: {
       input.vehicleUploadId,
       input.mode || "config",
       input.provider,
+      normalizeDisplayVehicleModel(input.displayVehicleModel),
       input.paintId,
       input.stance,
       JSON.stringify(input.selections),
@@ -3614,7 +3618,7 @@ function mapGeneration(row: Row): GenerationJob {
     stance: Number(row.stance),
     selections: safeJson<SelectionMap>(String(row.selections_json || "{}"), {}),
     selectionOptions: safeJson<PartSelectionOptions>(String(row.selection_options_json || "{}"), {}),
-    displayVehicleModel: displayVehicleModelFromStandardJson(standardJson),
+    displayVehicleModel: displayVehicleModelFromRow(row, standardJson),
     standardJson,
     workflowId: String(row.workflow_id || ""),
     promptVersion: String(row.prompt_version || ""),
@@ -3630,12 +3634,21 @@ function mapGeneration(row: Row): GenerationJob {
   }
 }
 
+function displayVehicleModelFromRow(row: Row, standardJson: GenerationStandardJson | null) {
+  return normalizeDisplayVehicleModel(row.display_vehicle_model) || displayVehicleModelFromStandardJson(standardJson)
+}
+
 function displayVehicleModelFromStandardJson(standardJson: GenerationStandardJson | null) {
-  const model = String(standardJson?.vehicle?.model || "").replace(/\s+/g, " ").trim()
+  return normalizeDisplayVehicleModel(standardJson?.vehicle?.model)
+}
+
+function normalizeDisplayVehicleModel(value: unknown) {
+  const model = String(value || "").replace(/\s+/g, " ").trim()
   if (!model) return ""
   const normalized = model.toLowerCase()
   if (normalized === "user uploaded vehicle, preserve exact identity") return ""
   if (["unknown", "n/a", "na", "none", "null", "vehicle model pending"].includes(normalized)) return ""
+  if (/^(gen|upload|garage|job|usage)_[a-z0-9-]+$/i.test(model)) return ""
   return model
 }
 

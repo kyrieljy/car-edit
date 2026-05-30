@@ -41,6 +41,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
     const paintId = String(formData.get("paintId") || "factory")
     const stance = clamp(Number(formData.get("stance") || 0), 0, 100)
     const vehicleNote = String(formData.get("vehicleNote") || "")
+    const displayVehicleModel = normalizeVehicleModel(String(formData.get("displayVehicleModel") || ""))
     emitProgress({ step: "canvas_resolve" })
     const selections = parseSelections(String(formData.get("selections") || "{}"))
     const selectionOptions = parseSelectionOptions(String(formData.get("selectionOptions") || "{}"))
@@ -112,6 +113,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
       mode: "config",
       vehicleUploadId: storedUpload.id,
       sourceImageUrl: upload.url,
+      displayVehicleModel,
       standardJson,
       paintId: paintFinishEffect === "gradient" ? "gradient" : selectedPaint.id,
       stance,
