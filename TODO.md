@@ -4,30 +4,28 @@ Last updated: 2026-05-30 Asia/Shanghai
 
 This is the active task list for the next Codex window. It has been cleaned up from the older mobile-polish list. Start with `PROJECT_CONTEXT.md` before using this file.
 
-## P0 - 302 Result Retrieval Blocker
+## P0 - Yunwu Default Provider Verification
 
-The current highest-priority issue is that the test server still pays for 302 Nano-Banana-2 requests but does not successfully return the generated image to the app.
+The current highest-priority issue is switching default image generation away from 302 to Yunwu on local and test-server environments.
 
 1. Confirm deployment state on the test server:
    - `cd /root/car-edit`
    - `git log --oneline -5`
-   - Make sure commit `a78694a Normalize 302 prediction polling host` or a later commit is present.
+   - Make sure the latest Yunwu-default commit is present.
    - Run `npm run build`, then `pm2 restart car-edit --update-env`.
-2. Check the real runtime logs after one user-approved 302 test:
+2. Apply the existing SQLite workflow/provider switch:
+   - `npm run provider:yunwu-default`
+   - Save the Yunwu API key in `/admin` for `provider_yunwu_image_edit`.
+3. Check the real runtime logs after one user-approved Yunwu test:
    - `pm2 logs car-edit --lines 200`
-   - Confirm whether Nano result polling now uses `api.302ai.cn` or the configured host.
-   - It must not poll raw `https://api.302.ai/ws/api/v3/predictions/.../result`.
-3. If the problem remains, add temporary safe logging around the Nano flow:
+   - Confirm the provider is `provider_yunwu_image_edit`.
+   - Confirm the result image is materialized to `/results/...`.
+4. If the problem remains, add temporary safe logging around the Yunwu image edit flow:
    - provider id/label
    - selected endpoint host only
    - submit status
-   - returned `id` and returned `urls.get` host/path only
-   - polling status and response shape
    - image output field names found
    - Never log API keys, request images, returned base64, full signed URLs, or user photos.
-4. Re-check 302 docs against the implementation only if logs show response-shape mismatch:
-   - Nano-Banana-2 edit currently expects either base64 output or a retrievable result image.
-   - GPT Image 2 currently requests base64-style output when possible so the server can save locally.
 5. Do not run repeated real provider tests without explicit user approval. Each failed submit may still charge credits.
 
 ## P0 - Image Persistence And History

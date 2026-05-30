@@ -128,6 +128,8 @@ async function invokeOpenAiCompatibleImageEdit(
   formData.append("size", "1024x1024")
   if (is302ImageEndpoint(endpoint)) {
     append302FastImageOptions(formData)
+  } else if (isYunwuImageEndpoint(endpoint)) {
+    appendYunwuImageEditOptions(formData)
   } else if (!isYunwuImageEndpoint(endpoint) && supportsInputFidelity(input.provider.modelName)) {
     formData.append("input_fidelity", "high")
   }
@@ -1107,6 +1109,16 @@ function append302FastImageOptions(formData: FormData) {
   }
 }
 
+function appendYunwuImageEditOptions(formData: FormData) {
+  formData.set("n", "1")
+  formData.set("quality", yunwuImageQuality())
+  formData.set("output_format", yunwuImageOutputFormat())
+  const outputFormat = yunwuImageOutputFormat()
+  if (outputFormat === "jpeg" || outputFormat === "webp") {
+    formData.set("output_compression", String(yunwuImageOutputCompression()))
+  }
+}
+
 function fast302ImageOptions() {
   return {
     quality: "low",
@@ -1117,9 +1129,34 @@ function fast302ImageOptions() {
 }
 
 function providerOutputImageSize(endpoint: string, vehicleImage?: { bytes: Uint8Array }) {
+  if (isYunwuImageEndpoint(endpoint)) return yunwuImageSize()
   if (!is302ImageEndpoint(endpoint) || !vehicleImage) return "1024x1024"
   const dimensions = imageDimensions(vehicleImage.bytes)
   return dimensions ? supported302ImageSize(dimensions) : "1024x1024"
+}
+
+function yunwuImageSize() {
+  const value = String(process.env.YUNWU_IMAGE_SIZE || "1024x1024").trim().toLowerCase()
+  if (value === "1024x1024" || value === "1024x1536" || value === "1536x1024") return value
+  return "1024x1024"
+}
+
+function yunwuImageQuality() {
+  const value = String(process.env.YUNWU_IMAGE_QUALITY || "low").trim().toLowerCase()
+  if (value === "low" || value === "medium" || value === "high" || value === "auto") return value
+  return "low"
+}
+
+function yunwuImageOutputFormat() {
+  const value = String(process.env.YUNWU_IMAGE_OUTPUT_FORMAT || "jpeg").trim().toLowerCase()
+  if (value === "jpeg" || value === "png" || value === "webp") return value
+  return "jpeg"
+}
+
+function yunwuImageOutputCompression() {
+  const value = Number(process.env.YUNWU_IMAGE_OUTPUT_COMPRESSION || 80)
+  if (!Number.isFinite(value)) return 80
+  return Math.max(0, Math.min(100, Math.round(value)))
 }
 
 function supported302ImageSize(dimensions: { width: number; height: number }) {

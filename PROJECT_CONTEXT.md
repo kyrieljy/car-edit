@@ -67,17 +67,18 @@ Stored in code:
 
 Important provider defaults currently expected in code:
 
-- 302 Nano Banana 2
-- 302 GPT Image 2
+- Yunwu GPT Image 1 Mini Edit for default image generation/editing
+- 302 Nano Banana 2 is retained but disabled by default after domestic test-server connectivity failures
+- 302 GPT Image 2 is retained but disabled by default after domestic test-server connectivity failures
 - GPT-5.4 mini style vision/LLM provider
 - Qwen 3.6 style provider
-- Default workflows should use GPT-5.4 mini for recognition/LLM steps and Nano Banana 2 for image generation.
+- Default workflows should use GPT-5.4 mini for recognition/LLM steps and Yunwu GPT Image 1 Mini for image generation.
 
 Do not commit local SQLite to Git. API keys are encrypted with environment secrets, so copying SQLite between machines without the same `CAR_MOD_SECRET` / auth secret can make provider keys undecryptable.
 
 ## Test Server Issues Seen
 
-The current active blocker is 302 result retrieval on the test server.
+The previous active blocker was 302 result retrieval on the test server. The current deployment direction is to avoid 302 for default image generation and use Yunwu instead.
 
 Observed 302/Nano failures:
 

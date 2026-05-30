@@ -90,7 +90,7 @@ function buildAudit(dbPath) {
         "SQLite mixes project configuration and runtime/user data; use export/apply scripts for project config instead of copying the whole DB.",
         "Provider keys are environment secrets and are intentionally excluded from project config exports.",
         "Runtime upload/result folders are ignored by Git; fresh provider outputs must be materialized locally before DB persistence.",
-        "Yunwu is seeded as a disabled candidate and must be verified with an approved live test before switching workflows.",
+        "Yunwu is the default image provider; verify with an approved live test after saving the environment-specific API key.",
       ],
     }
   } finally {
