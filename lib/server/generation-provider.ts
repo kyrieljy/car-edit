@@ -809,9 +809,9 @@ function nanoBanana302SyncMode() {
 }
 
 function nanoBanana302Resolution() {
-  const value = String(process.env.NANO_BANANA_302_RESOLUTION || "1k").trim().toLowerCase()
-  if (value === "1k" || value === "2k" || value === "4k") return value
-  return "1k"
+  const value = String(process.env.NANO_BANANA_302_RESOLUTION || "0.5k").trim().toLowerCase()
+  if (value === "0.5k" || value === "1k" || value === "2k" || value === "4k") return value
+  return "0.5k"
 }
 
 function nanoBananaSafePrompt(prompt: string) {
