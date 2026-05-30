@@ -295,10 +295,11 @@ async function invoke302NanoBananaWsEdit(
   const images = await nanoBananaProviderInputImages(imageUrls, input.provider.id)
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
-  const body = JSON.stringify(nanoBananaWsEditPayload(prompt, "", images))
+  const requestPayload = nanoBananaWsEditPayload(prompt, "", images)
+  const body = JSON.stringify(requestPayload)
   const payloadBytes = Buffer.byteLength(body)
   const imageSummary = images.map((image, index) => `#${index + 1}:${image.mime}:${formatBytes(image.bytes.byteLength)}`).join(", ")
-  const requestShape = nanoBananaRequestShape(images, payloadBytes)
+  const requestShape = nanoBananaRequestShape(images, requestPayload, payloadBytes)
   let requestEndpoint = endpoint
   let response: Response | undefined
   let lastTransportError: unknown
@@ -329,6 +330,7 @@ async function invoke302NanoBananaWsEdit(
   const payload = await readProviderPayload(response)
   const raw = payload.raw
   if (!response.ok) {
+    log302NanoSubmitFailure(input.provider.id, requestEndpoint, response, requestShape, raw)
     return providerError(
       input.provider,
       started,
@@ -889,17 +891,45 @@ function isLocalOnlyHost(hostname: string) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0"
 }
 
-function nanoBananaRequestShape(images: NanoBananaProviderInputImage[], payloadBytes: number) {
+function nanoBananaRequestShape(
+  images: NanoBananaProviderInputImage[],
+  payload: ReturnType<typeof nanoBananaWsEditPayload>,
+  payloadBytes: number,
+) {
   return {
     imageInputType: "public_url",
     imageCount: images.length,
     imageLocalPaths: images.map((image) => image.localUrl),
     imageMimes: images.map((image) => image.mime),
+    aspectRatio: payload.aspect_ratio,
+    promptChars: payload.prompt.length,
     payloadBytes,
-    resolution: nanoBanana302Resolution(),
-    enableSyncMode: nanoBanana302SyncMode(),
-    enableBase64Output: false,
+    resolution: payload.resolution,
+    enableSyncMode: payload.enable_sync_mode,
+    enableBase64Output: payload.enable_base64_output,
   }
+}
+
+function log302NanoSubmitFailure(
+  providerId: ProviderId,
+  endpoint: string,
+  response: Response,
+  requestShape: ReturnType<typeof nanoBananaRequestShape>,
+  raw: Record<string, unknown>,
+) {
+  console.warn(
+    "[provider:302-nano] submit failed",
+    JSON.stringify(
+      sanitizeRawResponse({
+        providerId,
+        endpoint,
+        httpStatus: response.status,
+        statusText: response.statusText,
+        requestShape,
+        response: raw,
+      }),
+    ),
+  )
 }
 
 function nanoBananaSafePrompt(prompt: string) {
