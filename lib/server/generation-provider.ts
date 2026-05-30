@@ -388,6 +388,7 @@ async function invokeYunwuFalNanoBananaEdit(
   const payload = await readProviderPayload(response)
   const raw = payload.raw
   if (!response.ok) {
+    logYunwuFalSubmitFailure(input.provider.id, endpoint, response, yunwuFalNanoBananaRequestShape(images, requestPayload), raw)
     return providerError(
       input.provider,
       started,
@@ -918,7 +919,7 @@ async function nanoBananaProviderInputImages(urls: string[], providerId: Provide
   const publicBaseUrl = providerInputPublicBaseUrl()
   if (!publicBaseUrl) {
     throw new Error(
-      "Nano-Banana image edit requires publicly reachable image URLs. Set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to the test-server origin before using the real provider.",
+      "Nano-Banana image edit requires public image URLs. Localhost/127.0.0.1 cannot be used. Run the real test on the public test server, or use a public tunnel and set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to that public app origin.",
     )
   }
   return Promise.all(urls.map((url, index) => nanoBananaProviderInputImage(url, providerId, index, publicBaseUrl)))
@@ -1042,6 +1043,28 @@ function log302NanoSubmitFailure(
 ) {
   console.warn(
     "[provider:302-nano] submit failed",
+    JSON.stringify(
+      sanitizeRawResponse({
+        providerId,
+        endpoint,
+        httpStatus: response.status,
+        statusText: response.statusText,
+        requestShape,
+        response: raw,
+      }),
+    ),
+  )
+}
+
+function logYunwuFalSubmitFailure(
+  providerId: ProviderId,
+  endpoint: string,
+  response: Response,
+  requestShape: ReturnType<typeof yunwuFalNanoBananaRequestShape>,
+  raw: Record<string, unknown>,
+) {
+  console.warn(
+    "[provider:yunwu-nano] submit failed",
     JSON.stringify(
       sanitizeRawResponse({
         providerId,
