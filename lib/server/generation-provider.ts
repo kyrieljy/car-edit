@@ -1,8 +1,8 @@
 import { setDefaultResultOrder } from "node:dns"
 import { getProviderApiKey } from "./db"
 import { readImageAsset } from "./image-assets"
-import { materializeImageUrl } from "./image-materializer"
-import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage } from "./local-images"
+import { isPersistentLocalImageUrl, materializeImageUrl } from "./image-materializer"
+import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage, writeVehicleUploadImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
 
 try {
@@ -38,6 +38,10 @@ const NANO_BANANA_WS_POLL_INTERVAL_MS = 4000
 const NANO_BANANA_WS_POLL_REQUEST_TIMEOUT_MS = 30_000
 const MAX_NANO_BANANA_WS_INPUT_IMAGES = 14
 const MAX_PROVIDER_RESULT_IMAGE_BYTES = 20 * 1024 * 1024
+type NanoBananaProviderInputImage = Awaited<ReturnType<typeof readImageSource>> & {
+  providerUrl: string
+  localUrl: string
+}
 const PROVIDER_SAFETY_BLOCK_MESSAGE =
   "The image provider safety check blocked this request. Try a cleaner vehicle or reference image, or remove sensitive-looking text, decals, background people, weapons, politics, or other sensitive visual elements before retrying."
 const NANO_BANANA_EN_SAFETY_TERMS =
@@ -288,12 +292,13 @@ async function invoke302NanoBananaWsEdit(
   endpoint: string,
 ): Promise<GenerationProviderResponse> {
   const imageUrls = [input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).slice(0, MAX_NANO_BANANA_WS_INPUT_IMAGES)
-  const images = await Promise.all(imageUrls.map(readImageSource))
+  const images = await nanoBananaProviderInputImages(imageUrls, input.provider.id)
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
   const body = JSON.stringify(nanoBananaWsEditPayload(prompt, "", images))
   const payloadBytes = Buffer.byteLength(body)
   const imageSummary = images.map((image, index) => `#${index + 1}:${image.mime}:${formatBytes(image.bytes.byteLength)}`).join(", ")
+  const requestShape = nanoBananaRequestShape(images, payloadBytes)
   let requestEndpoint = endpoint
   let response: Response | undefined
   let lastTransportError: unknown
@@ -328,7 +333,7 @@ async function invoke302NanoBananaWsEdit(
       input.provider,
       started,
       providerHttpErrorMessageForUi(raw, payload, response, requestEndpoint),
-      providerHttpErrorRaw(raw, payload, response, requestEndpoint),
+      providerHttpErrorRaw({ response: raw, requestShape }, payload, response, requestEndpoint),
     )
   }
 
@@ -791,12 +796,12 @@ function geminiOriginalImageEditPayload(prompt: string, negativePrompt: string, 
   }
 }
 
-function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images: Array<{ bytes: Uint8Array; mime: string }>) {
+function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[]) {
   const text = [prompt, negativePrompt ? `Negative Prompt:\n${negativePrompt}` : ""].filter(Boolean).join("\n\n")
   const dimensions = imageDimensions(images[0].bytes)
   return {
     prompt: text,
-    images: images.map(imageDataUrl),
+    images: images.map((image) => image.providerUrl),
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
     resolution: nanoBanana302Resolution(),
     enable_sync_mode: nanoBanana302SyncMode(),
@@ -812,6 +817,89 @@ function nanoBanana302Resolution() {
   const value = String(process.env.NANO_BANANA_302_RESOLUTION || "0.5k").trim().toLowerCase()
   if (value === "0.5k" || value === "1k" || value === "2k" || value === "4k") return value
   return "0.5k"
+}
+
+async function nanoBananaProviderInputImages(urls: string[], providerId: ProviderId): Promise<NanoBananaProviderInputImage[]> {
+  const publicBaseUrl = providerInputPublicBaseUrl()
+  if (!publicBaseUrl) {
+    throw new Error(
+      "302 Nano-Banana-2 requires publicly reachable image URLs. Set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to the test-server origin before using the real 302 provider.",
+    )
+  }
+  return Promise.all(urls.map((url, index) => nanoBananaProviderInputImage(url, providerId, index, publicBaseUrl)))
+}
+
+async function nanoBananaProviderInputImage(
+  url: string,
+  providerId: ProviderId,
+  index: number,
+  publicBaseUrl: string,
+): Promise<NanoBananaProviderInputImage> {
+  let localUrl = isPersistentLocalImageUrl(url) ? url : ""
+  if (!localUrl) {
+    const materialized = await materializeImageUrl(url, "vehicle_upload", `${providerId}-input-${index + 1}`)
+    localUrl = materialized?.url || ""
+  }
+  if (!localUrl) {
+    const image = await readImageSource(url)
+    const mime = mimeFromImageBytes(image.bytes) || image.mime || "image/png"
+    const fileName = `${providerId}-input-${index + 1}-${Date.now()}-${Math.random().toString(16).slice(2)}.${extensionFromMime(mime)}`
+    await writeVehicleUploadImage(fileName, image.bytes)
+    localUrl = `/uploads/${fileName}`
+    return {
+      ...image,
+      mime,
+      fileName,
+      localUrl,
+      providerUrl: absoluteProviderInputImageUrl(localUrl, publicBaseUrl),
+    }
+  }
+  const image = await readImageSource(localUrl)
+  return {
+    ...image,
+    localUrl,
+    providerUrl: absoluteProviderInputImageUrl(localUrl, publicBaseUrl),
+  }
+}
+
+function providerInputPublicBaseUrl() {
+  const value =
+    process.env.PROVIDER_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    process.env.SITE_URL ||
+    ""
+  if (!value.trim()) return ""
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return ""
+    if (isLocalOnlyHost(url.hostname)) return ""
+    return url.origin
+  } catch {
+    return ""
+  }
+}
+
+function absoluteProviderInputImageUrl(localUrl: string, publicBaseUrl: string) {
+  return new URL(localUrl, publicBaseUrl).toString()
+}
+
+function isLocalOnlyHost(hostname: string) {
+  const host = hostname.toLowerCase()
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0"
+}
+
+function nanoBananaRequestShape(images: NanoBananaProviderInputImage[], payloadBytes: number) {
+  return {
+    imageInputType: "public_url",
+    imageCount: images.length,
+    imageLocalPaths: images.map((image) => image.localUrl),
+    imageMimes: images.map((image) => image.mime),
+    payloadBytes,
+    resolution: nanoBanana302Resolution(),
+    enableSyncMode: nanoBanana302SyncMode(),
+    enableBase64Output: false,
+  }
 }
 
 function nanoBananaSafePrompt(prompt: string) {
