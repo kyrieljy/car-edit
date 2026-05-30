@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   try {
     const user = requireUser()
-    const generations = await Promise.all(listUserGenerations(user.id).map((job) => materializeGenerationHistoryJob(job, user.id)))
+    const generations = await Promise.all(listUserGenerations(user.id).map((job) => safeMaterializeGenerationHistoryJob(job, user.id)))
     return NextResponse.json({ generations })
   } catch (error) {
     return authErrorResponse(error)
@@ -48,5 +48,20 @@ async function materializeGenerationHistoryJob(job: GenerationJob, userId: strin
     ...job,
     sourceImageUrl: sourceImageUrl || job.sourceImageUrl,
     resultImageUrl: resultImageUrl || job.resultImageUrl,
+  }
+}
+
+async function safeMaterializeGenerationHistoryJob(job: GenerationJob, userId: string) {
+  try {
+    return await materializeGenerationHistoryJob(job, userId)
+  } catch (error) {
+    console.warn("[garage] history image materialization failed", {
+      generationId: job.id,
+      userId,
+      sourceImageUrl: job.sourceImageUrl,
+      resultImageUrl: job.resultImageUrl,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return job
   }
 }
