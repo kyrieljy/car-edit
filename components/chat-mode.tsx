@@ -485,7 +485,7 @@ export function ChatMode({
     setSuggestions(body.prompts.length ? body.prompts : fallbackPrompts)
   }
 
-  const createSession = async () => {
+  const createSession = () => {
     if (mobileLoginBlocked) {
       blockMobileAccess()
       return
@@ -494,23 +494,16 @@ export function ChatMode({
       onAuthRequired?.()
       return
     }
-    const response = await fetch("/api/chat/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "New Chat" }),
-    })
-    if (response.status === 401) {
-      onAuthRequired?.()
-      return
-    }
-    if (!response.ok) return
     sessionLoadSeqRef.current += 1
-    const session = (await response.json()) as ChatSession
-    setSessions((items) => [session, ...items])
-    setActiveSessionId(session.id)
+    setActiveSessionId("")
     setMessages([])
+    setText("")
+    setVehicleFile(null)
+    setPartFiles([])
     setPendingContextChoice(null)
     setPendingPartColorPolicyChoice(null)
+    setOptimisticMessage(null)
+    setNotice("")
     setMobileSidebarOpen(false)
   }
 

@@ -17124,7 +17124,8 @@ a {
     position: fixed;
     z-index: 118;
     inset: 0;
-    background: transparent;
+    background: rgba(2, 6, 10, 0.38);
+    backdrop-filter: blur(8px);
   }
 
   .mobile-chat-shell .chat-mobile-drawer {
@@ -17135,7 +17136,9 @@ a {
     bottom: 0;
     width: min(84vw, 330px);
     padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px calc(env(safe-area-inset-bottom, 0px) + 10px);
-    background: color-mix(in srgb, var(--m-canvas) 94%, var(--m-panel));
+    background:
+      radial-gradient(circle at 18% 0%, rgba(103, 255, 202, 0.14), transparent 36%),
+      color-mix(in srgb, var(--m-canvas) 88%, var(--m-panel));
     box-shadow: 18px 0 46px rgba(0, 0, 0, 0.34);
     backface-visibility: hidden;
     transform: translateZ(0);
@@ -17148,7 +17151,9 @@ a {
     height: 100%;
     border: 1px solid var(--m-border);
     border-radius: 24px;
-    background: var(--m-panel);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--m-panel) 94%, transparent), color-mix(in srgb, var(--m-raised) 78%, transparent)),
+      var(--m-panel);
     color: var(--m-text);
     contain: layout paint style;
     will-change: auto;
