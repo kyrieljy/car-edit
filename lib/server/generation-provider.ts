@@ -262,7 +262,7 @@ async function invokeGeminiGenerateContentImageEdit(
   const response = await fetch(requestEndpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
-    body: JSON.stringify(geminiOriginalImageEditPayload(input.prompt, input.negativePrompt, images)),
+    body: JSON.stringify(geminiOriginalImageEditPayload(input.prompt, input.negativePrompt, images, geminiImageConfigForEndpoint(requestEndpoint, images[0]))),
   })
   const payload = await readProviderPayload(response)
   const raw = payload.raw
@@ -868,7 +868,12 @@ function imageGenerationPayload(input: { modelName: string; prompt: string; nega
   return payload
 }
 
-function geminiOriginalImageEditPayload(prompt: string, negativePrompt: string, images: Array<{ bytes: Uint8Array; mime: string }>) {
+function geminiOriginalImageEditPayload(
+  prompt: string,
+  negativePrompt: string,
+  images: Array<{ bytes: Uint8Array; mime: string }>,
+  imageConfig?: Record<string, string>,
+) {
   const text = [prompt, negativePrompt ? `Negative Prompt:\n${negativePrompt}` : ""].filter(Boolean).join("\n\n")
   return {
     contents: [
@@ -886,7 +891,17 @@ function geminiOriginalImageEditPayload(prompt: string, negativePrompt: string, 
     ],
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
+      ...(imageConfig ? { imageConfig } : {}),
     },
+  }
+}
+
+function geminiImageConfigForEndpoint(endpoint: string, vehicleImage?: { bytes: Uint8Array }) {
+  if (!isYunwuGeminiGenerateContentEndpoint(endpoint)) return undefined
+  const dimensions = vehicleImage ? imageDimensions(vehicleImage.bytes) : null
+  return {
+    imageSize: yunwuGeminiImageSize(),
+    aspectRatio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
   }
 }
 
@@ -1039,6 +1054,13 @@ function yunwuNanoResolution() {
   const value = String(process.env.YUNWU_NANO_RESOLUTION || "0.5K").trim().toUpperCase()
   if (value === "512" || value === "0.5K" || value === "1K" || value === "2K" || value === "4K") return value === "512" ? "0.5K" : value
   return "0.5K"
+}
+
+function yunwuGeminiImageSize() {
+  const value = String(process.env.YUNWU_GEMINI_IMAGE_SIZE || process.env.YUNWU_NANO_RESOLUTION || "512").trim().toUpperCase()
+  if (value === "512" || value === "0.5K") return "512"
+  if (value === "1K" || value === "2K" || value === "4K") return value
+  return "512"
 }
 
 function yunwuNanoOutputFormat() {

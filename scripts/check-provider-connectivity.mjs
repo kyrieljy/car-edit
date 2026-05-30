@@ -248,6 +248,9 @@ function geminiGenerateContentPayload(prompt) {
     ],
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
+      imageConfig: {
+        imageSize: process.env.YUNWU_GEMINI_IMAGE_SIZE || process.env.YUNWU_NANO_RESOLUTION || "512",
+      },
     },
   }
 }

@@ -56,7 +56,7 @@ The Yunwu default is Nano Banana 2 through the Gemini-compatible endpoint:
 - `provider_yunwu_nano2_edit`
 - `https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent`
 - `gemini-3.1-flash-image-preview`
-- cost/routing defaults: one generated image per call, inline Gemini image payload, no automatic retry/fallback for charge-on-submit failures
+- lowest-cost defaults: one generated image per call, inline Gemini image payload, `generationConfig.imageConfig.imageSize=512`, no automatic retry/fallback for charge-on-submit failures
 
 The Yunwu Image2 provider is also configured:
 
