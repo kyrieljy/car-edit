@@ -11,6 +11,7 @@
     "config:sync-seeds": "node scripts/sync-code-seeds.mjs",
     "config:validate": "node scripts/validate-project-config.mjs",
     "provider:yunwu-default": "node scripts/switch-yunwu-default.mjs",
+    "runtime:history": "node scripts/inspect-runtime-history.mjs",
     "lint": "next lint",
     "start": "next start",
     "smoke": "node scripts/smoke.mjs"
