@@ -550,11 +550,22 @@ function nanoBananaWsEndpointCandidates(endpoint: string) {
     if (host !== "api.302ai.cn" && host !== "api.302ai.com" && host !== "api.302.ai") return [endpoint]
     const candidate = new URL(endpoint)
     candidate.protocol = "https:"
-    if (host === "api.302.ai") candidate.hostname = "api.302ai.cn"
+    candidate.hostname = nanoBanana302SubmitHost(host)
     return [candidate.toString()]
   } catch {
     return [endpoint]
   }
+}
+
+function nanoBanana302SubmitHost(_configuredHost: string) {
+  const override = normalize302ApiHost(process.env.NANO_BANANA_302_SUBMIT_HOST || "")
+  if (override) return override
+  return "api.302.ai"
+}
+
+function normalize302ApiHost(value: string) {
+  const host = value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0]
+  return is302ApiHost(host) ? host : ""
 }
 
 function withQueryParams(endpoint: string, params: Record<string, string>) {
