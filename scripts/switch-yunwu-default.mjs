@@ -16,8 +16,8 @@ try {
 
   upsertProvider({
     id: YUNWU_NANO2_PROVIDER_ID,
-    label: "Yunwu Nano Banana 2 Edit",
-    baseUrl: "https://yunwu.ai/fal-ai/nano-banana-2/edit",
+    label: "Yunwu Nano Banana 2 Gemini Edit",
+    baseUrl: "https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent",
     modelName: "gemini-3.1-flash-image-preview",
   })
   upsertProvider({

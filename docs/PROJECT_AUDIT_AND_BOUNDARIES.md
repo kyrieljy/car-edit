@@ -51,12 +51,12 @@ For system providers from code seed, non-secret fields such as label, base URL, 
 
 302 Nano-Banana-2 follows the async image-edit spec at `https://doc.302.ai/420136733e0` by default on the Alibaba Cloud test server: `enable_sync_mode=false`, `enable_base64_output=false`, and the initial POST returns a task id plus `urls.get`. Polling tries the configured/domestic host first and the documented `api.302.ai` URL second. Set `NANO_BANANA_302_SYNC_MODE=1` only for a controlled local/provider test.
 
-The Yunwu default is Nano Banana 2:
+The Yunwu default is Nano Banana 2 through the Gemini-compatible endpoint:
 
 - `provider_yunwu_nano2_edit`
-- `https://yunwu.ai/fal-ai/nano-banana-2/edit`
+- `https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent`
 - `gemini-3.1-flash-image-preview`
-- lowest-cost defaults: `num_images=1`, `resolution=0.5K`, `aspect_ratio=auto`, `output_format=jpeg`, `sync_mode=false`, `limit_generations=true`
+- cost/routing defaults: one generated image per call, inline Gemini image payload, no automatic retry/fallback for charge-on-submit failures
 
 The Yunwu Image2 provider is also configured:
 
@@ -65,7 +65,7 @@ The Yunwu Image2 provider is also configured:
 - `gpt-image-2`
 - lowest-cost defaults: `quality=low`, `size=1024x1024`, `n=1`, `output_format=jpeg`, `output_compression=80`
 
-Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Nano2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. Nano2 uses public image URL inputs, so test-server usage requires `PROVIDER_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, or `SITE_URL` to point at the public app origin.
+Run `npm run provider:yunwu-default` on an existing environment after pulling code to switch the SQLite workflow/provider rows to Yunwu Nano2 while preserving/copying a stored Yunwu API key between the two Yunwu provider rows when possible. The Gemini-compatible Nano2 endpoint uses inline image input, so it can be tested locally after explicit approval; real tests still spend provider credits.
 
 ## Audit Command
 

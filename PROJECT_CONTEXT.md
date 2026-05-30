@@ -67,13 +67,13 @@ Stored in code:
 
 Important provider defaults currently expected in code:
 
-- Yunwu Nano Banana 2 Edit for default image generation/editing
+- Yunwu Nano Banana 2 via the Gemini-compatible `generateContent` endpoint for default image generation/editing
 - Yunwu GPT Image 2 Edit is configured as an enabled optional provider
 - 302 Nano Banana 2 is retained but disabled by default after domestic test-server connectivity failures
 - 302 GPT Image 2 is retained but disabled by default after domestic test-server connectivity failures
 - GPT-5.4 mini style vision/LLM provider
 - Qwen 3.6 style provider
-- Default workflows should use GPT-5.4 mini for recognition/LLM steps and Yunwu Nano Banana 2 for image generation. GPT Image 2 is available as a manual workflow/provider switch.
+- Default workflows should use GPT-5.4 mini for recognition/LLM steps and Yunwu Nano Banana 2 through `https://yunwu.ai/v1beta/models/gemini-3.1-flash-image-preview:generateContent` for image generation. GPT Image 2 is available as a manual workflow/provider switch.
 
 Do not commit local SQLite to Git. API keys are encrypted with environment secrets, so copying SQLite between machines without the same `CAR_MOD_SECRET` / auth secret can make provider keys undecryptable.
 

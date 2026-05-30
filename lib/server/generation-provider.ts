@@ -199,8 +199,8 @@ async function invokeOpenAiCompatibleImageGeneration(
   if (isYunwuFalNanoBananaEditEndpoint(endpoint)) {
     return invokeYunwuFalNanoBananaEdit(input, apiKey, started, endpoint)
   }
-  if (is302GeminiOriginalImageEndpoint(endpoint)) {
-    return invoke302GeminiOriginalImageEdit(input, apiKey, started, endpoint)
+  if (isGeminiGenerateContentImageEndpoint(endpoint)) {
+    return invokeGeminiGenerateContentImageEdit(input, apiKey, started, endpoint)
   }
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("没有可发送给生图 Provider 的车辆图片。")
@@ -250,7 +250,7 @@ async function invokeOpenAiCompatibleImageGeneration(
   }
 }
 
-async function invoke302GeminiOriginalImageEdit(
+async function invokeGeminiGenerateContentImageEdit(
   input: GenerationProviderRequest,
   apiKey: string,
   started: number,
@@ -258,7 +258,7 @@ async function invoke302GeminiOriginalImageEdit(
 ): Promise<GenerationProviderResponse> {
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("No image was available for Gemini image edit.")
-  const requestEndpoint = withQueryParams(endpoint, { response_format: "url" })
+  const requestEndpoint = is302GeminiOriginalImageEndpoint(endpoint) ? withQueryParams(endpoint, { response_format: "url" }) : endpoint
   const response = await fetch(requestEndpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
@@ -277,7 +277,7 @@ async function invoke302GeminiOriginalImageEdit(
 
   const imageResult = findImageResult(raw)
   if (!imageResult) {
-    return providerError(input.provider, started, "Gemini image edit returned no recognizable image URL or base64 image.", sanitizeRawResponse({ endpoint, response: raw }))
+    return providerError(input.provider, started, "Gemini image edit returned no recognizable image URL or base64 image.", sanitizeRawResponse({ endpoint: requestEndpoint, response: raw }))
   }
   const resultImageUrl = await saveProviderImage(imageResult, input.provider.id)
   const usageUnits = estimateUsageUnits(raw)
@@ -288,7 +288,7 @@ async function invoke302GeminiOriginalImageEdit(
     latencyMs: Date.now() - started,
     usageUnits,
     costCents: estimateCostCents(input.provider.id, usageUnits),
-    rawResponse: sanitizeRawResponse({ endpoint, response: raw }),
+    rawResponse: sanitizeRawResponse({ endpoint: requestEndpoint, response: raw }),
   }
 }
 
@@ -540,7 +540,7 @@ function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_gene
   if (normalized.endsWith("/chat/completions")) return { kind: "chat_completions", url: normalized }
   if (normalized.endsWith("/images/generations")) return { kind: "image_generation", url: normalized }
   if (normalized.endsWith("/images/edits")) return { kind: "image_edit", url: normalized }
-  if (is302GeminiOriginalImageEndpoint(normalized)) return { kind: "image_generation", url: normalized }
+  if (isGeminiGenerateContentImageEndpoint(normalized)) return { kind: "image_generation", url: normalized }
   if (is302NanoBananaWsEditEndpoint(normalized)) return { kind: "image_generation", url: normalized }
   if (isYunwuFalNanoBananaEditEndpoint(normalized)) return { kind: "image_generation", url: normalized }
   return { kind: "image_edit", url: `${normalized}/images/edits` }
@@ -554,6 +554,19 @@ function is302GeminiOriginalImageEndpoint(endpoint: string) {
   } catch {
     return false
   }
+}
+
+function isYunwuGeminiGenerateContentEndpoint(endpoint: string) {
+  try {
+    const url = new URL(endpoint)
+    return url.hostname.toLowerCase() === "yunwu.ai" && url.pathname.includes("/v1beta/models/gemini-") && url.pathname.endsWith(":generateContent")
+  } catch {
+    return false
+  }
+}
+
+function isGeminiGenerateContentImageEndpoint(endpoint: string) {
+  return is302GeminiOriginalImageEndpoint(endpoint) || isYunwuGeminiGenerateContentEndpoint(endpoint)
 }
 
 function is302NanoBananaWsEditEndpoint(endpoint: string) {

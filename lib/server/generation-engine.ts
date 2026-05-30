@@ -320,9 +320,22 @@ function isNanoBananaWsProvider(provider: ProviderConfig | undefined) {
   try {
     const url = new URL(provider.baseUrl)
     const host = url.hostname.toLowerCase()
-    return (host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com") && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
+    if ((host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com") && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")) {
+      return true
+    }
+    return (
+      host === "yunwu.ai" &&
+      (url.pathname.endsWith("/fal-ai/nano-banana/edit") ||
+        url.pathname.endsWith("/fal-ai/nano-banana-2/edit") ||
+        (url.pathname.includes("/v1beta/models/gemini-") && url.pathname.endsWith(":generateContent")))
+    )
   } catch {
-    return provider.baseUrl.includes("/ws/api/v3/google/nano-banana-2/edit")
+    return (
+      provider.baseUrl.includes("/ws/api/v3/google/nano-banana-2/edit") ||
+      provider.baseUrl.includes("/fal-ai/nano-banana/edit") ||
+      provider.baseUrl.includes("/fal-ai/nano-banana-2/edit") ||
+      provider.baseUrl.includes("/v1beta/models/gemini-")
+    )
   }
 }
 

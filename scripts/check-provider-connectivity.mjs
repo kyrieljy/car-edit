@@ -133,13 +133,16 @@ async function testChatCompletions(provider) {
 
 async function testImageGeneration(provider) {
   const endpoint = provider.baseUrl.replace(/\/+$/, "")
+  const body = isGeminiGenerateContentEndpoint(endpoint)
+    ? JSON.stringify(geminiGenerateContentPayload("Connectivity test image: a plain gray square. No text."))
+    : JSON.stringify(imageGenerationPayload(provider.modelName, "Connectivity test image: a plain gray square. No text."))
   const response = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${provider.apiKey}`,
     },
-    body: JSON.stringify(imageGenerationPayload(provider.modelName, "Connectivity test image: a plain gray square. No text.")),
+    body,
   }, REQUEST_TIMEOUT_MS)
   const payload = await readResponse(response)
   return classifyResponse(response, payload, endpoint, (raw) => {
@@ -234,6 +237,28 @@ function imageGenerationPayload(modelName, prompt) {
     payload.size = "1024x1024"
   }
   return payload
+}
+
+function geminiGenerateContentPayload(prompt) {
+  return {
+    contents: [
+      {
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+    },
+  }
+}
+
+function isGeminiGenerateContentEndpoint(endpoint) {
+  try {
+    const url = new URL(endpoint)
+    return url.pathname.includes("/v1beta/models/gemini-") && url.pathname.endsWith(":generateContent")
+  } catch {
+    return false
+  }
 }
 
 async function fetchWithTimeout(input, init, timeoutMs) {
