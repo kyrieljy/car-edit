@@ -17359,6 +17359,11 @@ a {
     will-change: auto;
   }
 
+  .mobile-chat-shell .chat-mobile-drawer .new-chat-button {
+    margin-top: 14px;
+    margin-bottom: 18px;
+  }
+
   .mobile-chat-shell .chat-history-sidebar:not(.collapsed) > :not(.chat-history-head) {
     animation: none;
   }

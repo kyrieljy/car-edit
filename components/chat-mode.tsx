@@ -1562,6 +1562,10 @@ function ChatHistorySidebar({
   const isMobileDrawer = mobileOpen
   const effectiveCollapsed = isMobileDrawer ? false : collapsed
 
+  useEffect(() => {
+    if (mobileOpen && query) setQuery("")
+  }, [mobileOpen, query, setQuery])
+
   const handleSidebarToggle = () => {
     if (isMobileDrawer) {
       setMobileOpen(false)
@@ -1605,10 +1609,12 @@ function ChatHistorySidebar({
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.18 }}
           >
-            <label className="chat-search">
-              <Search size={18} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
-            </label>
+            {!isMobileDrawer && (
+              <label className="chat-search">
+                <Search size={18} />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
+              </label>
+            )}
             <button className="new-chat-button" onClick={handleNewChat}>
               <Plus size={18} />
               {t.newChat}
