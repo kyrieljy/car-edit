@@ -1658,7 +1658,15 @@ function ChatHistorySidebar({
       <AnimatePresence>
         {mobileOpen && (
           <>
-            <div className="chat-mobile-overlay" onClick={() => setMobileOpen(false)} />
+            <motion.button
+              type="button"
+              className="chat-mobile-overlay"
+              aria-label="Close chat history"
+              onClick={() => setMobileOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.62 }}
+              exit={{ opacity: 0 }}
+            />
             <motion.div
               className="chat-mobile-drawer"
               initial={{ x: "-105%" }}
