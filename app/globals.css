@@ -1033,13 +1033,17 @@ a {
 @media (max-width: 760px) {
   .mobile-chat-shell .chat-composer-status-stack {
     position: absolute;
-    z-index: 12;
+    z-index: 6;
     left: 4px;
     right: 4px;
     bottom: calc(100% + 8px);
     margin: 0;
     gap: 6px;
     pointer-events: none;
+  }
+
+  .mobile-chat-shell .chat-composer-wrap[data-mobile-attach-open="true"] .chat-composer-status-stack {
+    display: none;
   }
 
   .mobile-chat-shell .chat-composer-status-stack .chat-notice,
@@ -17209,6 +17213,7 @@ a {
 
   .mobile-chat-shell .chat-mobile-attach-wrap {
     position: relative;
+    z-index: 18;
     align-self: end;
     width: 42px;
     height: 42px;
@@ -17249,7 +17254,7 @@ a {
     position: absolute;
     left: 0;
     bottom: calc(100% + 10px);
-    z-index: 12;
+    z-index: 20;
     width: max-content;
     max-width: calc(100vw - 52px);
     border: 1px solid var(--m-border);
@@ -18080,9 +18085,7 @@ a {
     align-items: center;
     justify-content: center;
     padding: 0 16px;
-    background:
-      linear-gradient(90deg, rgba(4, 40, 34, 0.98), rgba(7, 62, 51, 0.96), rgba(5, 49, 43, 0.98)),
-      #052a25;
+    background: rgba(4, 49, 42, 0.96);
     color: #6dffd4;
     font: inherit;
     font-size: 13px;
@@ -18090,8 +18093,8 @@ a {
     line-height: 1.1;
     letter-spacing: 0;
     text-align: center;
-    box-shadow: inset 0 1px 0 rgba(103, 255, 202, 0.05);
-    text-shadow: 0 0 14px rgba(103, 255, 202, 0.38);
+    box-shadow: none;
+    text-shadow: none;
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     cursor: pointer;
@@ -18113,9 +18116,7 @@ a {
   .mobile-access-banner.config_quota,
   .mobile-access-banner.chat_quota {
     color: #8affdf;
-    background:
-      linear-gradient(90deg, rgba(4, 36, 31, 0.99), rgba(6, 54, 46, 0.97), rgba(4, 42, 38, 0.99)),
-      #04231f;
+    background: rgba(4, 43, 38, 0.97);
   }
 
   .mobile-access-banner:active {
@@ -18147,12 +18148,10 @@ a {
 
   .mobile-studio-app[data-theme="light"] .mobile-access-banner {
     border: 0;
-    background:
-      linear-gradient(90deg, rgba(6, 72, 60, 0.92), rgba(9, 91, 73, 0.88), rgba(7, 75, 67, 0.92)),
-      #07463e;
+    background: rgba(7, 75, 67, 0.92);
     color: #9cffdf;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    text-shadow: 0 0 13px rgba(103, 255, 202, 0.28);
+    box-shadow: none;
+    text-shadow: none;
   }
 
   .mobile-shared-mode-spacer {

@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from "framer-motion"
 import { 
   ArrowDownToLine,
   ArrowUp,
-  Bot,
   Car,
   ChevronDown,
   Clock,
@@ -20,6 +19,7 @@ import {
   Search,
   Sparkles,
   Star,
+  UserRound,
   X,
 } from "lucide-react"
 import { readProgressResponse } from "@/lib/progress-client"
@@ -830,6 +830,8 @@ export function ChatMode({
     const policy = options.partColorPolicy ?? options.pending?.partColorPolicy
     const policyChoicesJson = options.partColorPolicyChoicesJson ?? options.pending?.partColorPolicyChoicesJson
     if (!vehicleToSend && !hasSessionCanvas) {
+      setMobileAttachMenuOpen(false)
+      setSuggestionsOpen(false)
       setNotice(t.missingVehicle)
       return
     }
@@ -837,6 +839,8 @@ export function ChatMode({
     const promptText = rawText.trim()
     const allowEmptyPrompt = Boolean(partFilesToSend.length > 0 && (vehicleToSend || hasSessionCanvas))
     if (!promptText && !allowEmptyPrompt) {
+      setMobileAttachMenuOpen(false)
+      setSuggestionsOpen(false)
       setNotice(t.missingText)
       return
     }
@@ -1108,7 +1112,7 @@ export function ChatMode({
           )}
         </div>
 
-        <div className="chat-composer-wrap">
+        <div className="chat-composer-wrap" data-mobile-attach-open={mobileVariant && mobileAttachMenuOpen ? "true" : "false"}>
           <input ref={vehicleInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => onVehicleFile(event.target.files?.[0])} />
           <input ref={partInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(event) => onPartFiles(event.target.files)} />
 
@@ -1131,7 +1135,9 @@ export function ChatMode({
                       return
                     }
                     setSuggestionsOpen(false)
-                    setMobileAttachMenuOpen((value) => !value)
+                    const opening = !mobileAttachMenuOpen
+                    if (opening) setNotice("")
+                    setMobileAttachMenuOpen(opening)
                   }}
                   aria-label="Add upload"
                   aria-expanded={mobileAttachMenuOpen}
@@ -1416,7 +1422,7 @@ function MessageBubble({
   const result = message.resultImageUrl || message.attachments.find((attachment) => attachment.type === "result")?.url
   return (
     <article className={message.role === "user" ? "message-bubble user" : "message-bubble assistant"}>
-      <div className="message-avatar">{message.role === "user" ? <Car size={17} /> : <Bot size={17} />}</div>
+      <div className="message-avatar">{message.role === "user" ? <UserRound size={17} /> : <Car size={17} />}</div>
       <div className="message-body">
         {message.content && <p>{message.content}</p>}
         {message.guardrailStatus === "blocked" && <small>{message.guardrailReason}</small>}
@@ -1508,7 +1514,7 @@ function LoadingBubble({ text }: { text: string }) {
   return (
     <article className="message-bubble assistant loading">
       <div className="message-avatar">
-        <Bot size={17} />
+        <Car size={17} />
       </div>
       <div className="message-body">
         <p>{text}</p>
