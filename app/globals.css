@@ -17187,6 +17187,9 @@ a {
     color: var(--m-text);
     font-size: 16px;
     line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-x: hidden;
     overflow-y: hidden;
   }
 
@@ -17194,6 +17197,10 @@ a {
     align-self: start;
     padding-top: 4px;
     padding-bottom: 4px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-overflow: clip;
   }
 
   .mobile-chat-shell .chat-composer textarea::placeholder {
@@ -19010,6 +19017,48 @@ a {
     .mobile-studio-app[data-mode="chat"] {
       height: 100dvh !important;
       max-height: 100dvh !important;
+    }
+  }
+
+  html:has(.mobile-studio-app[data-mode="chat"]),
+  body:has(.mobile-studio-app[data-mode="chat"]) {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+    background: #000 !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] {
+    position: fixed !important;
+    top: -2px !important;
+    left: -2px !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: calc(100vw + 4px) !important;
+    height: calc(100svh + 4px) !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background-color: #000 !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-studio-phone,
+  .mobile-studio-app[data-mode="chat"] .mobile-mode-frame,
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-screen,
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-shell,
+  .mobile-studio-app[data-mode="chat"] .chat-mode-shell,
+  .mobile-studio-app[data-mode="chat"] .chat-workspace {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+
+  @supports (height: 100dvh) {
+    .mobile-studio-app[data-mode="chat"] {
+      height: calc(100dvh + 4px) !important;
     }
   }
 }

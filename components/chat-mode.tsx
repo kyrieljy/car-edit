@@ -58,7 +58,7 @@ const MOBILE_CHAT_TEXT_MAX_LINES = 4
 const chatCopy = {
   en: {
     headline: "Upload your vehicle and describe the modification you want.",
-    placeholder: "Describe your mod...",
+    placeholder: "Mod idea...",
     vehicle: "Vehicle photo",
     parts: "Part references",
     attachVehicle: "Upload vehicle",
@@ -99,7 +99,7 @@ const chatCopy = {
   },
   zh: {
     headline: "\u8bf7\u4e0a\u4f20\u4f60\u7684\u8f66\u8f86\u7167\u7247\uff0c\u5e76\u63cf\u8ff0\u60f3\u8981\u7684\u6539\u88c5\u6548\u679c\u3002",
-    placeholder: "\u63cf\u8ff0\u4f60\u60f3\u8981\u7684\u8f66\u8f86\u6539\u88c5\u6548\u679c...",
+    placeholder: "\u804a\u804a\u9700\u6c42...",
     vehicle: "\u8f66\u8f86\u7167\u7247",
     parts: "\u914d\u4ef6\u53c2\u8003\u56fe",
     attachVehicle: "\u4e0a\u4f20\u8f66\u8f86",
@@ -511,16 +511,39 @@ export function ChatMode({
       const lineHeight = Number.parseFloat(style.lineHeight) || 21
       const paddingTop = Number.parseFloat(style.paddingTop) || 0
       const paddingBottom = Number.parseFloat(style.paddingBottom) || 0
+      const minHeight = Number.parseFloat(style.minHeight) || 0
       const singleLineHeight = Math.ceil(lineHeight + paddingTop + paddingBottom)
+      const collapsedHeight = Math.ceil(Math.max(singleLineHeight, minHeight))
       const maxHeight = Math.ceil(lineHeight * MOBILE_CHAT_TEXT_MAX_LINES + paddingTop + paddingBottom)
+      const hasText = text.length > 0
+      if (!hasText) {
+        field.style.height = `${collapsedHeight}px`
+        field.style.overflowY = "hidden"
+        setMobileComposerExpanded((current) => (current ? false : current))
+        return
+      }
+      const hasHardBreak = /[\r\n]/.test(text)
+      const overflowsSingleLine = field.scrollWidth > field.clientWidth + 2
+      if (!mobileComposerExpanded && !hasHardBreak && !overflowsSingleLine) {
+        field.style.height = `${collapsedHeight}px`
+        field.style.overflowY = "hidden"
+        setMobileComposerExpanded((current) => (current ? false : current))
+        return
+      }
+      if (!mobileComposerExpanded) {
+        field.style.height = `${collapsedHeight}px`
+        field.style.overflowY = "hidden"
+        setMobileComposerExpanded(true)
+        return
+      }
       const nextHeight = Math.min(field.scrollHeight, maxHeight)
       field.style.height = `${nextHeight}px`
       field.style.overflowY = field.scrollHeight > maxHeight ? "auto" : "hidden"
-      const expanded = field.scrollHeight > singleLineHeight + 2
+      const expanded = hasHardBreak || field.scrollHeight > collapsedHeight + 2
       setMobileComposerExpanded((current) => (current === expanded ? current : expanded))
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [mobileVariant, text])
+  }, [mobileComposerExpanded, mobileVariant, text])
 
   useEffect(() => {
     if (!mobileVariant) {
@@ -1096,7 +1119,7 @@ export function ChatMode({
             </div>
           )}
 
-          <div className={mobileVariant ? "chat-composer mobile-chat-composer" : "chat-composer"} data-mobile-expanded={mobileComposerExpanded ? "true" : "false"}>
+          <div className={mobileVariant ? "chat-composer mobile-chat-composer" : "chat-composer"} data-mobile-expanded={mobileComposerExpanded ? "true" : "false"} data-mobile-has-text={mobileVariant && text.length > 0 ? "true" : "false"}>
             {mobileVariant && (
               <div className="chat-mobile-attach-wrap" ref={mobileAttachWrapRef}>
                 <button
