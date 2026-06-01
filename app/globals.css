@@ -19035,17 +19035,14 @@ a {
 
   .mobile-studio-app[data-mode="chat"] {
     position: fixed !important;
-    top: -2px !important;
-    left: -2px !important;
-    right: auto !important;
-    bottom: auto !important;
-    width: calc(100vw + 4px) !important;
-    height: calc(100svh + 4px) !important;
-    max-height: none !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100svh !important;
+    max-height: 100svh !important;
     margin: 0 !important;
     border: 0 !important;
     outline: 0 !important;
-    box-shadow: none !important;
+    box-shadow: 0 0 0 2px #000 !important;
     background-color: #000 !important;
   }
 
@@ -19062,7 +19059,8 @@ a {
 
   @supports (height: 100dvh) {
     .mobile-studio-app[data-mode="chat"] {
-      height: calc(100dvh + 4px) !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
     }
   }
 }
