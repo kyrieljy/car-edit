@@ -17324,7 +17324,7 @@ a {
 
   .mobile-chat-shell .chat-mobile-overlay {
     position: fixed;
-    z-index: 118;
+    z-index: 126;
     inset: 0;
     background: rgba(2, 6, 10, 0.38);
     backdrop-filter: blur(8px);
@@ -17332,7 +17332,7 @@ a {
 
   .mobile-chat-shell .chat-mobile-drawer {
     position: fixed;
-    z-index: 119;
+    z-index: 127;
     left: 0;
     top: 0;
     bottom: 0;
