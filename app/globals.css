@@ -18227,7 +18227,7 @@ a {
 
   .mobile-history-overlay {
     position: fixed !important;
-    z-index: 118 !important;
+    z-index: 126 !important;
     inset: 0 !important;
     border: 0 !important;
     background: #000 !important;
@@ -18235,7 +18235,7 @@ a {
 
   .mobile-history-drawer {
     position: fixed !important;
-    z-index: 119 !important;
+    z-index: 127 !important;
     left: 0 !important;
     top: 0 !important;
     bottom: 0 !important;
