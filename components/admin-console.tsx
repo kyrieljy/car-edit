@@ -26,6 +26,7 @@ import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
   AuthUser,
+  GenerationJob,
   GenerationStandardJson,
   GuardrailConfig,
   MembershipPlan,
@@ -1884,8 +1885,6 @@ const providerCapabilityShortLabels: Record<ProviderCapability, string> = {
   image_generation: "生图",
   embedding: "向量",
 }
-const newPromptId = "__new_prompt__"
-
 function emptyPromptForm(scope: PromptTemplateScope): PromptTemplateForm {
   return { id: "", scope, title: "", body: "", assetId: "", combinationKey: "", active: true, sortOrder: 10 }
 }
@@ -2202,7 +2201,7 @@ const generationPromptScopes: Array<{ id: PromptTemplateScope; label: string; he
   { id: "chat_optimizer", label: "用户输入优化 Prompt", helper: "后续用于把用户自然语言改写成更稳定的生图指令。" },
 ]
 
-function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+function PromptTemplateManagerV2({ summary }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
   const [scope, setScope] = useState<PromptTemplateScope>("base")
   const [selectedId, setSelectedId] = useState("")
   const [form, setForm] = useState<PromptTemplateForm>(() => emptyPromptForm("base"))
@@ -2227,7 +2226,6 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
   )
 
   useEffect(() => {
-    if (selectedId === newPromptId) return
     if (selectedId && scopedTemplates.some((template) => template.id === selectedId)) return
     const first = scopedTemplates[0]
     setSelectedId(first?.id ?? "")
@@ -2244,78 +2242,10 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
     }
   }, [previewWorkflowId, previewWorkflows])
 
-  const startCreate = () => {
-    setSelectedId(newPromptId)
-    setForm(emptyPromptForm(scope))
-    setNotice("正在新增一条 Prompt，填写后点击保存。")
-  }
-
   const selectTemplate = (template: PromptTemplate) => {
     setSelectedId(template.id)
     setForm(promptTemplateToForm(template))
     setNotice("")
-  }
-
-  const save = async () => {
-    const title = form.title.trim()
-    const bodyText = form.body.trim()
-    if (!title || !bodyText) {
-      const message = "标题和 Prompt 内容不能为空。"
-      setNotice(message)
-      notify("error", message)
-      return
-    }
-    if (scope === "part" && !form.assetId) {
-      const message = "配件 Prompt 必须选择一个绑定配件。"
-      setNotice(message)
-      notify("error", message)
-      return
-    }
-    if (scope === "combo" && !form.combinationKey.trim()) {
-      const message = "组合 Prompt 必须填写组合 Key。"
-      setNotice(message)
-      notify("error", message)
-      return
-    }
-
-    const endpoint = form.id ? `/api/admin/prompt-templates/${form.id}` : "/api/admin/prompt-templates"
-    const response = await fetch(endpoint, {
-      method: form.id ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, title, body: bodyText, scope }),
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      const message = result.error || "Prompt 保存失败。"
-      setNotice(message)
-      notify("error", message)
-      return
-    }
-
-    const message = form.id ? "Prompt 已保存。" : "Prompt 已新增。"
-    setNotice(message)
-    notify("success", message)
-    if (!form.id && result.id) setSelectedId(result.id)
-    await onChanged()
-  }
-
-  const remove = async () => {
-    if (!form.id) return
-    if (!window.confirm("确认删除这条 Prompt？")) return
-    const response = await fetch(`/api/admin/prompt-templates/${form.id}`, { method: "DELETE" })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      const message = result.error || "Prompt 删除失败。"
-      setNotice(message)
-      notify("error", message)
-      return
-    }
-    const message = "Prompt 已删除。"
-    setNotice(message)
-    notify("success", message)
-    setSelectedId("")
-    setForm(emptyPromptForm(scope))
-    await onChanged()
   }
 
   return (
@@ -2346,10 +2276,6 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
         <div>
           <PanelHeading label="PROMPT" title={activeScope.label} count={`${scopedTemplates.length} 条`} />
           <p className="prompt-helper">{activeScope.helper}</p>
-          <button className="prompt-add-button" type="button" onClick={startCreate}>
-            <ListPlus size={16} />
-            + 新增 Prompt
-          </button>
           <div className="prompt-list">
             {scopedTemplates.map((template) => (
               <article key={template.id} className={template.id === form.id ? "selected" : ""} onClick={() => selectTemplate(template)}>
@@ -2361,7 +2287,7 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
             {!scopedTemplates.length && (
               <article>
                 <strong>暂无 Prompt</strong>
-                <small>点击 + 新增 Prompt 后，在右侧保存一条配置。</small>
+                <small>当前 scope 没有 Git seed 模板。</small>
               </article>
             )}
           </div>
@@ -2371,18 +2297,17 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
           className="admin-form wide"
           onSubmit={(event) => {
             event.preventDefault()
-            void save()
           }}
         >
-          <PanelHeading label={form.id ? "编辑" : "新增"} title={activeScope.label} />
+          <PanelHeading label="Git seed" title={activeScope.label} />
           <label>
             标题
-            <input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="例如：BBS LM-R 轮毂安装 Prompt" />
+            <input value={form.title} readOnly placeholder="例如：BBS LM-R 轮毂安装 Prompt" />
           </label>
           {scope === "part" && (
             <label>
               绑定配件
-              <select value={form.assetId} onChange={(event) => setForm((current) => ({ ...current, assetId: event.target.value }))}>
+              <select value={form.assetId} disabled>
                 <option value="">请选择配件</option>
                 {summary.assets.map((asset) => (
                   <option key={asset.id} value={asset.id}>
@@ -2395,32 +2320,22 @@ function PromptTemplateManagerV2({ summary, onChanged, notify }: { summary: Admi
           {scope === "combo" && (
             <label>
               组合 Key
-              <input value={form.combinationKey} onChange={(event) => setForm((current) => ({ ...current, combinationKey: event.target.value }))} placeholder="例如：wheels,brakes 或资产 ID 组合" />
+              <input value={form.combinationKey} readOnly placeholder="例如：wheels,brakes 或资产 ID 组合" />
             </label>
           )}
           <label>
             Prompt 内容
-            <textarea value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} placeholder="请输入后台内置 Prompt..." />
+            <textarea value={form.body} readOnly placeholder="请输入后台内置 Prompt..." />
           </label>
           <div className="prompt-form-row">
             <label>
               排序
-              <input type="number" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) || 0 }))} />
+              <input type="number" value={form.sortOrder} readOnly />
             </label>
             <label className="check-line">
-              <input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} />
+              <input type="checkbox" checked={form.active} readOnly />
               启用
             </label>
-          </div>
-          <div className="prompt-actions">
-            <button type="submit">
-              <BadgeCheck size={16} />
-              保存
-            </button>
-            <button type="button" onClick={() => void remove()} disabled={!form.id}>
-              <Trash2 size={16} />
-              删除
-            </button>
           </div>
           {notice && <small className="form-note">{notice}</small>}
         </form>
@@ -3037,7 +2952,7 @@ function UsageOpsTable({ summary }: { summary: AdminSummary }) {
                 <td className="admin-provider-cell" title={row.provider}>
                   {row.provider}
                 </td>
-                <td className="admin-usage-vehicle-cell">{row.standardJson?.vehicle.model || row.displayVehicleModel || "-"}</td>
+                <td className="admin-usage-vehicle-cell">{formatAdminGenerationVehicle(row)}</td>
                 <td>{row.usageUnits}</td>
                 <td>{formatAdminMoney(row.costCents)}</td>
                 <td className="admin-wrap-cell admin-usage-failure-cell">{row.failureReason || "-"}</td>
@@ -3389,6 +3304,20 @@ function formatAdminDate(value: number) {
 
 function formatAdminMoney(cents: number) {
   return `¥${(cents / 100).toFixed(2)}`
+}
+
+function formatAdminGenerationVehicle(row: GenerationJob) {
+  return cleanAdminVehicleModel(row.displayVehicleModel) || cleanAdminVehicleModel(row.standardJson?.vehicle.model) || "-"
+}
+
+function cleanAdminVehicleModel(value: unknown) {
+  const model = String(value || "").replace(/\s+/g, " ").trim()
+  if (!model) return ""
+  const normalized = model.toLowerCase()
+  if (normalized === "user uploaded vehicle, preserve exact identity") return ""
+  if (["unknown", "n/a", "na", "none", "null", "vehicle model pending"].includes(normalized)) return ""
+  if (/^(gen|upload|garage|job|usage)_[a-z0-9-]+$/i.test(model)) return ""
+  return model
 }
 
 function formatAdminQuota(value: number | "unlimited") {

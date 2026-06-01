@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createPromptTemplate, listPromptTemplates } from "@/lib/server/db"
+import { listPromptTemplates } from "@/lib/server/db"
 import { authErrorResponse, requireAdminUser } from "@/lib/server/auth"
 import type { PromptTemplateScope } from "@/lib/types"
 
@@ -44,17 +44,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireAdminUser()
-    const body = await request.json()
-    const template = createPromptTemplate({
-      scope: parseScope(body.scope),
-      title: String(body.title || ""),
-      body: String(body.body || ""),
-      assetId: typeof body.assetId === "string" ? body.assetId : "",
-      combinationKey: typeof body.combinationKey === "string" ? body.combinationKey : "",
-      active: typeof body.active === "boolean" ? body.active : true,
-      sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
-    })
-    return NextResponse.json(template, { status: 201 })
+    await request.json().catch(() => ({}))
+    return NextResponse.json({ error: "Prompt templates are managed from Git seed and are read-only at runtime." }, { status: 405 })
   } catch (error) {
     return (error as { status?: number }).status ? authErrorResponse(error) : NextResponse.json({ error: error instanceof Error ? error.message : "Prompt template create failed" }, { status: 400 })
   }

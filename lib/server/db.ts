@@ -34,7 +34,6 @@ import type {
   PaymentOrder,
   PromptTemplate,
   PromptTemplateScope,
-  PromptPreset,
   ProviderConfig,
   ProviderId,
   ResultCheckResult,
@@ -50,7 +49,6 @@ const DEMO_USER_ID = "demo-user"
 const systemCategoryIds = new Set(categoriesSeed.map((item) => item.id))
 const systemBrandIds = new Set(brandsSeed.map((item) => item.id))
 const systemAssetIds = new Set(assetsSeed.map((item) => item.id))
-const systemPromptTemplateIds = new Set(promptTemplateSeed.map((item) => item.id))
 const systemProviderIds = new Set(providerSeed.map((item) => item.id))
 const systemWorkflowIds = new Set(workflowSeed.map((item) => item.id))
 
@@ -2620,58 +2618,9 @@ export function getProviderApiKey(providerId: ProviderId) {
   return decryptSecret(cipher)
 }
 
-export function createPrompt(input: { title: string; version: string; body: string; negativePrompt: string; active: boolean }) {
-  const promptId = `preset_${crypto.randomUUID().slice(0, 8)}`
-  if (input.active) database().prepare("UPDATE prompt_presets SET active = 0").run()
-  database()
-    .prepare("INSERT INTO prompt_presets (id, title, version, body, negative_prompt, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(promptId, input.title, input.version, input.body, input.negativePrompt, input.active ? 1 : 0, nowMs())
-  return prompts().find((prompt) => prompt.id === promptId) as PromptPreset
-}
-
 export function listPromptTemplates(scope?: PromptTemplateScope) {
   const templates = promptTemplates()
   return scope ? templates.filter((template) => template.scope === scope) : templates
-}
-
-export function createPromptTemplate(input: {
-  scope: PromptTemplateScope
-  title: string
-  body: string
-  assetId?: string
-  combinationKey?: string
-  active?: boolean
-  sortOrder?: number
-}) {
-  const id = `tpl_${crypto.randomUUID().slice(0, 10)}`
-  const now = nowMs()
-  database()
-    .prepare(`
-      INSERT INTO prompt_templates
-      (id, scope, title, body, asset_id, combination_key, active, sort_order, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    .run(id, input.scope, input.title.trim() || "未命名 Prompt", input.body, input.assetId ?? "", input.combinationKey ?? "", input.active === false ? 0 : 1, input.sortOrder ?? 0, now)
-  return promptTemplates().find((template) => template.id === id) as PromptTemplate
-}
-
-export function updatePromptTemplate(id: string, patch: Partial<Omit<PromptTemplate, "id" | "updatedAt">>) {
-  const current = promptTemplates().find((template) => template.id === id)
-  if (!current) throw new Error(`Prompt template not found: ${id}`)
-  const next = { ...current, ...patch, updatedAt: nowMs() }
-  database()
-    .prepare(`
-      UPDATE prompt_templates
-      SET scope = ?, title = ?, body = ?, asset_id = ?, combination_key = ?, active = ?, sort_order = ?, updated_at = ?
-      WHERE id = ?
-    `)
-    .run(next.scope, next.title.trim() || "未命名 Prompt", next.body, next.assetId ?? "", next.combinationKey ?? "", next.active ? 1 : 0, next.sortOrder, next.updatedAt, id)
-  return promptTemplates().find((template) => template.id === id) as PromptTemplate
-}
-
-export function deletePromptTemplate(id: string) {
-  database().prepare("DELETE FROM prompt_templates WHERE id = ?").run(id)
-  return { ok: true }
 }
 
 export function getGuardrailConfig(): GuardrailConfig {
@@ -3087,32 +3036,6 @@ function normalizeProviderBaseUrl(value: string, fallbackBaseUrl: string) {
   return value
 }
 
-function mapPromptPresetRow(row: Row): PromptPreset {
-  return {
-    id: String(row.id),
-    title: String(row.title),
-    version: String(row.version),
-    body: String(row.body),
-    negativePrompt: String(row.negative_prompt),
-    active: Boolean(row.active),
-    createdAt: Number(row.created_at),
-  }
-}
-
-function mapPromptTemplateRow(row: Row): PromptTemplate {
-  return {
-    id: String(row.id),
-    scope: row.scope as PromptTemplateScope,
-    title: String(row.title),
-    body: String(row.body),
-    assetId: String(row.asset_id || ""),
-    combinationKey: String(row.combination_key || ""),
-    active: Boolean(row.active),
-    sortOrder: Number(row.sort_order || 0),
-    updatedAt: Number(row.updated_at),
-  }
-}
-
 function mergeWorkflowOverride(seed: WorkflowConfig, row?: Row): WorkflowConfig {
   if (!row) return seed
   const override = mapWorkflowConfig(row)
@@ -3222,25 +3145,18 @@ function providers(): ProviderConfig[] {
   ].toSorted((a, b) => a.id.localeCompare(b.id))
 }
 
-function prompts(): PromptPreset[] {
-  const rows = database().prepare("SELECT * FROM prompt_presets ORDER BY created_at DESC").all() as Row[]
-  const customPrompts = rows.filter((row) => String(row.id) !== promptSeed.id).map(mapPromptPresetRow)
-  return [
-    { ...promptSeed, active: !customPrompts.some((prompt) => prompt.active) },
-    ...customPrompts,
-  ].toSorted((a, b) => Number(b.active) - Number(a.active) || b.createdAt - a.createdAt)
+function prompts() {
+  return [{ ...promptSeed, active: true }]
 }
 
 function activePrompt() {
-  return prompts().find((prompt) => prompt.active) ?? promptSeed
+  return promptSeed
 }
 
 function promptTemplates(): PromptTemplate[] {
-  const rows = database().prepare("SELECT * FROM prompt_templates ORDER BY scope ASC, sort_order ASC, updated_at DESC").all() as Row[]
-  return [
-    ...promptTemplateSeed.map((template) => ({ ...template, updatedAt: 0 })),
-    ...rows.filter((row) => !systemPromptTemplateIds.has(String(row.id))).map(mapPromptTemplateRow),
-  ].toSorted((a, b) => a.scope.localeCompare(b.scope) || a.sortOrder - b.sortOrder || b.updatedAt - a.updatedAt)
+  return promptTemplateSeed
+    .map((template) => ({ ...template, updatedAt: 0 }))
+    .toSorted((a, b) => a.scope.localeCompare(b.scope) || a.sortOrder - b.sortOrder || b.updatedAt - a.updatedAt)
 }
 
 function workflowConfigs(): WorkflowConfig[] {

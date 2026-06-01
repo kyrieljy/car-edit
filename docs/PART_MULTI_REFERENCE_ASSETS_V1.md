@@ -8,7 +8,7 @@ Generated on 2026-05-12 for prompt batch testing and local catalog wiring.
 
 ## Storage
 
-- Source download manifest: `docs/batch-inputs/part-references/multi-ref-v1/manifest.json`
+- Source download manifest: local-only archived file at `docs/batch-inputs/part-references/multi-ref-v1/manifest.json`
 - Public provider-ready assets: `public/assets/parts/references/multi-ref-v1/<asset-id>/...`
 - Published manifest: `data/part-reference-manifest.v1.json`
 - Database table populated: `part_asset_references`
@@ -44,7 +44,7 @@ Do not upload extra full-car photos as vehicle references when the test target i
 
 Use this order for the next hood and rear wing run:
 
-1. Vehicle canvas: `docs/batch-inputs/source-c-parking-blue-m4.jpg`
+1. Vehicle canvas: local-only archived file at `docs/batch-inputs/source-c-parking-blue-m4.jpg`
 2. Hood ref 1: `public/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/01-hd14bmwf80-oe-01.jpg`
 3. Hood ref 2: `public/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/02-hd14bmwf80-oe-02.jpg`
 4. Hood ref 3: `public/assets/parts/references/multi-ref-v1/seibon-oe-carbon-hood/03-hd14bmwf80-oe-03.jpg`
@@ -61,7 +61,7 @@ If the ChatGPT UI resists 8 images, reduce to 5 images:
 
 ## QA Notes
 
-- Cropped images under `docs/batch-inputs/part-references/` are not valid multi-angle references. Treat them as obsolete detail-only scratch assets.
+- Cropped local-only images under `docs/batch-inputs/part-references/` are not valid multi-angle references. Treat them as obsolete detail-only scratch assets.
 - `ap-racing-yellow` lacks clean official yellow single-product multi-angle refs. Keep it low confidence until better refs are sourced.
 - Several VLAND images include marketing text/graphics. They are retained for audit, but only the first two are marked `upload_to_model=1`.
 - BBS sibling finish refs are uploaded as shape references. Prompt hints tell the model to use exact finish from the priority 1 reference.

@@ -15,7 +15,7 @@ The successful V2 prompt strengthened same-color hood contour requirements:
 - make the OE-style central power dome and long contour lines visibly legible through same-color highlights, shadows, reflections, and panel curvature
 - edit only the hood panel
 
-This was applied to `tpl_combo_hood_body_color` in `lib/catalog.ts` and synced with `scripts/apply-prompt-pack-v1.mjs`.
+This was applied to `tpl_combo_hood_body_color` in `lib/catalog.ts`. Current runtime prompts are maintained only through Git seed and validated with `scripts/validate-prompt-pack.mjs`.
 
 ## Current Use
 

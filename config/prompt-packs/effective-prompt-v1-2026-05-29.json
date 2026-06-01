@@ -2034,7 +2034,7 @@
     "systemTemplatesTotal": 30,
     "systemTemplatesMatchingDbSeed": 30,
     "extraDbSystemTemplateOverridesVisibleToRuntime": false,
-    "note": "Current db.prompts()/promptTemplates() logic returns code seed for system templates first and filters DB rows with the same system ids, so old DB overrides for system template IDs would be hidden unless explicitly migrated into code seed."
+    "note": "Runtime prompt resolution is now Git-seed only: db.prompts()/activePrompt() expose promptSeed and promptTemplates() exposes promptTemplateSeed. SQLite prompt rows are retained for schema compatibility but cannot override runtime prompt text."
   },
   "laterRegressionCandidates": [
     {
@@ -2052,8 +2052,8 @@
       "files": [
         "lib/server/db.ts"
       ],
-      "currentBehavior": "Runtime promptTemplates() ignores DB rows whose IDs are in promptTemplateSeed.",
-      "expectedEffectiveBehavior": "If a system prompt is admin-edited and meant to be source-of-truth, it must be exported/migrated into code seed or a versioned project config pack before deployment."
+      "currentBehavior": "Runtime promptTemplates() ignores all SQLite prompt rows and returns promptTemplateSeed.",
+      "expectedEffectiveBehavior": "Any intended prompt change must be made in lib/catalog.ts and validated against this prompt pack before deployment."
     }
   ]
 }

@@ -4,8 +4,8 @@ Last reviewed: 2026-05-29 Asia/Shanghai
 
 Context note: prompt subsystem reference only. Do not read during normal UI/account handoff.
 
-This document defines the v1 prompt pack structure used by `scripts/apply-prompt-pack-v1.mjs`.
-The pack is intentionally template-first: source seed text remains in the existing catalog/server seed code, and the script synchronizes it into database rows by upsert/update.
+This document defines the v1 prompt pack structure used to validate the Git seed in `lib/catalog.ts`.
+The pack is versioned evidence only: runtime prompt text comes from code seed, and SQLite prompt rows are compatibility data rather than a source of truth.
 
 ## Core Principles
 
@@ -125,11 +125,12 @@ Hood prompts require special handling because body-color and exposed-carbon hood
 - If a hood reference image shows a different vehicle color, use only hood shape, vents, weave, and finish. Do not copy that vehicle color to the target car.
 - If the hood is not selected, do not alter the hood even if another selected part reference contains a hood.
 
-## Script Synchronization
+## Runtime Source
 
-`scripts/apply-prompt-pack-v1.mjs` reads existing seeds and synchronizes them into the local SQLite database.
+`lib/catalog.ts` is the authoritative source for the active prompt preset and prompt templates.
 
-- `prompt_presets`: upsert by `id`; update title, version, body, negative prompt, and active state on conflict.
-- `prompt_templates`: upsert by `id`; update scope, title, body, asset id, combination key, active state, sort order, and `updated_at` on conflict.
-- `part_assets.prompt_hint`: update by asset `id` from `assetsSeed`.
-- The script should report how many templates were read, how many rows were applied, how many asset hints were targeted, how many asset hints were updated, and which asset ids were missing if any.
+- `scripts/validate-prompt-pack.mjs` compares this prompt pack against `promptSeed` and `promptTemplateSeed`.
+- Runtime `activePrompt()` always returns `promptSeed`.
+- Runtime `promptTemplates()` always returns `promptTemplateSeed` with `updatedAt: 0`.
+- Admin and config migration do not create, update, delete, export, or import prompt bodies.
+- Existing SQLite `prompt_presets` and `prompt_templates` tables are retained only for schema compatibility with old environments.

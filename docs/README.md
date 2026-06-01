@@ -24,7 +24,7 @@ Do not read every document here during handoff. Pick the document for the subsys
 - `chat-mode-dry-run-test-report.md`: condensed latest known dry-run status, not a full table.
 - `PROMPT_BATCH_TEST_PACK_V1.md`: archived prompt batch plan summary.
 - `BATCH_TEST_RESULTS_V1.md`: archived prompt batch result summary.
-- `chatgpt-web-stability-2026-05-13/RUN_LOG.md`: archived ChatGPT web hood prompt stability summary.
+- `chatgpt-web-stability-2026-05-13/RUN_LOG.md`: archived hood prompt stability summary; related browser automation scripts/results are no longer active project tooling.
 
 ## Not Handoff Docs
 

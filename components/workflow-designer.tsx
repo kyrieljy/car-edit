@@ -103,7 +103,6 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
   const [selectedNodeId, setSelectedNodeId] = useState("")
   const [nodes, setNodes] = useState<WorkflowNodeConfig[]>([])
   const [workflowEnabled, setWorkflowEnabled] = useState(true)
-  const [promptDraft, setPromptDraft] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   const selectedWorkflow = useMemo(
@@ -161,9 +160,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
     })
   }, [selectedWorkflow])
 
-  useEffect(() => {
-    setPromptDraft(selectedPrompt?.body ?? "")
-  }, [selectedPrompt?.id, selectedPrompt?.body])
+  const promptDraft = selectedPrompt?.body ?? ""
 
   const updateSelectedNode = (patch: Partial<WorkflowNodeConfig>) => {
     if (!selectedNode) return
@@ -183,25 +180,6 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
           : node,
       ),
     )
-  }
-
-  const savePrompt = async () => {
-    if (!selectedPrompt) {
-      notify("error", "当前步骤没有绑定提示词模板。")
-      return
-    }
-    const response = await fetch(`/api/admin/prompt-templates/${selectedPrompt.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...selectedPrompt, body: promptDraft }),
-    })
-    const body = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      notify("error", body.error || "提示词保存失败")
-      return
-    }
-    notify("success", "提示词已同步保存到提示词管理。")
-    onChanged()
   }
 
   const saveWorkflow = async () => {
@@ -449,12 +427,8 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                 <>
                   <label className="workflow-wide-field">
                     提示词内容
-                    <textarea value={promptDraft} onChange={(event) => setPromptDraft(event.target.value)} />
+                    <textarea value={promptDraft} readOnly />
                   </label>
-                  <button type="button" onClick={() => void savePrompt()}>
-                    <BadgeCheck size={16} />
-                    保存提示词
-                  </button>
                 </>
               )}
 

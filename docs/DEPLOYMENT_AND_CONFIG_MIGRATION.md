@@ -7,28 +7,28 @@ Last updated: 2026-05-30 Asia/Shanghai
 Generate a project-config export from the local DB:
 
 ```powershell
-npm.cmd run config:sync-seeds
 npm.cmd run config:export -- --out artifacts/project-config.local.json
 npm.cmd run config:validate -- --file artifacts/project-config.local.json
 ```
 
-The export includes prompt, workflow, provider non-secret fields, catalog metadata, guardrail config, and membership plans. It excludes API keys, key ciphers, users, chats, generation history, orders, and runtime images.
+The export includes workflow, provider non-secret fields, catalog metadata, guardrail config, and membership plans. It excludes prompt bodies, API keys, key ciphers, users, chats, generation history, orders, and runtime images.
 
 Exports are built from the app's merged AdminSummary view, not raw SQLite tables. This keeps code seed defaults and runtime-safe overrides aligned with what the app actually uses.
+
+Prompt text is not migrated through project config. The active prompt preset and templates are versioned in Git through `lib/catalog.ts` and validated by `config/prompt-packs`.
 
 ## Test Server Apply
 
 On the test server after `git pull` and dependency install:
 
 ```bash
-node scripts/sync-code-seeds.mjs
 node scripts/apply-project-config.mjs --file artifacts/project-config.local.json
 node scripts/apply-project-config.mjs --file artifacts/project-config.local.json --apply
 npm run build
 pm2 restart car-edit --update-env
 ```
 
-The first command is a dry-run. The second command upserts project config only and does not touch provider key columns.
+The first command is a dry-run. The second command upserts project config only and does not touch prompt tables or provider key columns.
 
 ## Compare Two Environments
 

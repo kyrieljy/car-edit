@@ -10,10 +10,12 @@ import {
   safeJson,
   stableStringify,
 } from "./project-config-utils.mjs"
+import { loadTsModule } from "./ts-module-loader.mjs"
 
 const args = parseArgs()
 const dbPath = path.resolve(String(args.db || defaultDbPath()))
 const format = String(args.format || "markdown")
+const catalog = loadTsModule("lib/catalog.ts")
 const audit = buildAudit(dbPath)
 
 if (args.out) {
@@ -53,11 +55,12 @@ function buildAudit(dbPath) {
       autoRetryEnabled: Boolean(row.auto_retry_enabled),
       updatedAt: Number(row.updated_at || 0),
     }))
-    const activePrompt = rows(db, "SELECT id, title, version, created_at FROM prompt_presets WHERE active = 1 ORDER BY created_at DESC LIMIT 1")[0] ?? null
-    const promptTemplateCounts = rows(db, "SELECT scope, COUNT(*) AS count FROM prompt_templates GROUP BY scope ORDER BY scope").map((row) => ({
-      scope: String(row.scope),
-      count: Number(row.count || 0),
-    }))
+    const promptTemplateCounts = Object.entries(
+      catalog.promptTemplateSeed.reduce((counts, template) => {
+        counts[template.scope] = (counts[template.scope] ?? 0) + 1
+        return counts
+      }, {}),
+    ).map(([scope, count]) => ({ scope, count }))
     const imageUrls = [
       ...rows(db, "SELECT url AS value FROM vehicle_uploads").map((row) => ({ area: "vehicle_uploads.url", value: String(row.value || "") })),
       ...rows(db, "SELECT result_image_url AS value FROM generation_jobs").map((row) => ({ area: "generation_jobs.result_image_url", value: String(row.value || "") })),
@@ -73,14 +76,13 @@ function buildAudit(dbPath) {
       tableCounts,
       projectConfigTables,
       runtimeTables,
-      activePrompt: activePrompt
-        ? {
-            id: String(activePrompt.id),
-            title: String(activePrompt.title || ""),
-            version: String(activePrompt.version || ""),
-            createdAt: Number(activePrompt.created_at || 0),
-          }
-        : null,
+      activePrompt: {
+        id: catalog.promptSeed.id,
+        title: catalog.promptSeed.title,
+        version: catalog.promptSeed.version,
+        createdAt: catalog.promptSeed.createdAt,
+        source: "lib/catalog.ts",
+      },
       promptTemplateCounts,
       providers,
       workflows,
@@ -180,7 +182,7 @@ function auditToMarkdown(audit) {
   lines.push("")
   lines.push("## Active Config")
   lines.push("")
-  lines.push(`- Active prompt: ${audit.activePrompt ? `${audit.activePrompt.id} (${audit.activePrompt.version})` : "none"}`)
+  lines.push(`- Active prompt: ${audit.activePrompt ? `${audit.activePrompt.id} (${audit.activePrompt.version}, ${audit.activePrompt.source})` : "none"}`)
   audit.providers.forEach((provider) => {
     lines.push(`- Provider ${provider.active ? "[active] " : ""}${provider.id}: enabled=${provider.enabled}, host=${provider.baseUrlHost}, model=${provider.modelName}, hasStoredKey=${provider.hasStoredKey}`)
   })

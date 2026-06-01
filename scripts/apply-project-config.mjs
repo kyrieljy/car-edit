@@ -26,8 +26,8 @@ if (!validation.ok) {
 const dryRun = !args.apply
 const actions = {
   dryRun,
-  promptPresets: config.promptPresets.length,
-  promptTemplates: config.promptTemplates.length,
+  ignoredPromptPresets: Array.isArray(config.promptPresets) ? config.promptPresets.length : 0,
+  ignoredPromptTemplates: Array.isArray(config.promptTemplates) ? config.promptTemplates.length : 0,
   providers: config.providers.length,
   workflows: config.workflows.length,
   categories: config.categories.length,
@@ -47,8 +47,6 @@ if (dryRun) {
 const db = openProjectDb(path.resolve(String(args.db || defaultDbPath())))
 db.exec("BEGIN")
 try {
-  upsertPromptPresets(db, config.promptPresets)
-  upsertPromptTemplates(db, config.promptTemplates)
   upsertProviders(db, config.providers)
   upsertWorkflows(db, config.workflows)
   upsertCategories(db, config.categories)
@@ -66,37 +64,6 @@ try {
 }
 
 console.log(stableStringify(actions))
-
-function upsertPromptPresets(db, rows) {
-  const statement = db.prepare(`
-    INSERT INTO prompt_presets (id, title, version, body, negative_prompt, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      title = excluded.title,
-      version = excluded.version,
-      body = excluded.body,
-      negative_prompt = excluded.negative_prompt,
-      active = excluded.active
-  `)
-  rows.forEach((row) => statement.run(row.id, row.title, row.version, row.body, row.negativePrompt, int(row.active), row.createdAt || Date.now()))
-}
-
-function upsertPromptTemplates(db, rows) {
-  const statement = db.prepare(`
-    INSERT INTO prompt_templates (id, scope, title, body, asset_id, combination_key, active, sort_order, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      scope = excluded.scope,
-      title = excluded.title,
-      body = excluded.body,
-      asset_id = excluded.asset_id,
-      combination_key = excluded.combination_key,
-      active = excluded.active,
-      sort_order = excluded.sort_order,
-      updated_at = excluded.updated_at
-  `)
-  rows.forEach((row) => statement.run(row.id, row.scope, row.title, row.body, row.assetId || "", row.combinationKey || "", int(row.active), row.sortOrder || 0, row.updatedAt || Date.now()))
-}
 
 function upsertProviders(db, rows) {
   const statement = db.prepare(`

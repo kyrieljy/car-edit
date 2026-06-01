@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { startTransition, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { 
   ArrowDownToLine,
@@ -52,11 +52,13 @@ const fallbackPrompts = [
 ]
 
 const MOBILE_HISTORY_DRAWER_EXIT_MS = 230
+const MOBILE_CHAT_TEXT_MAX_LENGTH = 600
+const MOBILE_CHAT_TEXT_MAX_LINES = 4
 
 const chatCopy = {
   en: {
     headline: "Upload your vehicle and describe the modification you want.",
-    placeholder: "Describe the car modification you want...",
+    placeholder: "Describe your mod...",
     vehicle: "Vehicle photo",
     parts: "Part references",
     attachVehicle: "Upload vehicle",
@@ -337,9 +339,15 @@ export function ChatMode({
   const t = chatCopy[language]
   const vehicleInputRef = useRef<HTMLInputElement | null>(null)
   const partInputRef = useRef<HTMLInputElement | null>(null)
+  const threadRef = useRef<HTMLDivElement | null>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
+  const mobileAttachWrapRef = useRef<HTMLDivElement | null>(null)
+  const promptDropdownRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const requestAbortRef = useRef<AbortController | null>(null)
   const sessionLoadSeqRef = useRef(0)
+  const historyBottomScrollTimersRef = useRef<number[]>([])
+  const pendingHistoryBottomScrollRef = useRef<{ sessionId: string; loadSeq: number } | null>(null)
   const chatCacheKey = `${mobileVariant ? "mobile" : "desktop"}:${authUser?.id ?? "guest"}`
   const cachedChatState = chatModeCache.get(chatCacheKey)
   const [hydratedChatCacheKey, setHydratedChatCacheKey] = useState(chatCacheKey)
@@ -351,7 +359,10 @@ export function ChatMode({
   const [internalMobileSidebarOpen, setInternalMobileSidebarOpen] = useState(false)
   const mobileSidebarOpen = controlledMobileSidebarOpen ?? internalMobileSidebarOpen
   const setMobileSidebarOpen = setControlledMobileSidebarOpen ?? setInternalMobileSidebarOpen
-  const [text, setText] = useState(() => cachedChatState?.text ?? "")
+  const [text, setText] = useState(() => {
+    const cachedText = cachedChatState?.text ?? ""
+    return mobileVariant ? cachedText.slice(0, MOBILE_CHAT_TEXT_MAX_LENGTH) : cachedText
+  })
   const [vehicleFile, setVehicleFile] = useState<File | null>(null)
   const [partFiles, setPartFiles] = useState<File[]>([])
   const [vehiclePreview, setVehiclePreview] = useState("")
@@ -363,6 +374,8 @@ export function ChatMode({
   const [optimisticMessage, setOptimisticMessage] = useState<ChatMessage | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>(fallbackPrompts)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [mobileAttachMenuOpen, setMobileAttachMenuOpen] = useState(false)
+  const [mobileComposerExpanded, setMobileComposerExpanded] = useState(false)
   const [contextMode, setContextMode] = useState<"latest" | "original">(() => cachedChatState?.contextMode ?? "latest")
   const [previewUrl, setPreviewUrl] = useState("")
   const [dryRun, setDryRun] = useState(() => cachedChatState?.dryRun ?? true)
@@ -375,10 +388,51 @@ export function ChatMode({
     onMobileAccessBlocked?.()
   }
 
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const thread = threadRef.current
+    if (thread) {
+      thread.scrollTo({ top: thread.scrollHeight, behavior })
+      return
+    }
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" })
+  }, [])
+
+  const clearHistoryBottomScrollTimers = useCallback(() => {
+    historyBottomScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    historyBottomScrollTimersRef.current = []
+  }, [])
+
+  const scheduleHistoryBottomScroll = useCallback((sessionId: string, loadSeq: number) => {
+    if (!mobileVariant) return
+    clearHistoryBottomScrollTimers()
+    const delays = [0, 60, 160, 320, 700, 1200]
+    historyBottomScrollTimersRef.current = delays.map((delay, index) =>
+      window.setTimeout(() => {
+        const pending = pendingHistoryBottomScrollRef.current
+        if (!pending || pending.sessionId !== sessionId || pending.loadSeq !== loadSeq || sessionLoadSeqRef.current !== loadSeq) return
+        scrollChatToBottom("auto")
+        if (index === delays.length - 1) {
+          pendingHistoryBottomScrollRef.current = null
+          historyBottomScrollTimersRef.current = []
+        }
+      }, delay),
+    )
+  }, [clearHistoryBottomScrollTimers, mobileVariant, scrollChatToBottom])
+
+  const scrollAfterHistoryImageLoad = useCallback(() => {
+    const pending = pendingHistoryBottomScrollRef.current
+    if (!mobileVariant || !pending || pending.sessionId !== activeSessionId || pending.loadSeq !== sessionLoadSeqRef.current) return
+    scrollChatToBottom("auto")
+  }, [activeSessionId, mobileVariant, scrollChatToBottom])
+
   useEffect(() => {
     void loadSessions()
     void loadSuggestions()
   }, [authUser?.id])
+
+  useEffect(() => {
+    return () => clearHistoryBottomScrollTimers()
+  }, [clearHistoryBottomScrollTimers])
 
   useEffect(() => {
     const cached = chatModeCache.get(chatCacheKey)
@@ -386,15 +440,16 @@ export function ChatMode({
     setActiveSessionId(cached?.activeSessionId ?? "")
     setMessages(cached?.messages ?? [])
     setQuery(cached?.query ?? "")
-    setText(cached?.text ?? "")
+    setText(mobileVariant ? (cached?.text ?? "").slice(0, MOBILE_CHAT_TEXT_MAX_LENGTH) : cached?.text ?? "")
     setContextMode(cached?.contextMode ?? "latest")
     setDryRun(cached?.dryRun ?? true)
     setPendingContextChoice(cached?.pendingContextChoice ?? null)
     setPendingPartColorPolicyChoice(cached?.pendingPartColorPolicyChoice ?? null)
     setOptimisticMessage(null)
     setNotice("")
+    setMobileAttachMenuOpen(false)
     setHydratedChatCacheKey(chatCacheKey)
-  }, [chatCacheKey])
+  }, [chatCacheKey, mobileVariant])
 
   useEffect(() => {
     if (hydratedChatCacheKey !== chatCacheKey) return
@@ -433,8 +488,85 @@ export function ChatMode({
   }, [partFiles])
 
   useEffect(() => {
-    if (messages.length || isGenerating) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [messages, isGenerating])
+    if (!(messages.length || isGenerating)) return
+    const pending = pendingHistoryBottomScrollRef.current
+    if (mobileVariant && pending?.sessionId === activeSessionId) return
+    const frame = window.requestAnimationFrame(() => scrollChatToBottom("smooth"))
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeSessionId, messages, isGenerating, mobileVariant, scrollChatToBottom])
+
+  useEffect(() => {
+    const pending = pendingHistoryBottomScrollRef.current
+    if (!mobileVariant || !messages.length || !pending || pending.sessionId !== activeSessionId) return
+    scheduleHistoryBottomScroll(pending.sessionId, pending.loadSeq)
+  }, [activeSessionId, messages, mobileVariant, scheduleHistoryBottomScroll])
+
+  useEffect(() => {
+    if (!mobileVariant) return
+    const frame = window.requestAnimationFrame(() => {
+      const field = textAreaRef.current
+      if (!field) return
+      field.style.height = "auto"
+      const style = window.getComputedStyle(field)
+      const lineHeight = Number.parseFloat(style.lineHeight) || 21
+      const paddingTop = Number.parseFloat(style.paddingTop) || 0
+      const paddingBottom = Number.parseFloat(style.paddingBottom) || 0
+      const singleLineHeight = Math.ceil(lineHeight + paddingTop + paddingBottom)
+      const maxHeight = Math.ceil(lineHeight * MOBILE_CHAT_TEXT_MAX_LINES + paddingTop + paddingBottom)
+      const nextHeight = Math.min(field.scrollHeight, maxHeight)
+      field.style.height = `${nextHeight}px`
+      field.style.overflowY = field.scrollHeight > maxHeight ? "auto" : "hidden"
+      const expanded = field.scrollHeight > singleLineHeight + 2
+      setMobileComposerExpanded((current) => (current === expanded ? current : expanded))
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [mobileVariant, text])
+
+  useEffect(() => {
+    if (!mobileVariant) {
+      setMobileComposerExpanded(false)
+      return
+    }
+    if (!notice) return
+    const timeout = window.setTimeout(() => setNotice(""), 3000)
+    return () => window.clearTimeout(timeout)
+  }, [mobileVariant, notice])
+
+  useEffect(() => {
+    if (!mobileAttachMenuOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && mobileAttachWrapRef.current?.contains(target)) return
+      setMobileAttachMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileAttachMenuOpen(false)
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [mobileAttachMenuOpen])
+
+  useEffect(() => {
+    if (!suggestionsOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && promptDropdownRef.current?.contains(target)) return
+      setSuggestionsOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSuggestionsOpen(false)
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [suggestionsOpen])
 
   useEffect(() => {
     if (!isGenerating) {
@@ -495,6 +627,8 @@ export function ChatMode({
       return
     }
     sessionLoadSeqRef.current += 1
+    pendingHistoryBottomScrollRef.current = null
+    clearHistoryBottomScrollTimers()
     setActiveSessionId("")
     setMessages([])
     setText("")
@@ -504,6 +638,7 @@ export function ChatMode({
     setPendingPartColorPolicyChoice(null)
     setOptimisticMessage(null)
     setNotice("")
+    setMobileAttachMenuOpen(false)
     setMobileSidebarOpen(false)
   }
 
@@ -514,9 +649,11 @@ export function ChatMode({
     }
     const loadSeq = ++sessionLoadSeqRef.current
     const shouldDeferRender = mobileVariant && mobileSidebarOpen
+    pendingHistoryBottomScrollRef.current = mobileVariant ? { sessionId: id, loadSeq } : null
     setActiveSessionId(id)
     setPendingContextChoice(null)
     setPendingPartColorPolicyChoice(null)
+    setMobileAttachMenuOpen(false)
     if (mobileSidebarOpen) setMobileSidebarOpen(false)
 
     const loadSelectedSession = async () => {
@@ -533,9 +670,8 @@ export function ChatMode({
       if (!response.ok) return
       const body = (await response.json()) as { messages: ChatMessage[] }
       if (loadSeq !== sessionLoadSeqRef.current) return
-      startTransition(() => {
-        setMessages(body.messages)
-      })
+      setMessages(body.messages)
+      if (mobileVariant) scheduleHistoryBottomScroll(id, loadSeq)
     }
 
     void loadSelectedSession()
@@ -573,6 +709,8 @@ export function ChatMode({
     if (!response.ok) return
     setSessions((items) => items.filter((item) => item.id !== session.id))
     if (activeSessionId === session.id) {
+      pendingHistoryBottomScrollRef.current = null
+      clearHistoryBottomScrollTimers()
       setActiveSessionId("")
       setMessages([])
       setPendingContextChoice(null)
@@ -595,6 +733,7 @@ export function ChatMode({
     }
     setVehicleFile(file)
     setNotice("")
+    setMobileAttachMenuOpen(false)
     if (vehicleInputRef.current) vehicleInputRef.current.value = ""
   }
 
@@ -616,7 +755,28 @@ export function ChatMode({
       if (next.length > available) setNotice(t.partLimit)
       return [...items, ...accepted]
     })
+    setMobileAttachMenuOpen(false)
     if (partInputRef.current) partInputRef.current.value = ""
+  }
+
+  const openVehiclePicker = () => {
+    if (mobileLoginBlocked) {
+      blockMobileAccess()
+      return
+    }
+    setSuggestionsOpen(false)
+    setMobileAttachMenuOpen(false)
+    vehicleInputRef.current?.click()
+  }
+
+  const openPartPicker = () => {
+    if (mobileLoginBlocked) {
+      blockMobileAccess()
+      return
+    }
+    setSuggestionsOpen(false)
+    setMobileAttachMenuOpen(false)
+    partInputRef.current?.click()
   }
 
   const send = async (
@@ -664,10 +824,13 @@ export function ChatMode({
     if (!options.pending) setText("")
     setNotice("")
     setSuggestionsOpen(false)
+    setMobileAttachMenuOpen(false)
     if (!options.contextConfirmed) setPendingContextChoice(null)
     if (!policyConfirmed) setPendingPartColorPolicyChoice(null)
     const controller = new AbortController()
     requestAbortRef.current = controller
+    pendingHistoryBottomScrollRef.current = null
+    clearHistoryBottomScrollTimers()
     try {
       const formData = new FormData()
       if (activeSessionId) formData.append("sessionId", activeSessionId)
@@ -819,7 +982,7 @@ export function ChatMode({
       blockMobileAccess()
       return
     }
-    setText(prompt)
+    setText(mobileVariant ? prompt.slice(0, MOBILE_CHAT_TEXT_MAX_LENGTH) : prompt)
     setSuggestionsOpen(false)
   }
 
@@ -827,6 +990,35 @@ export function ChatMode({
   const generationStageText = generationProgress?.message || t.generating
   const generationRetryText = generationProgress?.retryAttempt ? (language === "zh" ? ` · 第 ${generationProgress.retryAttempt} 次重试` : ` · retry ${generationProgress.retryAttempt}`) : ""
   const generationStatusText = `${generationStageText} ${t.waiting} ${generationElapsedSeconds} ${t.seconds}${generationRetryText}`
+  const hasPendingUploads = Boolean(vehiclePreview || partPreviews.length)
+  const vehiclePreviewChip = vehiclePreview ? (
+    <span className="chat-upload-chip selected preview-only with-remove">
+      <button className="chat-preview-thumb-button" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPreviewUrl(vehiclePreview))} aria-label={t.preview}>
+        <img className="chat-vehicle-thumb" src={canvasSafeImageUrl(vehiclePreview)} alt={t.vehicle} />
+      </button>
+      <button className="chat-chip-remove" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setVehicleFile(null))} aria-label="Remove vehicle photo">
+        <X size={12} />
+      </button>
+    </span>
+  ) : null
+  const partPreviewChips = partPreviews.map((preview) => (
+    <span className="chat-part-chip has-preview" key={preview.key}>
+      <button className="chat-part-preview-button" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPreviewUrl(preview.url))} aria-label={`${t.preview} ${preview.name}`}>
+        <img src={preview.url} alt={preview.name} />
+      </button>
+      <button type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPartFiles((items) => items.filter((_, index) => index !== preview.index)))}>
+        <X size={12} />
+      </button>
+    </span>
+  ))
+  const desktopVehicleUploadControl = vehiclePreview ? (
+    vehiclePreviewChip
+  ) : (
+    <button className="chat-upload-chip vehicle-upload-chip" type="button" onClick={openVehiclePicker} aria-label={t.attachVehicle}>
+      <Car size={15} />
+      <span className="vehicle-upload-label">{t.attachVehicle}</span>
+    </button>
+  )
 
   return (
     <section className="chat-mode-shell">
@@ -847,7 +1039,7 @@ export function ChatMode({
         onDelete={deleteSession}
       />
 
-      <main className="chat-workspace">
+      <main className="chat-workspace" data-mobile-has-uploads={mobileVariant && hasPendingUploads ? "true" : "false"}>
         <div className="chat-bg" />
         {!hideMobileMenu && (
           <button className="chat-mobile-menu" onClick={() => setMobileSidebarOpen(true)} aria-label="Open chat history">
@@ -856,7 +1048,7 @@ export function ChatMode({
           </button>
         )}
 
-        <div className="chat-thread">
+        <div className="chat-thread" ref={threadRef}>
           {!visibleMessages.length && !isGenerating ? (
             <motion.div className={mobileVariant ? "chat-empty mobile-chat-empty" : "chat-empty"} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
               {mobileVariant ? (
@@ -884,6 +1076,7 @@ export function ChatMode({
                   partColorPolicyChoices={pendingPartColorPolicyChoice?.messageId === message.id ? pendingPartColorPolicyChoice.choices : []}
                   partColorPolicySelections={pendingPartColorPolicyChoice?.messageId === message.id ? pendingPartColorPolicyChoice.selections : {}}
                   onChoosePartColorPolicy={choosePartColorPolicy}
+                  onImageLoad={scrollAfterHistoryImageLoad}
                 />
               ))}
               {isGenerating && <LoadingBubble text={generationStatusText} />}
@@ -896,73 +1089,120 @@ export function ChatMode({
           <input ref={vehicleInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => onVehicleFile(event.target.files?.[0])} />
           <input ref={partInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(event) => onPartFiles(event.target.files)} />
 
-          <div className="chat-composer">
+          {mobileVariant && hasPendingUploads && (
+            <div className="chat-uploads-row chat-mobile-upload-preview-row">
+              {vehiclePreviewChip}
+              {partPreviewChips}
+            </div>
+          )}
+
+          <div className={mobileVariant ? "chat-composer mobile-chat-composer" : "chat-composer"} data-mobile-expanded={mobileComposerExpanded ? "true" : "false"}>
+            {mobileVariant && (
+              <div className="chat-mobile-attach-wrap" ref={mobileAttachWrapRef}>
+                <button
+                  className={mobileAttachMenuOpen ? "chat-mobile-attach-trigger open" : "chat-mobile-attach-trigger"}
+                  type="button"
+                  onClick={() => {
+                    if (mobileLoginBlocked) {
+                      blockMobileAccess()
+                      return
+                    }
+                    setSuggestionsOpen(false)
+                    setMobileAttachMenuOpen((value) => !value)
+                  }}
+                  aria-label="Add upload"
+                  aria-expanded={mobileAttachMenuOpen}
+                >
+                  <Plus size={25} />
+                </button>
+                <AnimatePresence initial={false}>
+                  {mobileAttachMenuOpen && (
+                    <motion.div
+                      className="chat-mobile-attach-menu"
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ duration: 0.16 }}
+                    >
+                      <button type="button" onClick={openVehiclePicker}>
+                        <Car size={16} />
+                        {t.attachVehicle}
+                      </button>
+                      <button type="button" onClick={openPartPicker}>
+                        <ImageIcon size={16} />
+                        {t.attachParts}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
             <textarea
+              ref={textAreaRef}
               value={text}
               onChange={(event) => {
                 if (mobileLoginBlocked) return
-                setText(event.target.value)
+                const nextText = mobileVariant ? event.target.value.slice(0, MOBILE_CHAT_TEXT_MAX_LENGTH) : event.target.value
+                setText(nextText)
               }}
               onFocus={() => {
                 if (mobileLoginBlocked) blockMobileAccess()
+                else setMobileAttachMenuOpen(false)
               }}
               readOnly={mobileLoginBlocked}
+              rows={mobileVariant ? 1 : undefined}
+              maxLength={mobileVariant ? MOBILE_CHAT_TEXT_MAX_LENGTH : undefined}
               placeholder={t.placeholder}
             />
-            <div className="chat-composer-footer">
-              <div className="chat-uploads-row">
-                {vehiclePreview ? (
-                  <span className="chat-upload-chip selected preview-only with-remove">
-                    <button className="chat-preview-thumb-button" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPreviewUrl(vehiclePreview))} aria-label={t.preview}>
-                      <img className="chat-vehicle-thumb" src={canvasSafeImageUrl(vehiclePreview)} alt={t.vehicle} />
-                    </button>
-                    <button className="chat-chip-remove" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setVehicleFile(null))} aria-label="Remove vehicle photo">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ) : (
-                  <button className="chat-upload-chip vehicle-upload-chip" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : vehicleInputRef.current?.click())} aria-label={t.attachVehicle}>
-                    <Car size={15} />
-                    <span className="vehicle-upload-label">{t.attachVehicle}</span>
+            {!mobileVariant ? (
+              <div className="chat-composer-footer">
+                <div className="chat-uploads-row">
+                  {desktopVehicleUploadControl}
+                  <button className="chat-upload-chip part-upload-chip" type="button" onClick={openPartPicker} aria-label={partFiles.length ? `${t.attachParts} ${partFiles.length}/${MAX_CHAT_PART_IMAGES}` : t.attachParts}>
+                    <ImageIcon size={15} />
+                    <span className="part-upload-label">
+                      {t.attachParts} {partFiles.length ? `${partFiles.length}/${MAX_CHAT_PART_IMAGES}` : ""}
+                    </span>
                   </button>
-                )}
-                <button className="chat-upload-chip part-upload-chip" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : partInputRef.current?.click())} aria-label={partFiles.length ? `${t.attachParts} ${partFiles.length}/${MAX_CHAT_PART_IMAGES}` : t.attachParts}>
-                  <ImageIcon size={15} />
-                  <span className="part-upload-label">
-                    {t.attachParts} {partFiles.length ? `${partFiles.length}/${MAX_CHAT_PART_IMAGES}` : ""}
-                  </span>
-                </button>
-                {partPreviews.map((preview) => (
-                  <span className="chat-part-chip has-preview" key={preview.key}>
-                    <button className="chat-part-preview-button" type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPreviewUrl(preview.url))} aria-label={`${t.preview} ${preview.name}`}>
-                      <img src={preview.url} alt={preview.name} />
-                    </button>
-                    <button type="button" onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setPartFiles((items) => items.filter((_, index) => index !== preview.index)))}>
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              {!mobileVariant && (
+                  {partPreviewChips}
+                </div>
                 <button className="round" aria-label="Voice">
                   <Mic size={17} />
                 </button>
-              )}
-              {isGenerating ? (
-                <button className="round cancel" onClick={cancelGeneration} aria-label={t.cancel}>
-                  <X size={17} />
-                </button>
-              ) : (
-                <button className="round primary" onClick={() => void send()} aria-label={t.send}>
-                  <ArrowUp size={18} />
-                </button>
-              )}
-            </div>
+                {isGenerating ? (
+                  <button className="round cancel" onClick={cancelGeneration} aria-label={t.cancel}>
+                    <X size={17} />
+                  </button>
+                ) : (
+                  <button className="round primary" onClick={() => void send()} aria-label={t.send}>
+                    <ArrowUp size={18} />
+                  </button>
+                )}
+              </div>
+            ) : isGenerating ? (
+              <button className="chat-mobile-send-button cancel" onClick={cancelGeneration} aria-label={t.cancel}>
+                <X size={18} />
+              </button>
+            ) : (
+              <button className="chat-mobile-send-button" onClick={() => void send()} aria-label={t.send}>
+                <ArrowUp size={18} />
+              </button>
+            )}
           </div>
 
           <div className="chat-composer-tools-row">
-            <div className="prompt-dropdown-wrap">
-              <button className={suggestionsOpen ? "prompt-dropdown-trigger open" : "prompt-dropdown-trigger"} onClick={() => (mobileLoginBlocked ? blockMobileAccess() : setSuggestionsOpen((value) => !value))}>
+            <div className="prompt-dropdown-wrap" ref={promptDropdownRef}>
+              <button
+                className={suggestionsOpen ? "prompt-dropdown-trigger open" : "prompt-dropdown-trigger"}
+                onClick={() => {
+                  if (mobileLoginBlocked) {
+                    blockMobileAccess()
+                    return
+                  }
+                  setMobileAttachMenuOpen(false)
+                  setSuggestionsOpen((value) => !value)
+                }}
+              >
                 <Sparkles size={15} />
                 {t.promptLabel}
                 <ChevronDown size={15} />
@@ -1135,6 +1375,7 @@ function MessageBubble({
   partColorPolicyChoices = [],
   partColorPolicySelections = {},
   onChoosePartColorPolicy,
+  onImageLoad,
 }: {
   message: ChatMessage
   t: ChatCopy
@@ -1147,6 +1388,7 @@ function MessageBubble({
   partColorPolicyChoices?: PartColorPolicyChoiceRow[]
   partColorPolicySelections?: Partial<Record<PartColorPolicyChoiceCategory, PartColorPolicy>>
   onChoosePartColorPolicy?: (categoryId: PartColorPolicyChoiceCategory, colorPolicy: PartColorPolicy) => void
+  onImageLoad?: () => void
 }) {
   const result = message.resultImageUrl || message.attachments.find((attachment) => attachment.type === "result")?.url
   return (
@@ -1161,7 +1403,7 @@ function MessageBubble({
               .filter((attachment) => attachment.type !== "result")
               .map((attachment) => (
                 <button key={attachment.id} className="message-attachment-thumb" type="button" onClick={() => onPreview(attachment.url)}>
-                  <ChatImageWithFallback src={attachment.url} alt={attachment.fileName} label={t.imageUnavailable} compact />
+                  <ChatImageWithFallback src={attachment.url} alt={attachment.fileName} label={t.imageUnavailable} compact onLoad={onImageLoad} />
                 </button>
               ))}
           </div>
@@ -1169,7 +1411,7 @@ function MessageBubble({
         {result && (
           <div className="chat-result-card">
             <button className="chat-result-image-button" type="button" onClick={() => onPreview(result)}>
-              <ChatImageWithFallback src={result} alt="Generated car render" label={t.imageUnavailable} />
+              <ChatImageWithFallback src={result} alt="Generated car render" label={t.imageUnavailable} onLoad={onImageLoad} />
             </button>
             <div>
               <button onClick={onRegenerate}>
@@ -1220,7 +1462,7 @@ function MessageBubble({
   )
 }
 
-function ChatImageWithFallback({ src, alt, label, compact = false }: { src: string; alt: string; label: string; compact?: boolean }) {
+function ChatImageWithFallback({ src, alt, label, compact = false, onLoad }: { src: string; alt: string; label: string; compact?: boolean; onLoad?: () => void }) {
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -1236,7 +1478,7 @@ function ChatImageWithFallback({ src, alt, label, compact = false }: { src: stri
     )
   }
 
-  return <img src={canvasSafeImageUrl(src)} alt={alt} onError={() => setFailed(true)} />
+  return <img src={canvasSafeImageUrl(src)} alt={alt} onLoad={onLoad} onError={() => setFailed(true)} />
 }
 
 function LoadingBubble({ text }: { text: string }) {

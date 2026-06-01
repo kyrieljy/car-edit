@@ -19,15 +19,6 @@ if (args.out) {
 }
 
 function projectConfigFromAdminSummary(summary, dbPath) {
-  const promptPresets = summary.prompts.map((prompt) => ({
-    id: prompt.id,
-    title: prompt.title,
-    version: prompt.version,
-    body: prompt.body,
-    negativePrompt: prompt.negativePrompt,
-    active: prompt.active,
-    createdAt: prompt.createdAt,
-  }))
   const providers = summary.providers.map((provider) => ({
     id: provider.id,
     label: provider.label,
@@ -99,13 +90,9 @@ function projectConfigFromAdminSummary(summary, dbPath) {
       view: "getAdminSummary",
     },
     active: {
-      promptPresetId: promptPresets.find((item) => item.active)?.id ?? "",
-      promptPresetVersion: promptPresets.find((item) => item.active)?.version ?? "",
       providerId: providers.find((item) => item.active)?.id ?? "",
       workflows: Object.fromEntries(workflows.filter((item) => item.enabled).map((item) => [item.mode, item.id])),
     },
-    promptPresets,
-    promptTemplates: summary.promptTemplates,
     providers,
     workflows,
     categories: summary.categories,

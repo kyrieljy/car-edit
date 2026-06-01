@@ -1064,6 +1064,7 @@ export function CarModStudio() {
 
   const selectHistoryJob = (historyJob: GenerationJob) => {
     if (!isRenderableGeneration(historyJob)) return
+    vehicleRecognitionSeqRef.current += 1
     setJob(historyJob)
     setVehiclePreview(historyJob.sourceImageUrl)
     setVehicleNote(displayVehicleModelForHistory(historyJob, ""))
@@ -1077,6 +1078,7 @@ export function CarModStudio() {
   }
 
   const clearCurrentConfig = () => {
+    vehicleRecognitionSeqRef.current += 1
     setVehicleFile(null)
     setVehiclePreview("")
     setVehicleNote("")
@@ -1124,6 +1126,7 @@ export function CarModStudio() {
   }
 
   const logout = async () => {
+    vehicleRecognitionSeqRef.current += 1
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined)
     setAuthUser(null)
     setBilling(null)

@@ -1,5 +1,3 @@
-@import "@xyflow/react/dist/style.css";
-
 :root {
   color-scheme: dark;
   --bg: #000000;
@@ -6731,9 +6729,9 @@ a {
 
 .chat-result-card {
   margin-top: 12px;
-  overflow: hidden;
-  border-radius: 14px;
-  background: #050506;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
 }
 
 .chat-result-card img {
@@ -6747,7 +6745,7 @@ a {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  padding: 10px;
+  padding: 10px 0 0;
 }
 
 .chat-result-card button,
@@ -6764,6 +6762,16 @@ a {
   padding: 0 12px;
   font-size: 13px;
   font-weight: 750;
+}
+
+.chat-result-card .chat-result-image-button {
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .chat-composer-wrap {
@@ -16695,8 +16703,66 @@ a {
     overflow: hidden;
   }
 
+  .mobile-chat-shell .chat-workspace::before,
+  .mobile-chat-shell .chat-workspace::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 7;
+    pointer-events: none;
+  }
+
+  .mobile-chat-shell .chat-workspace::before {
+    top: 0;
+    height: calc(env(safe-area-inset-top, 0px) + 184px);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--m-canvas) 86%, transparent) 0%,
+        color-mix(in srgb, var(--m-canvas) 64%, transparent) 44%,
+        color-mix(in srgb, var(--m-canvas) 26%, transparent) 76%,
+        transparent 100%
+      );
+  }
+
+  .mobile-chat-shell .chat-workspace::after {
+    bottom: 0;
+    height: calc(env(safe-area-inset-bottom, 0px) + 174px);
+    background:
+      linear-gradient(
+        0deg,
+        var(--m-canvas) 0%,
+        color-mix(in srgb, var(--m-canvas) 86%, transparent) 38%,
+        color-mix(in srgb, var(--m-canvas) 44%, transparent) 74%,
+        transparent 100%
+      );
+  }
+
   .mobile-studio-app[data-theme="light"] .mobile-chat-shell .chat-workspace {
     background: transparent;
+  }
+
+  .mobile-studio-app[data-theme="light"] .mobile-chat-shell .chat-workspace::before {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 255, 255, 0.66) 46%,
+        rgba(255, 255, 255, 0.28) 78%,
+        transparent 100%
+      );
+  }
+
+  .mobile-studio-app[data-theme="light"] .mobile-chat-shell .chat-workspace::after {
+    background:
+      linear-gradient(
+        0deg,
+        #fff 0%,
+        rgba(255, 255, 255, 0.86) 38%,
+        rgba(255, 255, 255, 0.42) 74%,
+        transparent 100%
+      );
   }
 
   .mobile-chat-shell .chat-bg {
@@ -16718,13 +16784,19 @@ a {
   }
 
   .mobile-chat-shell .chat-thread {
+    position: relative;
+    z-index: 1;
     flex: 1;
     min-width: 0;
     min-height: 0;
-    margin-bottom: 194px;
-    padding: 64px 12px 18px;
+    margin-bottom: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 178px) 12px calc(env(safe-area-inset-bottom, 0px) + 136px);
     overflow-y: auto;
     overflow-x: hidden;
+  }
+
+  .mobile-chat-shell .chat-workspace[data-mobile-has-uploads="true"] .chat-thread {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 186px);
   }
 
   .mobile-chat-shell .chat-empty {
@@ -16997,6 +17069,34 @@ a {
     overflow: hidden;
   }
 
+  .mobile-chat-shell .chat-result-card {
+    background: transparent;
+    margin-top: 10px;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .mobile-chat-shell .chat-result-image-button {
+    width: 100%;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+
+  .mobile-chat-shell .chat-result-card div {
+    padding: 10px 0 0;
+    background: transparent;
+  }
+
+  .mobile-chat-shell .chat-result-image-button img {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
   .mobile-chat-shell .message-body p,
   .mobile-chat-shell .message-body small {
     max-width: 100%;
@@ -17007,8 +17107,8 @@ a {
   .mobile-chat-shell .chat-composer-wrap {
     position: absolute;
     z-index: 9;
-    left: 10px;
-    right: 10px;
+    left: 18px;
+    right: 18px;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
     width: auto;
     padding: 0;
@@ -17021,67 +17121,157 @@ a {
     z-index: -1;
     left: -12px;
     right: -12px;
-    top: -28px;
+    top: -34px;
     bottom: -14px;
     background:
       linear-gradient(180deg, rgba(5, 6, 7, 0), color-mix(in srgb, var(--m-canvas) 88%, transparent) 28%, var(--m-canvas) 100%);
     pointer-events: none;
   }
 
+  .mobile-chat-shell .chat-mobile-upload-preview-row {
+    width: calc(100% - 22px);
+    min-height: 42px;
+    margin: 0 auto 8px;
+    padding: 0 2px 2px;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .mobile-chat-shell .chat-mobile-upload-preview-row .chat-upload-chip.preview-only.with-remove,
+  .mobile-chat-shell .chat-mobile-upload-preview-row .chat-part-chip.has-preview {
+    height: 42px;
+    min-height: 42px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--m-raised) 94%, transparent);
+    border-color: var(--m-border);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.14);
+  }
+
+  .mobile-chat-shell .chat-mobile-upload-preview-row .chat-preview-thumb-button,
+  .mobile-chat-shell .chat-mobile-upload-preview-row .chat-part-preview-button {
+    width: 48px !important;
+    min-width: 48px;
+    height: 34px !important;
+  }
+
+  .mobile-chat-shell .chat-mobile-upload-preview-row img {
+    object-fit: cover;
+  }
+
   .mobile-chat-shell .chat-composer {
-    min-height: 138px;
+    min-height: 54px;
     border: 1px solid var(--m-border);
-    border-radius: 28px;
+    border-radius: 999px;
     background: color-mix(in srgb, var(--m-raised) 94%, transparent);
     box-shadow: var(--m-shadow);
-    padding: 0;
+    padding: 6px;
     display: grid;
-    grid-template-rows: minmax(86px, auto) auto;
-    overflow: hidden;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    align-items: end;
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .mobile-chat-shell .chat-composer[data-mobile-expanded="true"] {
+    border-radius: 28px;
+    padding: 10px 8px;
+    align-items: end;
   }
 
   .mobile-chat-shell .chat-composer textarea {
-    min-height: 86px;
+    min-height: 42px;
     max-height: 112px;
-    padding: 18px 22px 0;
+    align-self: center;
+    padding: 10px 4px;
     color: var(--m-text);
-    font-size: 15px;
-  }
-
-  .mobile-chat-shell .chat-composer-footer {
-    min-width: 0;
-    gap: 6px;
-    margin: 0 22px;
-    padding: 7px 0 8px;
-  }
-
-  .mobile-chat-shell .chat-uploads-row {
-    min-width: 0;
-    overflow-x: auto;
+    font-size: 16px;
+    line-height: 20px;
     overflow-y: hidden;
-    flex: 1 1 auto;
-    padding-bottom: 2px;
   }
 
-  .mobile-chat-shell .chat-upload-chip,
-  .mobile-chat-shell .chat-part-chip {
-    flex: 0 0 auto;
-    min-height: 36px;
-    min-width: 42px;
-    max-width: 140px;
+  .mobile-chat-shell .chat-composer[data-mobile-expanded="true"] textarea {
+    align-self: start;
+    padding-top: 4px;
+    padding-bottom: 4px;
   }
 
-  .mobile-chat-shell .vehicle-upload-chip,
-  .mobile-chat-shell .part-upload-chip {
-    width: 38px;
-    max-width: 38px;
-    justify-content: center;
+  .mobile-chat-shell .chat-composer textarea::placeholder {
+    color: var(--m-muted);
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-wrap {
+    position: relative;
+    align-self: end;
+    width: 42px;
+    height: 42px;
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-trigger,
+  .mobile-chat-shell .chat-mobile-send-button {
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
     padding: 0;
   }
 
-  .mobile-chat-shell .vehicle-upload-label,
-  .mobile-chat-shell .part-upload-label {
-    display: none;
+  .mobile-chat-shell .chat-mobile-attach-trigger {
+    background: transparent;
+    color: var(--m-text);
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-trigger.open {
+    background: color-mix(in srgb, var(--m-text) 8%, transparent);
+  }
+
+  .mobile-chat-shell .chat-mobile-send-button {
+    align-self: end;
+    background: #070708;
+    color: #fff;
+  }
+
+  .mobile-chat-shell .chat-mobile-send-button.cancel {
+    background: rgba(127, 29, 29, 0.86);
+    color: #fecaca;
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-menu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 10px);
+    z-index: 12;
+    width: max-content;
+    max-width: calc(100vw - 52px);
+    border: 1px solid var(--m-border);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--m-raised) 98%, transparent);
+    box-shadow: var(--m-shadow);
+    padding: 8px;
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-menu button {
+    width: 100%;
+    min-height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--m-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .mobile-chat-shell .chat-mobile-attach-menu button:active,
+  .mobile-chat-shell .chat-mobile-attach-menu button:hover {
+    background: color-mix(in srgb, var(--m-text) 8%, transparent);
   }
 
   .mobile-chat-shell .chat-composer-tools-row {
@@ -17135,11 +17325,9 @@ a {
     top: 0;
     bottom: 0;
     width: min(84vw, 330px);
-    padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px calc(env(safe-area-inset-bottom, 0px) + 10px);
-    background:
-      radial-gradient(circle at 18% 0%, rgba(103, 255, 202, 0.14), transparent 36%),
-      color-mix(in srgb, var(--m-canvas) 88%, var(--m-panel));
-    box-shadow: 18px 0 46px rgba(0, 0, 0, 0.34);
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 calc(env(safe-area-inset-bottom, 0px) + 10px) 10px;
+    background: transparent;
+    box-shadow: none;
     backface-visibility: hidden;
     transform: translateZ(0);
     will-change: transform;
@@ -18740,6 +18928,88 @@ a {
     .mobile-mode-frame,
     .mobile-screen {
       min-height: 100dvh !important;
+    }
+  }
+
+  html:has(.mobile-studio-app[data-mode="chat"][data-overlay-open="false"]),
+  body:has(.mobile-studio-app[data-mode="chat"][data-overlay-open="false"]) {
+    width: 100% !important;
+    height: 100svh !important;
+    min-height: 100svh !important;
+    max-height: 100svh !important;
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] {
+    width: 100% !important;
+    height: 100svh !important;
+    min-height: 0 !important;
+    max-height: 100svh !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-studio-phone,
+  .mobile-studio-app[data-mode="chat"] .mobile-mode-frame,
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-screen {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-screen {
+    padding: 0 !important;
+    gap: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-screen .mobile-shared-mode-spacer {
+    flex: 0 0 0 !important;
+    width: 100% !important;
+    height: 0 !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"][data-access-banner="visible"] .mobile-chat-screen .mobile-shared-mode-spacer {
+    flex-basis: 0 !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-shell {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-shell .chat-mode-shell,
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-shell .chat-workspace {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-studio-app[data-mode="chat"] .mobile-chat-shell .chat-thread {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @supports (height: 100dvh) {
+    html:has(.mobile-studio-app[data-mode="chat"][data-overlay-open="false"]),
+    body:has(.mobile-studio-app[data-mode="chat"][data-overlay-open="false"]) {
+      height: 100dvh !important;
+      min-height: 100dvh !important;
+      max-height: 100dvh !important;
+    }
+
+    .mobile-studio-app[data-mode="chat"] {
+      height: 100dvh !important;
+      max-height: 100dvh !important;
     }
   }
 }

@@ -24,6 +24,13 @@ artifacts/
 # local browser automation profiles
 .edge-chatgpt-batch/
 
+# archived prototype and prompt-regression test assets
+prototypes/**/renders/*.mp4
+prototypes/**/assets/
+docs/batch-inputs/
+docs/batch-results/
+docs/chatgpt-web-stability-*/results/
+
 # env files
 .env*
 

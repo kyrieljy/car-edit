@@ -10,8 +10,6 @@ export const projectConfigTables = [
   "asset_brands",
   "part_assets",
   "part_asset_references",
-  "prompt_presets",
-  "prompt_templates",
   "provider_configs",
   "workflow_configs",
   "guardrail_configs",
@@ -106,26 +104,6 @@ export function stableStringify(value) {
 export function exportProjectConfig(dbPath = defaultDbPath()) {
   const db = openReadonlyProjectDb(dbPath)
   try {
-    const promptPresets = rows(db, "SELECT id, title, version, body, negative_prompt, active, created_at FROM prompt_presets ORDER BY id").map((row) => ({
-      id: text(row.id),
-      title: text(row.title),
-      version: text(row.version),
-      body: text(row.body),
-      negativePrompt: text(row.negative_prompt),
-      active: bool(row.active),
-      createdAt: number(row.created_at),
-    }))
-    const promptTemplates = rows(db, "SELECT id, scope, title, body, asset_id, combination_key, active, sort_order, updated_at FROM prompt_templates ORDER BY scope, sort_order, id").map((row) => ({
-      id: text(row.id),
-      scope: text(row.scope),
-      title: text(row.title),
-      body: text(row.body),
-      assetId: text(row.asset_id),
-      combinationKey: text(row.combination_key),
-      active: bool(row.active),
-      sortOrder: number(row.sort_order),
-      updatedAt: number(row.updated_at),
-    }))
     const providers = rows(db, "SELECT id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, updated_at FROM provider_configs ORDER BY id").map((row) => ({
       id: text(row.id),
       label: text(row.label),
@@ -240,13 +218,9 @@ export function exportProjectConfig(dbPath = defaultDbPath()) {
         dbPath: path.relative(repoRoot(), dbPath).replace(/\\/g, "/"),
       },
       active: {
-        promptPresetId: promptPresets.find((item) => item.active)?.id ?? "",
-        promptPresetVersion: promptPresets.find((item) => item.active)?.version ?? "",
         providerId: providers.find((item) => item.active)?.id ?? "",
         workflows: Object.fromEntries(workflows.filter((item) => item.enabled).map((item) => [item.mode, item.id])),
       },
-      promptPresets,
-      promptTemplates,
       providers,
       workflows,
       categories,
@@ -274,8 +248,11 @@ export function validateProjectConfig(config) {
   if (secretPaths.length) {
     errors.push(`secret-bearing fields are not allowed: ${secretPaths.join(", ")}`)
   }
-  for (const key of ["promptPresets", "promptTemplates", "providers", "workflows", "categories", "brands", "assets", "references", "guardrails", "membershipPlans"]) {
+  for (const key of ["providers", "workflows", "categories", "brands", "assets", "references", "guardrails", "membershipPlans"]) {
     if (!Array.isArray(config[key])) errors.push(`${key} must be an array`)
+  }
+  for (const key of ["promptPresets", "promptTemplates"]) {
+    if (key in config) warnings.push(`${key} is ignored; runtime prompts are managed from Git seed`)
   }
   const providerIds = new Set((config.providers ?? []).map((item) => item.id))
   for (const workflow of config.workflows ?? []) {
