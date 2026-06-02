@@ -48,6 +48,23 @@ import type {
 
 const DB_PATH = path.join(process.cwd(), "data", "car_mod_effect.sqlite")
 const DEMO_USER_ID = "demo-user"
+const DEFAULT_ADMIN_PASSWORD = "Admin@1234"
+const SEEDED_ADMINS = [
+  {
+    id: "admin",
+    username: "admin",
+    phone: "+8618928268686",
+    name: "Admin",
+    email: "admin@local",
+  },
+  {
+    id: "admin-16698604646",
+    username: "admin_16698604646",
+    phone: "+8616698604646",
+    name: "Admin 16698604646",
+    email: "admin-16698604646@local",
+  },
+]
 const systemCategoryIds = new Set(categoriesSeed.map((item) => item.id))
 const systemBrandIds = new Set(brandsSeed.map((item) => item.id))
 const systemAssetIds = new Set(assetsSeed.map((item) => item.id))
@@ -625,18 +642,7 @@ function seed(conn: DatabaseSync) {
     "free",
     now,
   )
-  conn.prepare("INSERT OR IGNORE INTO users (id, username, phone, password_hash, name, email, role, plan, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
-    "admin",
-    "admin",
-    "+8618928268686",
-    passwordHash("Admin@1234"),
-    "Admin",
-    "admin@local",
-    "admin",
-    "internal",
-    now,
-  )
-  conn.prepare("UPDATE users SET username = CASE WHEN username = '' THEN 'admin' ELSE username END, phone = CASE WHEN phone = '' THEN '+8618928268686' ELSE phone END, password_hash = CASE WHEN password_hash = '' THEN ? ELSE password_hash END WHERE id = 'admin'").run(passwordHash("Admin@1234"))
+  SEEDED_ADMINS.forEach((admin) => seedAdminUser(conn, admin, now))
   conn.prepare("UPDATE users SET username = CASE WHEN username = '' THEN 'demo' ELSE username END, phone = CASE WHEN phone = '' THEN '+8613800000000' ELSE phone END, password_hash = CASE WHEN password_hash = '' THEN ? ELSE password_hash END, plan = CASE WHEN plan = 'prototype' THEN 'free' ELSE plan END WHERE id = ?").run(passwordHash("Demo@1234"), DEMO_USER_ID)
 
   seedAvatarPresets(conn, now)
@@ -777,6 +783,33 @@ function seed(conn: DatabaseSync) {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(promptSeed.id, promptSeed.title, promptSeed.version, promptSeed.body, promptSeed.negativePrompt, 1, now)
   seedPromptTemplatesV1(conn, now)
+}
+
+function seedAdminUser(conn: DatabaseSync, admin: (typeof SEEDED_ADMINS)[number], now: number) {
+  const adminPasswordHash = passwordHash(DEFAULT_ADMIN_PASSWORD)
+  const existingByPhone = conn.prepare("SELECT id FROM users WHERE phone = ? LIMIT 1").get(admin.phone) as Row | undefined
+
+  if (!existingByPhone) {
+    conn.prepare("INSERT OR IGNORE INTO users (id, username, phone, password_hash, name, email, role, plan, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+      admin.id,
+      admin.username,
+      admin.phone,
+      adminPasswordHash,
+      admin.name,
+      admin.email,
+      "admin",
+      "internal",
+      "active",
+      now,
+    )
+  }
+
+  const targetId = String(existingByPhone?.id || admin.id)
+  conn
+    .prepare(
+      "UPDATE users SET username = CASE WHEN username = '' THEN ? ELSE username END, phone = CASE WHEN phone = '' THEN ? ELSE phone END, password_hash = CASE WHEN password_hash = '' THEN ? ELSE password_hash END, name = CASE WHEN name = '' THEN ? ELSE name END, email = CASE WHEN email = '' THEN ? ELSE email END, role = 'admin', plan = 'internal', status = 'active', updated_at = ? WHERE id = ?",
+    )
+    .run(admin.username, admin.phone, adminPasswordHash, admin.name, admin.email, now, targetId)
 }
 
 function seedAvatarPresets(conn: DatabaseSync, now: number) {

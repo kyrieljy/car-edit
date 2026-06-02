@@ -178,7 +178,7 @@ export function AdminConsole() {
           <div className="clinical-login-copy">
             <span className="clinical-label">管理员控制台</span>
             <h1>改装效果管理后台</h1>
-            <p>管理员登录需要账号密码和手机号验证码。默认管理员手机号：+86 18928268686。</p>
+            <p>管理员登录需要账号密码和手机号验证码。默认管理员手机号：+86 18928268686 / +86 16698604646。</p>
           </div>
           <label className="clinical-field">
             <span>账号</span>
