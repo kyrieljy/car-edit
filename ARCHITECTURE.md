@@ -1,17 +1,17 @@
 # ARCHITECTURE
 
-Last updated: 2026-05-30 Asia/Shanghai
+Last updated: 2026-06-01 Asia/Shanghai
 
-This is the current architecture map. It is intentionally compact. Use `PROJECT_CONTEXT.md` for the handoff narrative and `TODO.md` for the active queue.
+Compact architecture map. Use `PROJECT_CONTEXT.md` for current state and `TODO.md` for active work.
 
 ## App Shape
 
-- `/`: user app. Desktop and mobile are selected by viewport in the shared controller.
+- `/`: user app. `components/car-mod-studio.tsx` owns shared state and chooses desktop or mobile UI by viewport.
 - `/admin`: internal admin console.
-- `/api/*`: local prototype APIs for auth, billing, account messages, catalog, chat, generations, garage, proxy/download image, recognition, and admin data.
-- Runtime storage is local SQLite plus local files under project/public upload and result paths.
+- `/api/*`: prototype APIs for auth, billing, catalog, chat, generations, garage/history, image proxy/download, recognition, and admin data.
+- Runtime storage: local SQLite plus files served from app upload/result paths.
 
-Key files:
+Core files:
 
 ```text
 components/car-mod-studio.tsx
@@ -22,55 +22,52 @@ components/workflow-designer.tsx
 app/globals.css
 lib/types.ts
 lib/server/db.ts
+lib/server/generation-engine.ts
 lib/server/generation-provider.ts
 lib/server/image-materializer.ts
 lib/server/image-assets.ts
 lib/client/image-download.ts
 ```
 
-## State Ownership
+## State And UI Ownership
 
-`components/car-mod-studio.tsx` is the shared controller. It owns the main user-facing state for catalog/auth/billing/upload/recognition/selection/generation/chat and renders desktop or `MobileStudioApp`.
+- `car-mod-studio.tsx`: shared user-facing state for catalog, auth, billing, upload, recognition, selection, generation, and chat.
+- `mobile-studio-app.tsx`: mobile shell, top bar, mode switch, Config/Chat composition, profile/auth/subscription surfaces, and mobile drawers.
+- `chat-mode.tsx`: Chat session/history/message/composer UI. Desktop sidebar and mobile Chat drawer share logic, but mobile-specific rendering should be guarded by `mobileVariant` / drawer state.
+- `admin-console.tsx` and `workflow-designer.tsx`: internal admin/provider/workflow/catalog/billing/usage/failure tooling.
+- `app/globals.css`: large global stylesheet with late mobile overrides; inspect selectors before editing.
 
-`components/mobile/mobile-studio-app.tsx` owns mobile-specific layout and interactions: top bar, mode switch, mobile Config/Chat composition, sheets/drawers, history, profile/auth surfaces, and mobile-only gesture behavior.
+## Generation And Prompt Flow
 
-`components/chat-mode.tsx` owns desktop Chat UI and much of the shared chat rendering behavior. Mobile Chat consumes the same server session/history concepts through its own shell.
+`GenerationStandardJson` is the shared Config/Chat generation contract.
 
-`components/admin-console.tsx` and `components/workflow-designer.tsx` own the internal admin console, provider/workflow configuration, usage/failure/bad-case/user/profile/audit style pages.
+Invariants:
 
-`app/globals.css` is large and contains late mobile overrides. Always `rg` selectors before editing CSS and prefer targeted changes.
+- First image is the vehicle canvas; later images are references.
+- Selected parts only; preserve unselected vehicle details.
+- Preserve source vehicle identity, camera angle, lighting, background, wheels, glass, lights, plate shape, and unselected parts unless explicitly changed.
+- Auto-recognized vehicle model is display metadata only unless the user edits it.
+- Real provider failures are surfaced honestly.
 
-## Generation And Provider Flow
+Prompt text:
 
-`GenerationStandardJson` is the central contract for Config and Chat.
+- Runtime active prompt comes from `lib/catalog.ts` seed.
+- `config/prompt-packs` validates seed content.
+- SQLite prompt tables remain for compatibility but are not runtime authority.
 
-Core invariants:
+Provider execution lives mainly in `lib/server/generation-engine.ts` and `lib/server/generation-provider.ts`. Provider/workflow rows may be overridden in SQLite, but defaults belong in code.
 
-- the first vehicle image is the canvas
-- later images are reference-only
-- selected parts only
-- preserve source vehicle identity, camera angle, lighting, background, unselected parts, wheels, glass, lights, and plate shape unless explicitly selected
-- real provider failures must be surfaced honestly
-- mock/original/demo images must not be shown as successful provider output
+## Image Storage
 
-Provider execution lives mainly in `lib/server/generation-provider.ts`.
+New durable outputs should be app-local/proxied paths:
 
-Current provider defaults are expected from code seeds, with runtime overrides in SQLite:
+```text
+/uploads/...
+/uploads/chat/...
+/results/...
+```
 
-- 302 Nano Banana 2 for image edit/generation
-- 302 GPT Image 2 for image edit/generation
-- GPT-5.4 mini style provider for recognition/LLM
-- Qwen 3.6 style provider where applicable
-
-Workflows should default to GPT-5.4 mini style recognition/LLM steps and Nano Banana 2 image generation steps.
-
-## Image Storage And Display
-
-The current target architecture is app-origin image display and download.
-
-Provider images should be materialized locally by server code before being used as durable history/result values. External provider URLs such as `file.302.ai` may be temporary fetch sources, but should not be the durable saved output for new records.
-
-Relevant routes and helpers:
+Relevant helpers/routes:
 
 ```text
 lib/server/image-materializer.ts
@@ -83,82 +80,21 @@ app/uploads/chat/[fileName]/route.ts
 app/results/[fileName]/route.ts
 ```
 
-Important behavior:
+Raw provider URLs may be temporary fetch sources, but should not be saved as new durable history/chat output.
 
-- uploads and generated results should be readable from the app server
-- downloads should use app-origin blob/download helpers instead of navigating to provider URLs
-- compare image saving must avoid tainted canvas inputs
-- old `file.302` records can only be migrated if the server can still fetch the remote URL
+## Runtime Config
 
-## Runtime Config Boundaries
+Code owns defaults and behavior. SQLite owns environment-specific runtime state, including provider keys, users, sessions, billing, uploads, generations, chat records, and admin overrides.
 
-SQLite is runtime state, not source code.
-
-Use code for:
-
-- seed provider definitions
-- default workflows
-- default prompt/catalog/billing/guardrail baselines
-- UI and API behavior
-
-Use SQLite for:
-
-- provider API keys
-- admin-edited provider/workflow/prompt/catalog settings
-- users, sessions, orders, quota, account messages
-- uploads, generation records, chat sessions, audit/failure logs
-
-Do not commit the local SQLite DB as a substitute for seed code. API keys are encrypted with environment secrets and are not portable unless the same secret is used.
-
-## Auth And Billing
-
-Frontend helper: `lib/account-client.ts`
-
-Server helper: `lib/server/db.ts`
-
-Implemented prototype features:
-
-- local login/register/session
-- mock SMS code
-- mock WeChat login
-- profile/password/phone update
-- local billing status and mock checkout
-- account messages
-
-Still not production:
-
-- real SMS
-- real WeChat OAuth
-- password reset
-- real payment providers and webhooks
-- refunds, idempotency, subscription sync, risk controls, audit hardening
-
-## Admin Console
-
-Admin is an internal console, not a full production operations product yet.
-
-Current areas include:
-
-- data/catalog/provider/workflow/prompt/guardrail/billing/usage
-- bad case and failure-oriented views
-- user management and user profile style analysis
-- audit logs
-
-Still needed before production:
-
-- user/order/quota/generation/failure/provider-cost operations workflows
-- safer editing constraints and clearer audit trails
-- production DB/storage integration
+Do not commit SQLite as a substitute for seed code. Provider keys are encrypted with environment secrets and may not decrypt in another environment.
 
 ## Verification Notes
 
-For code changes, run:
+For code changes:
 
 ```powershell
 npm.cmd run build
 npx.cmd tsc --noEmit
 ```
 
-Run them sequentially, not in parallel. `next build` can recreate `.next/types` while `tsc` is reading them.
-
-For real provider tests, ask first because credits may be charged even when the app fails to retrieve the final image.
+Run them sequentially because `next build` can recreate `.next/types` while `tsc` reads them. Real provider tests require explicit approval.

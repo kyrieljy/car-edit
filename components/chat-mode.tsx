@@ -3,7 +3,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { 
+import {
   ArrowDownToLine,
   ArrowUp,
   Car,
@@ -22,6 +22,8 @@ import {
   UserRound,
   X,
 } from "lucide-react"
+import { AccountAvatar } from "@/components/account-avatar"
+import { formatAccountQuota } from "@/lib/account-client"
 import { readProgressResponse } from "@/lib/progress-client"
 import { canvasSafeImageUrl, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import { IMAGE_UPLOAD_MAX_BYTES, IMAGE_UPLOAD_MAX_MB, MAX_CHAT_PART_IMAGES, isAllowedImageMimeType } from "@/lib/upload-limits"
@@ -33,6 +35,7 @@ type MobileAccessKind = "login" | "config_quota" | "chat_quota" | null
 type ChatModeProps = {
   language: Language
   authUser?: AuthUser | null
+  billing?: EntitlementStatus | null
   onAuthRequired?: () => void
   onSubscribeRequired?: (billing?: EntitlementStatus) => void
   onBillingChanged?: (billing: EntitlementStatus) => void
@@ -83,8 +86,8 @@ const chatCopy = {
     partsOnlyRequest: "Uploaded part references",
     regenerate: "Regenerate",
     download: "Download",
-    assistant: "AI Assistant",
-    workspace: "Prototype workspace",
+    assistant: "ModCar AI",
+    workspace: "Remaining quota",
     promptLabel: "Prompt examples",
     promptEmpty: "No prompt examples configured.",
     emptyHistory: "No chats yet.",
@@ -124,8 +127,8 @@ const chatCopy = {
     partsOnlyRequest: "\u5df2\u4e0a\u4f20\u914d\u4ef6\u53c2\u8003\u56fe",
     regenerate: "\u91cd\u65b0\u751f\u6210",
     download: "\u4e0b\u8f7d",
-    assistant: "AI \u52a9\u624b",
-    workspace: "\u539f\u578b\u5de5\u4f5c\u533a",
+    assistant: "ModCar AI",
+    workspace: "\u5269\u4f59\u989d\u5ea6",
     promptLabel: "\u63a8\u8350\u63d0\u793a\u8bcd",
     promptEmpty: "\u540e\u53f0\u5c1a\u672a\u914d\u7f6e\u63d0\u793a\u8bcd\u3002",
     emptyHistory: "\u6682\u65e0\u5bf9\u8bdd\u3002",
@@ -326,6 +329,7 @@ function MobileChatLightOrb() {
 export function ChatMode({
   language,
   authUser,
+  billing,
   onAuthRequired,
   onSubscribeRequired,
   onBillingChanged,
@@ -1051,6 +1055,8 @@ export function ChatMode({
     <section className="chat-mode-shell">
       <ChatHistorySidebar
         t={t}
+        authUser={authUser}
+        billing={billing}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
         mobileOpen={mobileSidebarOpen}
@@ -1071,7 +1077,7 @@ export function ChatMode({
         {!hideMobileMenu && (
           <button className="chat-mobile-menu" onClick={() => setMobileSidebarOpen(true)} aria-label="Open chat history">
             <Menu size={18} />
-            {mobileVariant && <span>AI Mod Studio</span>}
+            {mobileVariant && <span>{t.assistant}</span>}
           </button>
         )}
 
@@ -1530,6 +1536,8 @@ function LoadingBubble({ text }: { text: string }) {
 
 function ChatHistorySidebar({
   t,
+  authUser,
+  billing,
   collapsed,
   setCollapsed,
   mobileOpen,
@@ -1545,6 +1553,8 @@ function ChatHistorySidebar({
   onDelete,
 }: {
   t: ChatCopy
+  authUser?: AuthUser | null
+  billing?: EntitlementStatus | null
   collapsed: boolean
   setCollapsed: (value: boolean) => void
   mobileOpen: boolean
@@ -1561,6 +1571,16 @@ function ChatHistorySidebar({
 }) {
   const isMobileDrawer = mobileOpen
   const effectiveCollapsed = isMobileDrawer ? false : collapsed
+  const isZh = t.workspace === "剩余额度"
+  const userDisplayName = authUser ? authUser.name || authUser.username || t.assistant : t.assistant
+  const remainingText =
+    authUser && billing
+      ? `${t.workspace}${isZh ? "：" : ": "}${formatAccountQuota(billing.chatRemainingToday, isZh ? "不限" : "Unlimited")}`
+      : authUser
+        ? `${t.workspace}${isZh ? "：" : ": "}--`
+        : isZh
+          ? "登录后查看剩余额度"
+          : "Sign in to view quota"
 
   useEffect(() => {
     if (mobileOpen && query) setQuery("")
@@ -1624,10 +1644,10 @@ function ChatHistorySidebar({
               <ChatSection title={t.recent} icon={<Clock size={16} />} sessions={recent} activeSessionId={activeSessionId} onSelect={handleSelect} onPin={onPin} onDelete={onDelete} emptyText={t.emptyHistory} deleteLabel={t.deleteChat} />
             </div>
             <div className="chat-user-card">
-              <div>AM</div>
+              <AccountAvatar user={authUser} />
               <span>
-                <strong>AI Mod Studio</strong>
-                <small>{t.workspace}</small>
+                <strong>{userDisplayName}</strong>
+                <small>{remainingText}</small>
               </span>
             </div>
           </motion.div>

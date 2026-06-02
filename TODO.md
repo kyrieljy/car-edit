@@ -1,176 +1,96 @@
 # TODO
 
-Last updated: 2026-05-30 Asia/Shanghai
+Last updated: 2026-06-01 Asia/Shanghai
 
-This is the active task list for the next Codex window. It has been cleaned up from the older mobile-polish list. Start with `PROJECT_CONTEXT.md` before using this file.
+Short active queue. Start with `PROJECT_CONTEXT.md`; do not bulk-read `docs/` unless a linked topic is needed.
 
-## P0 - Yunwu Default Provider Verification
+## P0 - Deploy Latest Main To Test Server
 
-The current highest-priority issue is switching default image generation away from 302 to Yunwu on local and test-server environments.
+Latest pushed commit:
 
-1. Confirm deployment state on the test server:
-   - `cd /root/car-edit`
-   - `git log --oneline -5`
-   - Make sure the latest Yunwu-default commit is present.
-   - Run `npm run build`, then `pm2 restart car-edit --update-env`.
-2. Apply the existing SQLite workflow/provider switch:
-   - `npm run provider:yunwu-default`
-   - Save the Yunwu API key in `/admin` for `provider_yunwu_nano2_edit`; use the same key on `provider_yunwu_image_edit` only if Image2 fallback/manual testing is needed.
-3. Check the real runtime logs after one user-approved Yunwu test:
-   - `pm2 logs car-edit --lines 200`
-   - Confirm the provider is `provider_yunwu_nano2_edit` for default Nano2 tests.
-   - Confirm the result image is materialized to `/results/...`.
-4. If the problem remains, add temporary safe logging around the Yunwu image edit flow:
-   - provider id/label
-   - selected endpoint host only
-   - submit status
-   - image output field names found
-   - Never log API keys, request images, returned base64, full signed URLs, or user photos.
-5. Do not run repeated real provider tests without explicit user approval. Each failed submit may still charge credits.
+```text
+a3f3b2e Stabilize mobile mode switch position
+```
 
-## P0 - Image Persistence And History
+Deploy:
 
-The correct behavior is: provider images are materialized to app-local files, then displayed/downloaded through the app origin.
+```bash
+cd /root/car-edit
+git pull
+npm run build
+pm2 restart car-edit --update-env
+```
 
-Check these flows on local and test server:
+Expected smoke checks after deploy:
 
-1. Config Mode generation:
-   - generated image displays from app origin, not `file.302.ai`
-   - saved result can be downloaded without leaving the app route
-   - history thumbnail uses a local/proxied image path
-2. Chat Mode generation:
-   - uploaded vehicle and part images remain visible after reload
-   - generated result remains visible after reload
-   - continue/regenerate uses local materialized input images and does not fail with `Input image fetch failed before provider`
-3. Compare save:
-   - generated compare collage saves/downloads from app origin
-   - no `the operation is insecure` canvas error
-4. Existing old records:
-   - old `file.302` URLs may be unrecoverable if expired or unreachable
-   - do not treat expired old records as a new generation bug unless fresh records also fail
+- Mobile Chat mode switch does not shift when switching Config/Chat.
+- Mobile Chat page has no white edge lines.
+- Mobile Chat drawer stays above the top bar while closing.
+- Mobile Chat drawer has no search box and history items are shifted up.
+- Mobile Chat composer remains one line when empty; placeholder does not wrap.
+- `+` upload menu is not covered by validation notices.
+- Banner text has no extra glow/highlight block behind it.
+- User avatar is human icon; assistant avatar is car icon.
 
-Relevant files:
+## P0 - Guard Prompt And History Invariants
 
-- `lib/server/generation-provider.ts`
-- `lib/server/image-materializer.ts`
-- `lib/server/image-assets.ts`
-- `lib/client/image-download.ts`
-- `app/api/proxy-image/route.ts`
-- `app/api/download-image/route.ts`
-- `app/uploads/[fileName]/route.ts`
-- `app/results/[fileName]/route.ts`
+For any change touching prompt/history:
 
-## P1 - Mobile Test-Server QA
+- Runtime prompt source remains Git seed in `lib/catalog.ts`.
+- `config/prompt-packs` is validation evidence only.
+- Admin/config migration must not create, update, export, import, or apply prompt bodies.
+- Auto-recognized vehicle model must not enter `GenerationStandardJson.vehicle.model`.
+- History titles should use `displayVehicleModel` when available and never show internal ids such as `gen_...`.
 
-Re-test these on Android browser, iOS Safari, and PC mobile emulation after P0 is fixed.
+Useful checks:
 
-1. Android scroll/touch:
-   - page can drag/scroll in Config Mode and Chat Mode
-   - buttons do not show the browser blue tap background
-   - fixed top bar stays clickable and visually stable
-2. Chat history drawer:
-   - list items show thumbnails when images are available
-   - title uses recognized vehicle when available, not only `User uploaded...`
-   - opening a record with images is smooth enough on Android
-   - selected record restores visible chat content
-3. Config result panel:
-   - original/generated/compare image area is not blank
-   - recognized vehicle label is visible on mobile
-   - bottom action controls do not cover important image content
-4. Save/download:
-   - generated image save works in Config Mode
-   - generated image download works in Chat Mode
-   - compare collage save works
+```powershell
+npm.cmd run prompt:validate
+npm.cmd run build
+npx.cmd tsc --noEmit
+```
 
-## P1 - Admin Provider And Workflow QA
+Run `prompt:validate` only when prompt assets/templates are touched.
 
-1. Provider defaults:
-   - 302 Nano Banana 2 exists and is enabled by default
-   - 302 GPT Image 2 exists and is enabled by default
-   - GPT-5.4 mini style provider exists and is enabled by default
-   - Qwen 3.6 style provider exists and is enabled by default
-2. Workflow defaults:
-   - recognition/LLM steps default to GPT-5.4 mini style provider
-   - image generation steps default to Nano Banana 2
-3. Capability boundaries:
-   - image generation steps accept only image-capable providers
-   - vision recognition steps accept only vision-capable providers
-   - LLM steps accept only text/LLM-capable providers
-   - vector steps accept only embedding/vector-capable providers
-4. Runtime secrets:
-   - API keys must be saved per environment in admin
-   - SQLite from one machine should not be copied as a key source unless the same secret is used
-   - if provider key decrypt fails, check PM2 env before editing code
+## P1 - Image And Provider QA
 
-## P2 - Product Gaps Before Public Release
+Use existing records where possible:
 
-These are not needed to unblock the current 302 bug, but remain required before a serious public launch.
+- Generated images display from app-local/proxied paths.
+- Chat upload/result/continue flows preserve local image paths.
+- Download/export uses app-origin helpers and does not navigate to provider URLs.
+- Old raw provider URLs may be expired; do not treat unrecoverable historical records as current bugs.
 
-1. License plate:
-   - plate mask/cover
-   - plate preservation
-   - other-country plate styles
-2. Production auth:
-   - real SMS provider
-   - real WeChat OAuth
-   - password reset
-   - account bind/unbind
-   - session/rate-limit/risk controls
-   - security audit trail
-3. Production billing:
-   - WeChat Pay, Alipay, Stripe
-   - order state machine
-   - webhook verification
-   - idempotency
-   - refunds
-   - subscription/quota sync
-   - quota deduction audit
-4. Production storage:
-   - production DB
-   - object storage
-   - CDN
-   - backup/restore
-   - migrations and seed separation
-5. Operations console:
-   - user operations
-   - orders/payments
-   - quota adjustments and audit
-   - generation/failure records
-   - provider cost statistics
-   - bad-case review workflow
+Real provider tests require explicit approval. Before a paid test, confirm latest commit is deployed, provider key exists, and `APP_URL` / `PROVIDER_PUBLIC_BASE_URL` point to the test server.
+
+## P2 - Production Gaps
+
+Still prototype-only:
+
+- real SMS and WeChat OAuth
+- real payment/webhook/refund/idempotency
+- production DB/object storage/CDN/backups
+- production operations console for users/orders/quota/provider cost
+- stronger admin audit and runtime-config safety
 
 ## Verification Commands
 
-For docs-only changes:
+Docs only:
 
 ```powershell
 git diff --check
 git status --short
 ```
 
-For code changes, run in this order:
+Code:
 
 ```powershell
 npm.cmd run build
 npx.cmd tsc --noEmit
 ```
 
-Do not run build and `tsc` in parallel because `.next/types` can race.
-
-For chat logic changes:
+Chat logic:
 
 ```powershell
 node scripts\chat-mode-dry-run-tests.mjs
 ```
-
-For real provider tests, ask first because they spend credits.
-
-## Do Not Do
-
-- Do not reset SQLite without explicit approval.
-- Do not commit `data/car_mod_effect.sqlite` or any secret-bearing runtime DB.
-- Do not spend real provider credits without explicit approval.
-- Do not log API keys, base64 images, user photos, or full signed provider URLs.
-- Do not silently show mock/original/demo images as successful provider output.
-- Do not reintroduce raw external provider image URLs as the normal saved output.
-- Do not revert unrelated user changes.

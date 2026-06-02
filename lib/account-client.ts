@@ -1,4 +1,4 @@
-import type { AccountMessage, AuthUser, EntitlementStatus } from "@/lib/types"
+import type { AccountAvatarPreset, AccountMessage, AuthUser, EntitlementStatus } from "@/lib/types"
 
 export type AccountPayload = {
   user: AuthUser
@@ -13,13 +13,18 @@ async function readJsonResponse<T>(response: Response, fallback: string): Promis
   return body as T
 }
 
-export async function updateAccountProfile(input: { name: string; email: string }) {
+export async function updateAccountProfile(input: { name: string; email: string; avatarId?: string }) {
   const response = await fetch("/api/auth/me", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   })
   return readJsonResponse<AccountPayload>(response, "Profile update failed.")
+}
+
+export async function listAccountAvatarPresets() {
+  const response = await fetch("/api/account/avatar-presets")
+  return readJsonResponse<{ avatars: AccountAvatarPreset[] }>(response, "Avatar presets loading failed.")
 }
 
 export async function changeAccountPassword(input: { currentPassword: string; nextPassword: string }) {
@@ -37,7 +42,7 @@ export async function sendPhoneChangeCode(phone: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, purpose: "change_phone" }),
   })
-  return readJsonResponse<{ ok: boolean; mockCode?: string; expiresAt?: number }>(response, "Code sending failed.")
+  return readJsonResponse<{ ok: boolean; devCode?: string; expiresAt?: number }>(response, "Code sending failed.")
 }
 
 export async function changeAccountPhone(input: { phone: string; code: string }) {
@@ -74,7 +79,7 @@ export function formatAccountQuota(value: number | "unlimited" | undefined, unli
   return value === "unlimited" ? unlimitedText : String(value)
 }
 
-export function accountInitials(user: AuthUser | null | undefined, fallback = "AM") {
+export function accountInitials(user: AuthUser | null | undefined, fallback = "MC") {
   const source = user?.name || user?.username || fallback
   return (source.trim().slice(0, 2) || fallback).toUpperCase()
 }

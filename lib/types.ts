@@ -424,15 +424,33 @@ export type UserRole = "user" | "admin"
 
 export type MembershipPlanId = "free" | "pro" | "max"
 
+export type UserStatus = "active" | "disabled"
+
+export type AccountAvatarPreset = {
+  id: string
+  label: string
+  imageUrl: string
+  active: boolean
+  sortOrder: number
+  builtIn: boolean
+  createdAt: number
+  updatedAt: number
+}
+
 export type AuthUser = {
   id: string
   username: string
   name: string
   email: string
   phone: string
+  avatarId: string
+  avatarUrl: string
   role: UserRole
   plan: MembershipPlanId | "internal" | "prototype"
+  status: UserStatus
   createdAt: number
+  lastLoginAt: number
+  updatedAt: number
 }
 
 export type MembershipPlan = {
@@ -546,6 +564,21 @@ export type AdminBehaviorEvent = {
   createdAt: number
 }
 
+export type AdminSmsRecord = {
+  id: string
+  phone: string
+  purpose: string
+  provider: string
+  status: string
+  requestId: string
+  errorMessage: string
+  attemptCount: number
+  createdAt: number
+  sentAt: number
+  consumedAt: number
+  expiresAt: number
+}
+
 export type AdminUserProfile = {
   userId: string
   userLabel: string
@@ -604,6 +637,7 @@ export type AdminSummary = {
   providers: ProviderConfig[]
   prompts: PromptPreset[]
   promptTemplates: PromptTemplate[]
+  avatarPresets: AccountAvatarPreset[]
   workflows: WorkflowConfig[]
   guardrailConfig: GuardrailConfig
   chatSessions: ChatSession[]
@@ -614,6 +648,7 @@ export type AdminSummary = {
   providerCosts: AdminProviderCostStat[]
   generationFailures: AdminGenerationFailure[]
   behaviorEvents: AdminBehaviorEvent[]
+  smsRecords: AdminSmsRecord[]
   userProfiles: AdminUserProfile[]
   users: Array<{
     id: string
@@ -623,11 +658,14 @@ export type AdminSummary = {
     phone: string
     role: string
     plan: string
+    status: UserStatus
     configUsed: number
     chatUsedToday: number
     configRemaining: number | "unlimited"
     chatRemainingToday: number | "unlimited"
     createdAt: number
+    lastLoginAt: number
+    updatedAt: number
   }>
   generations: GenerationJob[]
   usage: Array<{

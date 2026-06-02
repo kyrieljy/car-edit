@@ -17,6 +17,7 @@ export async function PATCH(request: Request) {
     const nextUser = updateUserProfile(user.id, {
       name: String(body.name || ""),
       email: String(body.email || ""),
+      avatarId: typeof body.avatarId === "string" ? body.avatarId : undefined,
     })
     return NextResponse.json({ user: nextUser, billing: getBillingStatus(nextUser.id) })
   } catch (error) {

@@ -1,13 +1,15 @@
 import { mkdirSync } from "node:fs"
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
+import { DEFAULT_AVATAR_ID, SEEDED_AVATAR_PRESETS, normalizeAvatarPresetId } from "../avatar-presets"
 import { assetsSeed, brandsSeed, categoriesSeed, guardrailSeed, paintsSeed, promptSeed, promptTemplateSeed, providerSeed, workflowSeed } from "../catalog"
 import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory } from "../part-category-aliases"
 import type {
   AdminSummary,
   AccountMessage,
   AccountMessageKind,
+  AccountAvatarPreset,
   AuditLog,
   AuthUser,
   CatalogResponse,
@@ -78,9 +80,24 @@ function initSchema(conn: DatabaseSync) {
       password_hash TEXT NOT NULL DEFAULT '',
       name TEXT NOT NULL,
       email TEXT NOT NULL,
+      avatar_id TEXT NOT NULL DEFAULT 'person_default',
       role TEXT NOT NULL,
       plan TEXT NOT NULL DEFAULT 'prototype',
+      status TEXT NOT NULL DEFAULT 'active',
+      last_login_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS avatar_presets (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      built_in INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS asset_categories (
@@ -283,6 +300,16 @@ function initSchema(conn: DatabaseSync) {
       phone TEXT NOT NULL,
       purpose TEXT NOT NULL,
       code TEXT NOT NULL,
+      code_hash TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT 'mock',
+      status TEXT NOT NULL DEFAULT 'pending',
+      request_id TEXT NOT NULL DEFAULT '',
+      error_message TEXT NOT NULL DEFAULT '',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      ip_hash TEXT NOT NULL DEFAULT '',
+      user_agent_hash TEXT NOT NULL DEFAULT '',
+      sent_at INTEGER NOT NULL DEFAULT 0,
+      failed_at INTEGER NOT NULL DEFAULT 0,
       expires_at INTEGER NOT NULL,
       consumed_at INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
@@ -410,6 +437,8 @@ function initSchema(conn: DatabaseSync) {
   conn.exec("CREATE UNIQUE INDEX IF NOT EXISTS entitlement_usage_unique ON entitlement_usage(user_id, mode, date_key);")
   conn.exec("CREATE INDEX IF NOT EXISTS account_messages_user_created_idx ON account_messages(user_id, created_at DESC);")
   conn.exec("CREATE INDEX IF NOT EXISTS quota_adjustments_user_created_idx ON quota_adjustments(user_id, created_at DESC);")
+  conn.exec("CREATE INDEX IF NOT EXISTS users_phone_idx ON users(phone);")
+  conn.exec("CREATE INDEX IF NOT EXISTS verification_codes_phone_purpose_created_idx ON verification_codes(phone, purpose, created_at DESC);")
   migrateSchema(conn)
 }
 
@@ -424,6 +453,36 @@ function migrateSchema(conn: DatabaseSync) {
   if (!userColumns.some((column) => column.name === "password_hash")) {
     conn.exec("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
   }
+  if (!userColumns.some((column) => column.name === "avatar_id")) {
+    conn.exec(`ALTER TABLE users ADD COLUMN avatar_id TEXT NOT NULL DEFAULT '${DEFAULT_AVATAR_ID}'`)
+  }
+  if (!userColumns.some((column) => column.name === "status")) {
+    conn.exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+  }
+  if (!userColumns.some((column) => column.name === "last_login_at")) {
+    conn.exec("ALTER TABLE users ADD COLUMN last_login_at INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!userColumns.some((column) => column.name === "updated_at")) {
+    conn.exec("ALTER TABLE users ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0")
+  }
+  const verificationColumns = conn.prepare("PRAGMA table_info(verification_codes)").all() as Array<{ name: string }>
+  const verificationColumnDefaults: Array<[string, string]> = [
+    ["code_hash", "TEXT NOT NULL DEFAULT ''"],
+    ["provider", "TEXT NOT NULL DEFAULT 'mock'"],
+    ["status", "TEXT NOT NULL DEFAULT 'sent'"],
+    ["request_id", "TEXT NOT NULL DEFAULT ''"],
+    ["error_message", "TEXT NOT NULL DEFAULT ''"],
+    ["attempt_count", "INTEGER NOT NULL DEFAULT 0"],
+    ["ip_hash", "TEXT NOT NULL DEFAULT ''"],
+    ["user_agent_hash", "TEXT NOT NULL DEFAULT ''"],
+    ["sent_at", "INTEGER NOT NULL DEFAULT 0"],
+    ["failed_at", "INTEGER NOT NULL DEFAULT 0"],
+  ]
+  verificationColumnDefaults.forEach(([name, definition]) => {
+    if (!verificationColumns.some((column) => column.name === name)) {
+      conn.exec(`ALTER TABLE verification_codes ADD COLUMN ${name} ${definition}`)
+    }
+  })
   const providerColumns = conn.prepare("PRAGMA table_info(provider_configs)").all() as Array<{ name: string }>
   if (!providerColumns.some((column) => column.name === "base_url")) {
     conn.exec("ALTER TABLE provider_configs ADD COLUMN base_url TEXT NOT NULL DEFAULT ''")
@@ -580,6 +639,7 @@ function seed(conn: DatabaseSync) {
   conn.prepare("UPDATE users SET username = CASE WHEN username = '' THEN 'admin' ELSE username END, phone = CASE WHEN phone = '' THEN '+8618928268686' ELSE phone END, password_hash = CASE WHEN password_hash = '' THEN ? ELSE password_hash END WHERE id = 'admin'").run(passwordHash("Admin@1234"))
   conn.prepare("UPDATE users SET username = CASE WHEN username = '' THEN 'demo' ELSE username END, phone = CASE WHEN phone = '' THEN '+8613800000000' ELSE phone END, password_hash = CASE WHEN password_hash = '' THEN ? ELSE password_hash END, plan = CASE WHEN plan = 'prototype' THEN 'free' ELSE plan END WHERE id = ?").run(passwordHash("Demo@1234"), DEMO_USER_ID)
 
+  seedAvatarPresets(conn, now)
   seedMembershipPlans(conn, now)
   seedAccountMessages(conn, now)
   seedProviderConfigs(conn, now)
@@ -719,6 +779,19 @@ function seed(conn: DatabaseSync) {
   seedPromptTemplatesV1(conn, now)
 }
 
+function seedAvatarPresets(conn: DatabaseSync, now: number) {
+  const statement = conn.prepare(`
+    INSERT OR IGNORE INTO avatar_presets
+    (id, label, image_url, active, sort_order, built_in, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  SEEDED_AVATAR_PRESETS.forEach((preset) => {
+    statement.run(preset.id, preset.label, preset.imageUrl, preset.active ? 1 : 0, preset.sortOrder, preset.builtIn ? 1 : 0, now, now)
+  })
+  conn.prepare("UPDATE avatar_presets SET active = 1, built_in = 1, updated_at = ? WHERE id = ?").run(now, DEFAULT_AVATAR_ID)
+  conn.prepare("UPDATE users SET avatar_id = ? WHERE COALESCE(avatar_id, '') = ''").run(DEFAULT_AVATAR_ID)
+}
+
 function seedProviderConfigs(conn: DatabaseSync, now: number) {
   const providerStatement = conn.prepare(`
     INSERT INTO provider_configs
@@ -810,7 +883,7 @@ function seedAccountMessages(conn: DatabaseSync, now: number) {
       `${userId}-welcome-v1`,
       userId,
       "system",
-      "欢迎使用 AI 改装助手",
+      "欢迎使用 ModCar AI",
       "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。点击消息后才会标记为已读。",
       JSON.stringify({ source: "seed" }),
       0,
@@ -1325,8 +1398,84 @@ export function getCatalog(): CatalogResponse {
   }
 }
 
+export function listAvatarPresets(options: { activeOnly?: boolean } = {}): AccountAvatarPreset[] {
+  const where = options.activeOnly ? "WHERE active = 1" : ""
+  const rows = database()
+    .prepare(`SELECT * FROM avatar_presets ${where} ORDER BY sort_order ASC, created_at ASC, id ASC`)
+    .all() as Row[]
+  return rows.map(mapAvatarPreset)
+}
+
+export function getAvatarPreset(id: string): AccountAvatarPreset | null {
+  const presetId = normalizeAvatarPresetId(id)
+  if (!presetId) return null
+  const row = database().prepare("SELECT * FROM avatar_presets WHERE id = ? LIMIT 1").get(presetId) as Row | undefined
+  return row ? mapAvatarPreset(row) : null
+}
+
+export function createAvatarPreset(input: { id: string; label: string; imageUrl: string; active?: boolean; sortOrder?: number }) {
+  const id = normalizeAvatarPresetId(input.id)
+  const label = String(input.label || "").trim()
+  const imageUrl = String(input.imageUrl || "").trim()
+  if (!id) throw new Error("Avatar id is required.")
+  if (!label) throw new Error("Avatar label is required.")
+  if (!imageUrl) throw new Error("Avatar image URL is required.")
+  if (getAvatarPreset(id)) throw new Error("Avatar id already exists.")
+  const now = nowMs()
+  database()
+    .prepare("INSERT INTO avatar_presets (id, label, image_url, active, sort_order, built_in, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, label, imageUrl, input.active === false ? 0 : 1, Number.isFinite(Number(input.sortOrder)) ? Number(input.sortOrder) : 100, 0, now, now)
+  writeAudit("", "admin.avatar.create", { id, active: input.active !== false })
+  return getAvatarPreset(id) as AccountAvatarPreset
+}
+
+export function updateAvatarPreset(id: string, patch: Partial<Pick<AccountAvatarPreset, "label" | "imageUrl" | "active" | "sortOrder">>) {
+  const presetId = normalizeAvatarPresetId(id)
+  const current = getAvatarPreset(presetId)
+  if (!current) throw new Error("Avatar preset not found.")
+  const next = {
+    label: typeof patch.label === "string" ? patch.label.trim() : current.label,
+    imageUrl: typeof patch.imageUrl === "string" ? patch.imageUrl.trim() : current.imageUrl,
+    active: patch.active === undefined ? current.active : Boolean(patch.active),
+    sortOrder: Number.isFinite(Number(patch.sortOrder)) ? Number(patch.sortOrder) : current.sortOrder,
+  }
+  if (!next.label) throw new Error("Avatar label is required.")
+  if (!next.imageUrl) throw new Error("Avatar image URL is required.")
+  if (presetId === DEFAULT_AVATAR_ID && !next.active) throw new Error("Default avatar must stay active.")
+  database()
+    .prepare("UPDATE avatar_presets SET label = ?, image_url = ?, active = ?, sort_order = ?, updated_at = ? WHERE id = ?")
+    .run(next.label, next.imageUrl, next.active ? 1 : 0, next.sortOrder, nowMs(), presetId)
+  writeAudit("", "admin.avatar.update", { id: presetId, active: next.active })
+  return getAvatarPreset(presetId) as AccountAvatarPreset
+}
+
+export function deleteAvatarPreset(id: string) {
+  const presetId = normalizeAvatarPresetId(id)
+  if (presetId === DEFAULT_AVATAR_ID) throw new Error("Default avatar cannot be deleted.")
+  if (!getAvatarPreset(presetId)) throw new Error("Avatar preset not found.")
+  const conn = database()
+  conn.prepare("UPDATE users SET avatar_id = ?, updated_at = ? WHERE avatar_id = ?").run(DEFAULT_AVATAR_ID, nowMs(), presetId)
+  conn.prepare("DELETE FROM avatar_presets WHERE id = ?").run(presetId)
+  writeAudit("", "admin.avatar.delete", { id: presetId })
+  return { ok: true }
+}
+
 export function getUserById(userId: string): AuthUser | null {
   const row = database().prepare("SELECT * FROM users WHERE id = ?").get(userId) as Row | undefined
+  return row ? mapAuthUser(row) : null
+}
+
+export function getUserByPhone(phoneInput: string): AuthUser | null {
+  const phone = normalizePhone(phoneInput)
+  if (!phone) return null
+  const row = database().prepare("SELECT * FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  return row ? mapAuthUser(row) : null
+}
+
+export function getUserByUsername(usernameInput: string): AuthUser | null {
+  const username = usernameInput.trim()
+  if (!username) return null
+  const row = database().prepare("SELECT * FROM users WHERE lower(username) = lower(?) LIMIT 1").get(username) as Row | undefined
   return row ? mapAuthUser(row) : null
 }
 
@@ -1338,21 +1487,27 @@ export function getUserBySessionToken(token: string): AuthUser | null {
       SELECT users.*
       FROM sessions
       JOIN users ON users.id = sessions.user_id
-      WHERE sessions.token_hash = ? AND sessions.expires_at > ?
+      WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND COALESCE(users.status, 'active') != 'disabled'
       LIMIT 1
     `)
     .get(tokenHash, nowMs()) as Row | undefined
   return row ? mapAuthUser(row) : null
 }
 
-export function updateUserProfile(userId: string, input: { name: string; email: string }) {
+export function updateUserProfile(userId: string, input: { name: string; email: string; avatarId?: string }) {
   const current = getUserById(userId)
   if (!current) throw new Error("User not found.")
   const name = input.name.trim() || current.username || current.id
   const email = input.email.trim()
   if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) throw new Error("Invalid email address.")
-  database().prepare("UPDATE users SET name = ?, email = ? WHERE id = ?").run(name, email, userId)
-  writeAudit(userId, "auth.profile.update", { name, emailUpdated: email !== current.email })
+  let avatarId = current.avatarId || DEFAULT_AVATAR_ID
+  if (input.avatarId !== undefined) {
+    avatarId = normalizeAvatarPresetId(input.avatarId) || DEFAULT_AVATAR_ID
+    const preset = getAvatarPreset(avatarId)
+    if (!preset || !preset.active) throw new Error("Avatar preset is not available.")
+  }
+  database().prepare("UPDATE users SET name = ?, email = ?, avatar_id = ?, updated_at = ? WHERE id = ?").run(name, email, avatarId, nowMs(), userId)
+  writeAudit(userId, "auth.profile.update", { name, emailUpdated: email !== current.email, avatarUpdated: avatarId !== current.avatarId })
   return getUserById(userId) as AuthUser
 }
 
@@ -1363,20 +1518,35 @@ export function changeUserPassword(userId: string, input: { currentPassword: str
     throw new Error("Current password is incorrect.")
   }
   assertStrongPassword(input.nextPassword)
-  database().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash(input.nextPassword), userId)
+  database().prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").run(passwordHash(input.nextPassword), nowMs(), userId)
   writeAudit(userId, "auth.password.change", {})
   return getUserById(userId) as AuthUser
+}
+
+export function resetUserPasswordWithCode(input: { phone: string; code: string; nextPassword: string }) {
+  const phone = normalizePhone(input.phone)
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  const row = database().prepare("SELECT * FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  if (!row) throw new Error("该手机号尚未注册。")
+  if (String(row.role || "user") === "admin") throw new Error("管理员账号不能通过普通忘记密码流程重置。")
+  assertUserActive(row)
+  assertStrongPassword(input.nextPassword)
+  consumeVerificationCode({ phone, purpose: "reset_password", code: input.code })
+  database().prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").run(passwordHash(input.nextPassword), nowMs(), String(row.id))
+  ensureUserIdentity(String(row.id), "password", String(row.username || row.id))
+  writeAudit(String(row.id), "auth.password.reset", { phone })
+  return getUserById(String(row.id)) as AuthUser
 }
 
 export function changeUserPhone(input: { userId: string; phone: string; code: string }) {
   const current = getUserById(input.userId)
   if (!current) throw new Error("User not found.")
   const phone = normalizePhone(input.phone)
-  if (!phone) throw new Error("Phone is required.")
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
   consumeVerificationCode({ phone, purpose: "change_phone", code: input.code })
   const duplicate = database().prepare("SELECT id FROM users WHERE phone = ? AND id <> ? LIMIT 1").get(phone, input.userId) as Row | undefined
   if (duplicate) throw new Error("Phone number is already registered.")
-  database().prepare("UPDATE users SET phone = ? WHERE id = ?").run(phone, input.userId)
+  database().prepare("UPDATE users SET phone = ?, updated_at = ? WHERE id = ?").run(phone, nowMs(), input.userId)
   writeAudit(input.userId, "auth.phone.change", { phone })
   return getUserById(input.userId) as AuthUser
 }
@@ -1396,33 +1566,106 @@ export function deleteSessionToken(token: string) {
   database().prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashValue(token))
 }
 
-export function createVerificationCode(input: { phone: string; purpose: string }) {
+export function createVerificationCode(input: { phone: string; purpose: string; ip?: string; userAgent?: string }) {
   const phone = normalizePhone(input.phone)
-  const code = "123456"
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  const purpose = normalizeVerificationPurpose(input.purpose)
+  assertVerificationRateLimit(phone, purpose, input.ip || "")
+  const code = randomInt(0, 1000000).toString().padStart(6, "0")
   const now = nowMs()
   database()
-    .prepare("INSERT INTO verification_codes (id, phone, purpose, code, expires_at, consumed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(`vc_${crypto.randomUUID().slice(0, 8)}`, phone, input.purpose, code, now + 1000 * 60 * 10, 0, now)
-  writeAudit("", "auth.code.sent", { phone, purpose: input.purpose, mock: true })
-  return { phone, code, expiresAt: now + 1000 * 60 * 10 }
+    .prepare("UPDATE verification_codes SET status = 'replaced' WHERE phone = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ?")
+    .run(phone, purpose, now)
+  const id = `vc_${crypto.randomUUID().slice(0, 8)}`
+  database()
+    .prepare(`
+      INSERT INTO verification_codes
+        (id, phone, purpose, code, code_hash, provider, status, request_id, error_message, attempt_count, ip_hash, user_agent_hash, sent_at, failed_at, expires_at, consumed_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      id,
+      phone,
+      purpose,
+      "",
+      verificationCodeHash(phone, purpose, code),
+      "",
+      "pending",
+      "",
+      "",
+      0,
+      input.ip ? hashValue(input.ip) : "",
+      input.userAgent ? hashValue(input.userAgent.slice(0, 300)) : "",
+      0,
+      0,
+      now + 1000 * 60 * 10,
+      0,
+      now,
+    )
+  return { id, phone, purpose, code, expiresAt: now + 1000 * 60 * 10 }
 }
 
-export function registerUser(input: { username: string; phone: string; password: string; code: string }) {
+export function markVerificationCodeSent(input: { id: string; provider: string; requestId?: string }) {
+  database()
+    .prepare("UPDATE verification_codes SET provider = ?, status = 'sent', request_id = ?, sent_at = ? WHERE id = ?")
+    .run(input.provider, input.requestId || "", nowMs(), input.id)
+  const row = database().prepare("SELECT phone, purpose FROM verification_codes WHERE id = ?").get(input.id) as Row | undefined
+  writeAudit("", "auth.code.sent", { phone: row?.phone || "", purpose: row?.purpose || "", provider: input.provider })
+}
+
+export function markVerificationCodeFailed(input: { id: string; provider: string; error: string; requestId?: string }) {
+  database()
+    .prepare("UPDATE verification_codes SET provider = ?, status = 'failed', request_id = ?, error_message = ?, failed_at = ? WHERE id = ?")
+    .run(input.provider, input.requestId || "", input.error.slice(0, 500), nowMs(), input.id)
+  const row = database().prepare("SELECT phone, purpose FROM verification_codes WHERE id = ?").get(input.id) as Row | undefined
+  writeAudit("", "auth.code.failed", { phone: row?.phone || "", purpose: row?.purpose || "", provider: input.provider, error: input.error.slice(0, 160) })
+}
+
+export function resolvePhoneCodeLogin(input: { phone: string; code: string; bindRequired?: boolean }) {
+  const phone = normalizePhone(input.phone)
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  const row = database().prepare("SELECT * FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  if (row) {
+    if (String(row.role || "user") === "admin") throw new Error("管理员账号请使用账号密码和管理员验证码登录。")
+    consumeVerificationCode({ phone, purpose: "login", code: input.code })
+    assertUserActive(row)
+    const user = mapAuthUser(row)
+    ensureUserIdentity(user.id, "phone", phone)
+    markUserLoggedIn(user.id, "auth.login.code", { phone })
+    return { user: getUserById(user.id) as AuthUser, requiresBinding: false, phone }
+  }
+
+  if (input.bindRequired) {
+    verifyVerificationCode({ phone, purpose: "login", code: input.code })
+    return { user: null, requiresBinding: true, phone }
+  }
+
+  consumeVerificationCode({ phone, purpose: "login", code: input.code })
+  const user = createPhoneOnlyUser(phone, "phone_code_login")
+  markUserLoggedIn(user.id, "auth.login.code", { phone, autoCreated: true })
+  return { user: getUserById(user.id) as AuthUser, requiresBinding: false, phone }
+}
+
+export function registerUser(input: { username: string; phone: string; password: string; code: string; purpose?: string }) {
   const username = input.username.trim()
   const phone = normalizePhone(input.phone)
+  if (!username) throw new Error("Username is required.")
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
   assertStrongPassword(input.password)
-  consumeVerificationCode({ phone, purpose: "register", code: input.code })
+  consumeVerificationCode({ phone, purpose: input.purpose || "register", code: input.code })
   ensureUniqueUser(username, phone)
   const now = nowMs()
   const userId = `user_${crypto.randomUUID().slice(0, 8)}`
   database()
-    .prepare("INSERT INTO users (id, username, phone, password_hash, name, email, role, plan, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(userId, username, phone, passwordHash(input.password), username, `${username}@local`, "user", "free", now)
+    .prepare("INSERT INTO users (id, username, phone, password_hash, name, email, avatar_id, role, plan, status, last_login_at, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(userId, username, phone, passwordHash(input.password), username, `${username}@local`, DEFAULT_AVATAR_ID, "user", "free", "active", 0, now, now)
+  ensureUserIdentity(userId, "phone", phone)
+  ensureUserIdentity(userId, "password", username)
   createAccountMessage({
     id: `${userId}-welcome-v1`,
     userId,
     kind: "system",
-    title: "欢迎使用 AI 改装助手",
+    title: "欢迎使用 ModCar AI",
     body: "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。点击消息后才会标记为已读。",
     metadata: { source: "register" },
     createdAt: now,
@@ -1431,27 +1674,59 @@ export function registerUser(input: { username: string; phone: string; password:
   return getUserById(userId) as AuthUser
 }
 
-export function loginWithPassword(input: { identifier: string; password: string }) {
+export function verifyPasswordUser(input: { identifier: string; password: string }) {
   const identifier = input.identifier.trim()
   const row = database()
     .prepare("SELECT * FROM users WHERE lower(username) = lower(?) OR phone = ? LIMIT 1")
     .get(identifier, normalizePhone(identifier)) as Row | undefined
+  if (row && !String(row.password_hash || "")) {
+    throw authError("PASSWORD_NOT_SET", "该手机号账号尚未设置密码，请使用短信验证码登录，或通过忘记密码设置登录密码。")
+  }
   if (!row || !verifyPassword(input.password, String(row.password_hash || ""))) {
     throw new Error("账号或密码错误。")
   }
-  const user = mapAuthUser(row)
-  writeAudit(user.id, "auth.login.password", { identifier })
-  return user
+  assertUserActive(row)
+  return mapAuthUser(row)
+}
+
+export function loginWithPassword(input: { identifier: string; password: string }) {
+  const user = verifyPasswordUser(input)
+  ensureUserIdentity(user.id, "password", user.username)
+  markUserLoggedIn(user.id, "auth.login.password", { identifier: input.identifier.trim() })
+  return getUserById(user.id) as AuthUser
 }
 
 export function loginWithPhoneCode(input: { phone: string; code: string; purpose?: string }) {
   const phone = normalizePhone(input.phone)
   consumeVerificationCode({ phone, purpose: input.purpose || "login", code: input.code })
   const row = database().prepare("SELECT * FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  assertUserActive(row)
   if (!row) throw new Error("手机号未注册。")
   const user = mapAuthUser(row)
-  writeAudit(user.id, "auth.login.code", { phone })
-  return user
+  ensureUserIdentity(user.id, "phone", phone)
+  markUserLoggedIn(user.id, "auth.login.code", { phone })
+  return getUserById(user.id) as AuthUser
+}
+
+export function loginOrCreateWithPhoneCode(input: { phone: string; code: string }) {
+  const result = resolvePhoneCodeLogin({ phone: input.phone, code: input.code })
+  if (!result.user) throw new Error("手机号需要先绑定账号。")
+  return result.user
+}
+
+export function loginOrCreateWithVerifiedPhone(input: { phone: string; source?: string }) {
+  const phone = normalizePhone(input.phone)
+  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  const row = database().prepare("SELECT * FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  if (row) {
+    if (String(row.role || "user") === "admin") throw new Error("管理员账号请使用账号密码和管理员验证码登录。")
+    assertUserActive(row)
+    const user = mapAuthUser(row)
+    ensureUserIdentity(user.id, "phone", phone)
+    markUserLoggedIn(user.id, "auth.login.one_tap", { phone, source: input.source || "phone_one_tap" })
+    return getUserById(user.id) as AuthUser
+  }
+  return createPhoneOnlyUser(phone, input.source || "phone_one_tap")
 }
 
 export function loginOrBindMockWechat(input: { openId: string; phone?: string; code?: string }) {
@@ -1459,7 +1734,10 @@ export function loginOrBindMockWechat(input: { openId: string; phone?: string; c
   const identity = database()
     .prepare("SELECT users.* FROM user_identities JOIN users ON users.id = user_identities.user_id WHERE provider = 'wechat' AND provider_user_id = ? LIMIT 1")
     .get(openId) as Row | undefined
-  if (identity) return { user: mapAuthUser(identity), requiresBinding: false, openId }
+  if (identity) {
+    assertUserActive(identity)
+    return { user: mapAuthUser(identity), requiresBinding: false, openId }
+  }
   if (!input.phone || !input.code) return { user: null, requiresBinding: true, openId }
   const user = loginWithPhoneCode({ phone: input.phone, code: input.code, purpose: "wechat" })
   database()
@@ -1474,7 +1752,10 @@ export function registerAndBindMockWechat(input: { openId: string; username: str
   const existing = database()
     .prepare("SELECT users.* FROM user_identities JOIN users ON users.id = user_identities.user_id WHERE provider = 'wechat' AND provider_user_id = ? LIMIT 1")
     .get(openId) as Row | undefined
-  if (existing) return { user: mapAuthUser(existing), requiresBinding: false, openId }
+  if (existing) {
+    assertUserActive(existing)
+    return { user: mapAuthUser(existing), requiresBinding: false, openId }
+  }
   const user = registerUser({ username: input.username, phone: input.phone, password: input.password, code: input.code })
   database()
     .prepare("INSERT INTO user_identities (id, user_id, provider, provider_user_id, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -1654,6 +1935,44 @@ export function adjustUserQuota(
     adjustment: mapQuotaAdjustment(row),
     billing: getBillingStatus(userId),
   }
+}
+
+export function updateAdminUser(
+  adminUserId: string,
+  input: {
+    userId: string
+    role?: string
+    plan?: string
+    status?: string
+  },
+) {
+  const userId = String(input.userId || "").trim()
+  const current = database().prepare("SELECT * FROM users WHERE id = ? LIMIT 1").get(userId) as Row | undefined
+  if (!current) throw new Error("User not found.")
+
+  const nextRole = input.role === "admin" ? "admin" : "user"
+  const nextPlan = normalizeAdminPlan(input.plan || String(current.plan || "free"))
+  const nextStatus = input.status === "disabled" ? "disabled" : "active"
+  const currentRole = String(current.role || "user")
+  const currentStatus = String(current.status || "active")
+
+  if (userId === adminUserId && nextStatus === "disabled") throw new Error("You cannot disable your own admin account.")
+  if (userId === adminUserId && nextRole !== "admin") throw new Error("You cannot remove your own admin role.")
+  if (currentRole === "admin" && (nextRole !== "admin" || nextStatus !== "active") && activeAdminCount() <= 1) {
+    throw new Error("At least one active admin account is required.")
+  }
+
+  const now = nowMs()
+  database()
+    .prepare("UPDATE users SET role = ?, plan = ?, status = ?, updated_at = ? WHERE id = ?")
+    .run(nextRole, nextPlan, nextStatus, now, userId)
+  writeAudit(adminUserId, "admin.user.update", {
+    targetUserId: userId,
+    role: { before: currentRole, after: nextRole },
+    plan: { before: String(current.plan || ""), after: nextPlan },
+    status: { before: currentStatus, after: nextStatus },
+  })
+  return getUserById(userId) as AuthUser
 }
 
 export function accountMessages(userId: string): AccountMessage[] {
@@ -2031,6 +2350,7 @@ export function getAdminSummary(): AdminSummary {
   const userRows = database().prepare("SELECT * FROM users ORDER BY created_at DESC").all() as Row[]
   const userById = userLabelMap(userRows)
   const quotaAdjustmentRows = database().prepare("SELECT * FROM quota_adjustments ORDER BY created_at DESC LIMIT 100").all() as Row[]
+  const smsRows = database().prepare("SELECT * FROM verification_codes ORDER BY created_at DESC LIMIT 100").all() as Row[]
   const providerCostRows = database()
     .prepare(`
       SELECT usage_ledger.provider AS provider,
@@ -2071,6 +2391,7 @@ export function getAdminSummary(): AdminSummary {
     providers: providers(),
     prompts: prompts(),
     promptTemplates: promptTemplates(),
+    avatarPresets: listAvatarPresets(),
     workflows: workflowConfigs(),
     guardrailConfig: getGuardrailConfig(),
     chatSessions: listChatSessions(),
@@ -2100,6 +2421,7 @@ export function getAdminSummary(): AdminSummary {
       createdAt: Number(row.created_at || 0),
     })),
     behaviorEvents: adminBehaviorEvents(userById),
+    smsRecords: smsRows.map(mapAdminSmsRecord),
     userProfiles: adminUserProfiles(userRows),
     users: userRows.map((row) => {
       const billing = getBillingStatus(String(row.id))
@@ -2111,11 +2433,14 @@ export function getAdminSummary(): AdminSummary {
         phone: String(row.phone || ""),
         role: String(row.role),
         plan: String(row.plan),
+        status: String(row.status || "active") === "disabled" ? "disabled" : "active",
         configUsed: billing.configUsed,
         chatUsedToday: billing.chatUsedToday,
         configRemaining: billing.configRemaining,
         chatRemainingToday: billing.chatRemainingToday,
         createdAt: Number(row.created_at),
+        lastLoginAt: Number(row.last_login_at || 0),
+        updatedAt: Number(row.updated_at || 0),
       }
     }),
     generations: generationRows.map(mapGeneration),
@@ -2152,6 +2477,23 @@ function mapQuotaAdjustment(row: Row): AdminSummary["quotaAdjustments"][number] 
     afterUsed: Number(row.after_used || 0),
     reason: String(row.reason || ""),
     createdAt: Number(row.created_at || 0),
+  }
+}
+
+function mapAdminSmsRecord(row: Row): AdminSummary["smsRecords"][number] {
+  return {
+    id: String(row.id),
+    phone: maskPhone(String(row.phone || "")),
+    purpose: String(row.purpose || ""),
+    provider: String(row.provider || ""),
+    status: String(row.status || ""),
+    requestId: String(row.request_id || ""),
+    errorMessage: String(row.error_message || ""),
+    attemptCount: Number(row.attempt_count || 0),
+    createdAt: Number(row.created_at || 0),
+    sentAt: Number(row.sent_at || 0),
+    consumedAt: Number(row.consumed_at || 0),
+    expiresAt: Number(row.expires_at || 0),
   }
 }
 
@@ -3569,15 +3911,52 @@ function normalizeDisplayVehicleModel(value: unknown) {
 }
 
 function mapAuthUser(row: Row): AuthUser {
+  const username = String(row.username || row.id)
+  const avatar = authUserAvatar(row)
   return {
     id: String(row.id),
-    username: String(row.username || row.id),
-    name: String(row.name || row.username || row.id),
+    username,
+    name: authUserDisplayName(row, username),
     email: String(row.email || ""),
     phone: String(row.phone || ""),
+    avatarId: avatar.id,
+    avatarUrl: avatar.imageUrl,
     role: String(row.role || "user") as AuthUser["role"],
     plan: String(row.plan || "free") as AuthUser["plan"],
+    status: String(row.status || "active") === "disabled" ? "disabled" : "active",
     createdAt: Number(row.created_at || 0),
+    lastLoginAt: Number(row.last_login_at || 0),
+    updatedAt: Number(row.updated_at || 0),
+  }
+}
+
+function mapAvatarPreset(row: Row): AccountAvatarPreset {
+  return {
+    id: String(row.id),
+    label: String(row.label || ""),
+    imageUrl: String(row.image_url || ""),
+    active: Boolean(Number(row.active ?? 1)),
+    sortOrder: Number(row.sort_order || 0),
+    builtIn: Boolean(Number(row.built_in || 0)),
+    createdAt: Number(row.created_at || 0),
+    updatedAt: Number(row.updated_at || 0),
+  }
+}
+
+function authUserAvatar(row: Row): Pick<AccountAvatarPreset, "id" | "imageUrl"> {
+  const avatarId = normalizeAvatarPresetId(row.avatar_id) || DEFAULT_AVATAR_ID
+  const avatarRow = database()
+    .prepare("SELECT id, image_url, active FROM avatar_presets WHERE id = ? LIMIT 1")
+    .get(avatarId) as Row | undefined
+  if (avatarRow && Boolean(Number(avatarRow.active ?? 1))) {
+    return { id: String(avatarRow.id), imageUrl: String(avatarRow.image_url || "") }
+  }
+  const fallbackRow = database()
+    .prepare("SELECT id, image_url FROM avatar_presets WHERE id = ? LIMIT 1")
+    .get(DEFAULT_AVATAR_ID) as Row | undefined
+  return {
+    id: DEFAULT_AVATAR_ID,
+    imageUrl: String(fallbackRow?.image_url || SEEDED_AVATAR_PRESETS[0]?.imageUrl || "/assets/avatars/person_default.png"),
   }
 }
 
@@ -3685,6 +4064,11 @@ function scalarWithParam(sql: string, value: string) {
   return Number(row.value)
 }
 
+function scalarWithParams(sql: string, ...values: string[]) {
+  const row = database().prepare(sql).get(...values) as Row
+  return Number(row.value)
+}
+
 function titleFromText(text: string) {
   const clean = text.replace(/\s+/g, " ").trim()
   if (!clean) return "New Chat"
@@ -3703,11 +4087,19 @@ function nowMs() {
   return Date.now()
 }
 
+const INVALID_PHONE_MESSAGE = "请输入合法的中国大陆手机号。"
+
 function normalizePhone(value: string) {
-  const raw = value.trim().replace(/\s+/g, "")
+  const raw = value.trim().replace(/[\s-]/g, "")
   if (!raw) return ""
-  if (raw.startsWith("+")) return raw
-  return raw.startsWith("86") ? `+${raw}` : `+86${raw}`
+  const digits = raw.replace(/\D/g, "")
+  const local = raw.startsWith("+86")
+    ? digits.slice(2)
+    : digits.startsWith("86") && digits.length === 13
+      ? digits.slice(2)
+      : digits
+  if (!/^1[3-9]\d{9}$/.test(local)) return ""
+  return `+86${local}`
 }
 
 function assertStrongPassword(value: string) {
@@ -3717,13 +4109,57 @@ function assertStrongPassword(value: string) {
 }
 
 function ensureUniqueUser(username: string, phone: string) {
-  const row = database()
-    .prepare("SELECT id FROM users WHERE lower(username) = lower(?) OR phone = ? LIMIT 1")
-    .get(username, phone) as Row | undefined
-  if (row) throw new Error("用户名或手机号已注册。")
+  const usernameRow = database()
+    .prepare("SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1")
+    .get(username) as Row | undefined
+  if (usernameRow) throw new Error("用户名已存在，请重新输入。")
+  const phoneRow = database().prepare("SELECT id FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+  if (phoneRow) throw new Error("该手机号已注册。")
 }
 
 function consumeVerificationCode(input: { phone: string; purpose: string; code: string }) {
+  validateVerificationCode({ ...input, consume: true })
+}
+
+function verifyVerificationCode(input: { phone: string; purpose: string; code: string }) {
+  validateVerificationCode({ ...input, consume: false })
+}
+
+function validateVerificationCode(input: { phone: string; purpose: string; code: string; consume: boolean }) {
+  const purpose = normalizeVerificationPurpose(input.purpose)
+  const now = nowMs()
+  const row = database()
+    .prepare(`
+      SELECT * FROM verification_codes
+      WHERE phone = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ? AND status IN ('sent', 'mock')
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    .get(input.phone, purpose, now) as Row | undefined
+  if (!row) throw new Error("验证码无效或已过期。")
+  const attempts = Number(row.attempt_count || 0)
+  if (attempts >= 5) {
+    database().prepare("UPDATE verification_codes SET status = 'locked' WHERE id = ?").run(String(row.id))
+    throw new Error("验证码错误次数过多，请重新获取。")
+  }
+
+  const expectedHash = String(row.code_hash || "")
+  const legacyCode = String(row.code || "")
+  const valid = expectedHash
+    ? safeEqualHex(expectedHash, verificationCodeHash(input.phone, purpose, input.code))
+    : legacyCode === input.code
+  if (!valid) {
+    const nextAttempts = attempts + 1
+    database()
+      .prepare("UPDATE verification_codes SET attempt_count = ?, status = CASE WHEN ? >= 5 THEN 'locked' ELSE status END WHERE id = ?")
+      .run(nextAttempts, nextAttempts, String(row.id))
+    throw new Error("验证码无效或已过期。")
+  }
+  if (input.consume) {
+    database().prepare("UPDATE verification_codes SET consumed_at = ?, status = 'consumed' WHERE id = ?").run(now, String(row.id))
+  }
+}
+
+function consumeVerificationCodeLegacy(input: { phone: string; purpose: string; code: string }) {
   const row = database()
     .prepare(`
       SELECT * FROM verification_codes
@@ -3733,6 +4169,144 @@ function consumeVerificationCode(input: { phone: string; purpose: string; code: 
     .get(input.phone, input.purpose, input.code, nowMs()) as Row | undefined
   if (!row) throw new Error("验证码无效或已过期。")
   database().prepare("UPDATE verification_codes SET consumed_at = ? WHERE id = ?").run(nowMs(), String(row.id))
+}
+
+function normalizeVerificationPurpose(value: string) {
+  const purpose = String(value || "login").trim()
+  if (purpose === "register" || purpose === "change_phone" || purpose === "admin" || purpose === "wechat" || purpose === "reset_password") return purpose
+  return "login"
+}
+
+function assertVerificationRateLimit(phone: string, purpose: string, ip: string) {
+  const now = nowMs()
+  const recent = database()
+    .prepare("SELECT created_at FROM verification_codes WHERE phone = ? AND purpose = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock') ORDER BY created_at DESC LIMIT 1")
+    .get(phone, purpose, now - 60 * 1000) as Row | undefined
+  if (recent) throw new Error("验证码发送过于频繁，请稍后再试。")
+
+  const phoneDaily = scalarWithParams(
+    "SELECT COUNT(*) AS value FROM verification_codes WHERE phone = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock', 'consumed')",
+    phone,
+    String(now - 24 * 60 * 60 * 1000),
+  )
+  if (phoneDaily >= 10) throw new Error("该手机号今日验证码发送次数已达上限。")
+
+  if (ip) {
+    const ipHash = hashValue(ip)
+    const ipDaily = scalarWithParams(
+      "SELECT COUNT(*) AS value FROM verification_codes WHERE ip_hash = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock', 'consumed')",
+      ipHash,
+      String(now - 24 * 60 * 60 * 1000),
+    )
+    if (ipDaily >= 30) throw new Error("当前网络验证码请求过多，请稍后再试。")
+  }
+}
+
+function verificationCodeHash(phone: string, purpose: string, code: string) {
+  return hashValue(`${phone}:${purpose}:${code}`)
+}
+
+function safeEqualHex(left: string, right: string) {
+  const a = Buffer.from(left)
+  const b = Buffer.from(right)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+function assertUserActive(row: Row | undefined) {
+  if (!row) throw new Error("User not found.")
+  if (String(row.status || "active") === "disabled") throw new Error("账号已停用，请联系管理员。")
+}
+
+function markUserLoggedIn(userId: string, action: string, metadata: Record<string, unknown>) {
+  database().prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").run(nowMs(), nowMs(), userId)
+  writeAudit(userId, action, metadata)
+}
+
+function createPhoneOnlyUser(phone: string, source: string) {
+  const now = nowMs()
+  const userId = `user_${crypto.randomUUID().slice(0, 8)}`
+  const username = uniquePhoneUsername(phone)
+  database()
+    .prepare("INSERT INTO users (id, username, phone, password_hash, name, email, avatar_id, role, plan, status, last_login_at, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(userId, username, phone, "", phoneUserDisplayName(username), "", DEFAULT_AVATAR_ID, "user", "free", "active", now, now, now)
+  ensureUserIdentity(userId, "phone", phone)
+  createWelcomeMessage(userId, source, now)
+  writeAudit(userId, "auth.register.phone", { phone, source })
+  return getUserById(userId) as AuthUser
+}
+
+function ensureUserIdentity(userId: string, provider: string, providerUserId: string) {
+  const cleanProvider = provider.trim()
+  const cleanProviderUserId = providerUserId.trim()
+  if (!userId || !cleanProvider || !cleanProviderUserId) return
+  const existing = database()
+    .prepare("SELECT id FROM user_identities WHERE user_id = ? AND provider = ? AND provider_user_id = ? LIMIT 1")
+    .get(userId, cleanProvider, cleanProviderUserId) as Row | undefined
+  if (existing) return
+  database()
+    .prepare("INSERT INTO user_identities (id, user_id, provider, provider_user_id, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(`ident_${crypto.randomUUID().slice(0, 8)}`, userId, cleanProvider, cleanProviderUserId, nowMs())
+}
+
+function uniquePhoneUsername(phone: string) {
+  const digits = phone.replace(/\D/g, "")
+  const base = `u_${digits.slice(-8) || randomUUID().slice(0, 8)}`
+  let username = base
+  let index = 1
+  while (database().prepare("SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1").get(username)) {
+    username = `${base}_${index++}`
+  }
+  return username
+}
+
+function authUserDisplayName(row: Row, username: string) {
+  const name = String(row.name || "").trim()
+  const phone = String(row.phone || "")
+  if (name && !isGeneratedPhoneOnlyName(name, phone, username)) return name
+  if (isPhoneOnlyUsername(username) && phone) return phoneUserDisplayName(username)
+  return name || username || String(row.id)
+}
+
+function isGeneratedPhoneOnlyName(name: string, phone: string, username: string) {
+  if (!isPhoneOnlyUsername(username) || !phone) return false
+  return name === maskPhone(phone) || normalizePhone(name) === normalizePhone(phone)
+}
+
+function isPhoneOnlyUsername(username: string) {
+  return /^u_[a-z0-9]+(?:_\d+)?$/i.test(username)
+}
+
+function phoneUserDisplayName(username: string) {
+  const suffix = username.startsWith("u_") ? username.slice(2) : username
+  return `MOD\u7528\u6237_${suffix || randomUUID().slice(0, 8)}`
+}
+
+function createWelcomeMessage(userId: string, source: string, createdAt: number) {
+  createAccountMessage({
+    id: `${userId}-welcome-v1`,
+    userId,
+    kind: "system",
+    title: "欢迎使用 ModCar AI",
+    body: "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。",
+    metadata: { source },
+    createdAt,
+  })
+}
+
+function maskPhone(phone: string) {
+  const normalized = String(phone || "")
+  const match = normalized.match(/^(\+?\d{2,4})(\d{3})\d+(\d{4})$/)
+  if (match) return `${match[1]} ${match[2]}****${match[3]}`
+  return normalized
+}
+
+function normalizeAdminPlan(value: string) {
+  if (value === "pro" || value === "max" || value === "internal" || value === "prototype") return value
+  return "free"
+}
+
+function activeAdminCount() {
+  return scalar("SELECT COUNT(*) AS value FROM users WHERE role = 'admin' AND COALESCE(status, 'active') != 'disabled'")
 }
 
 function passwordHash(password: string) {
@@ -3747,6 +4321,12 @@ function verifyPassword(password: string, stored: string) {
   const a = Buffer.from(digest)
   const b = Buffer.from(next)
   return a.length === b.length && timingSafeEqual(a, b)
+}
+
+function authError(code: string, message: string) {
+  const error = new Error(message) as Error & { code: string }
+  error.code = code
+  return error
 }
 
 function hashValue(value: string) {

@@ -7,7 +7,6 @@ import {
   ArrowDownToLine,
   BadgeCheck,
   Bell,
-  Camera,
   CheckCheck,
   ChevronLeft,
   ChevronRight,
@@ -33,6 +32,7 @@ import {
   Wand2,
   X,
 } from "lucide-react"
+import { AccountAvatar } from "@/components/account-avatar"
 import { AuthModal } from "@/components/auth-modal"
 import { ChatMode } from "@/components/chat-mode"
 import { SubscribeModal } from "@/components/subscribe-modal"
@@ -41,6 +41,7 @@ import {
   changeAccountPassword,
   changeAccountPhone,
   formatAccountQuota,
+  listAccountAvatarPresets,
   listAccountMessages,
   markAccountMessageRead,
   markAllAccountMessagesRead,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/account-client"
 import { canvasSafeImageUrl } from "@/lib/client/image-download"
 import type {
+  AccountAvatarPreset,
   AccountMessage,
   AuthUser,
   CatalogResponse,
@@ -414,6 +416,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
       data-overlay-open={mobileOverlayOpen ? "true" : "false"}
     >
       <MobileFloatingTopBar
+        authUser={authUser}
         language={language}
         onLanguage={toggleLanguage}
         onProfile={() => setProfileOpen(true)}
@@ -596,8 +599,8 @@ export function MobileLoadingScreen({ language = "zh" }: { language?: Language }
         <b />
       </div>
       <div className="mobile-loading-copy">
-        <strong>AI MOD STUDIO</strong>
-        <span>{language === "zh" ? "正在加载改装工作室" : "Loading tuning studio"}</span>
+        <strong>ModCar AI</strong>
+        <span>{language === "zh" ? "正在加载工作室" : "Loading ModCar AI"}</span>
       </div>
       <div className="mobile-loading-progress" aria-hidden="true">
         <em />
@@ -1441,7 +1444,7 @@ function MobileHistoryDrawer({ open, onClose, ...props }: MobileStudioAppProps &
           >
             <header className="mobile-history-drawer-head">
               <div>
-                <span>AI Mod Studio</span>
+                <span>ModCar AI</span>
                 <strong>{t.history}</strong>
               </div>
               <button type="button" onClick={onClose} aria-label="Close history">
@@ -1552,6 +1555,8 @@ function MobileProfilePage({
   const [profileRouteDirection, setProfileRouteDirection] = useState<MobileProfileRouteDirection>("forward")
   const [name, setName] = useState(authUser?.name || authUser?.username || "")
   const [email, setEmail] = useState(authUser?.email || "")
+  const [avatarId, setAvatarId] = useState(authUser?.avatarId || "person_default")
+  const [avatarPresets, setAvatarPresets] = useState<AccountAvatarPreset[]>([])
   const [currentPassword, setCurrentPassword] = useState("")
   const [nextPassword, setNextPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -1571,6 +1576,7 @@ function MobileProfilePage({
     setProfileRouteDirection("forward")
     setName(authUser?.name || authUser?.username || "")
     setEmail(authUser?.email || "")
+    setAvatarId(authUser?.avatarId || "person_default")
     setPhone(authUser?.phone || "")
     setCurrentPassword("")
     setNextPassword("")
@@ -1608,13 +1614,32 @@ function MobileProfilePage({
     }
   }, [authUser, isZh, open])
 
+  useEffect(() => {
+    if (!open) return undefined
+    let cancelled = false
+    listAccountAvatarPresets()
+      .then((payload) => {
+        if (!cancelled) setAvatarPresets(payload.avatars)
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarPresets([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   const displayName = authUser ? authUser.name || authUser.username : isZh ? "未登录" : "Guest"
   const accountLine = authUser?.phone || authUser?.email || authUser?.username || (isZh ? "登录后管理你的账号" : "Sign in to manage your account")
   const planName = billing?.plan.label || authUser?.plan || (isZh ? "游客" : "Guest")
   const unlimitedText = isZh ? "不限" : "Unlimited"
   const configBalance = formatAccountQuota(billing?.configRemaining, unlimitedText)
   const chatBalance = formatAccountQuota(billing?.chatRemainingToday, unlimitedText)
-  const initials = authUser ? (displayName.trim().slice(0, 2) || "AM").toUpperCase() : "AM"
+  const activeAvatarPresets = avatarPresets.length
+    ? avatarPresets
+    : authUser?.avatarUrl
+      ? [{ id: authUser.avatarId, label: displayName, imageUrl: authUser.avatarUrl, active: true, sortOrder: 0, builtIn: true, createdAt: 0, updatedAt: 0 }]
+      : []
 
   const openAuth = () => {
     onClose()
@@ -1709,7 +1734,7 @@ function MobileProfilePage({
   }
 
   const saveProfile = () => runProfileAction(async () => {
-    const payload = await updateAccountProfile({ name, email })
+    const payload = await updateAccountProfile({ name, email, avatarId })
     onAuthed(payload)
     setStatus(isZh ? "资料已保存" : "Profile saved")
   })
@@ -1728,8 +1753,8 @@ function MobileProfilePage({
   })
 
   const sendCode = () => runProfileAction(async () => {
-    const result = await sendPhoneChangeCode(phone)
-    setStatus(result.mockCode ? `${isZh ? "验证码已发送" : "Code sent"}: ${result.mockCode}` : isZh ? "验证码已发送" : "Code sent")
+    await sendPhoneChangeCode(phone)
+    setStatus(isZh ? "验证码已发送" : "Code sent")
   })
 
   const savePhone = () => runProfileAction(async () => {
@@ -1857,6 +1882,23 @@ function MobileProfilePage({
           event.preventDefault()
           void saveProfile()
         }}>
+          <fieldset className="mobile-avatar-picker">
+            <legend>{isZh ? "头像" : "Avatar"}</legend>
+            <div>
+              {activeAvatarPresets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  className={avatarId === preset.id ? "selected" : ""}
+                  onClick={() => setAvatarId(preset.id)}
+                  aria-pressed={avatarId === preset.id}
+                  aria-label={preset.label}
+                >
+                  <AccountAvatar imageUrl={preset.imageUrl} label={preset.label} />
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <label>
             <span>{isZh ? "昵称" : "Display name"}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -1954,9 +1996,9 @@ function MobileProfilePage({
           )}
 
           <section className="mobile-profile-hero">
-            <div className="mobile-profile-avatar">
-              <span>{initials}</span>
-            </div>
+            <button type="button" className="mobile-profile-avatar" onClick={() => authUser && openProfileSection("profile")} aria-label={isZh ? "更改头像" : "Change avatar"}>
+              <AccountAvatar user={authUser} />
+            </button>
             <h2>{displayName}</h2>
             <p>{accountLine}</p>
           </section>
@@ -2070,8 +2112,6 @@ function LegacyMobileProfilePage({
   const planName = billing?.plan.label || authUser?.plan || (isZh ? "游客" : "Guest")
   const configBalance = billing ? formatMobileProfileBalance(billing.configRemaining, isZh ? "不限" : "Unlimited") : "--"
   const chatBalance = billing ? formatMobileProfileBalance(billing.chatRemainingToday, isZh ? "不限" : "Unlimited") : "--"
-  const initials = authUser ? (displayName.trim().slice(0, 2) || "AM").toUpperCase() : "AM"
-
   const openAuth = () => {
     onClose()
     setAuthOpen(true)
@@ -2102,10 +2142,7 @@ function LegacyMobileProfilePage({
 
           <section className="mobile-profile-hero">
             <div className="mobile-profile-avatar">
-              <span>{initials}</span>
-              <button type="button" aria-label={isZh ? "更换头像" : "Change avatar"}>
-                <Camera size={17} />
-              </button>
+              <AccountAvatar user={authUser} />
             </div>
             <h2>{displayName}</h2>
             <p>{accountLine}</p>
@@ -2215,6 +2252,7 @@ function MobileChatMode({
   language,
   t,
   authUser,
+  billing,
   setAuthOpen,
   setSubscribeOpen,
   onBillingChanged,
@@ -2228,7 +2266,7 @@ function MobileChatMode({
   return (
     <section className="mobile-screen mobile-chat-screen">
       <MobileScreenHead
-        eyebrow="AI Mod Studio"
+        eyebrow="ModCar AI"
         title={language === "zh" ? "对话模式" : "Chat mode"}
         language={language}
         onLanguage={toggleLanguage}
@@ -2238,6 +2276,7 @@ function MobileChatMode({
         <ChatMode
           language={language}
           authUser={authUser}
+          billing={billing}
           mobileVariant
           mobileAccessKind={mobileAccessKind}
           onMobileAccessBlocked={onMobileAccessBlocked}
@@ -2292,11 +2331,13 @@ function MobileAccountStrip({
 }
 
 function MobileFloatingTopBar({
+  authUser,
   language,
   onLanguage,
   onMenu,
   onProfile,
 }: {
+  authUser?: AuthUser | null
   language: Language
   onLanguage: () => void
   onMenu: () => void
@@ -2308,7 +2349,7 @@ function MobileFloatingTopBar({
         <button type="button" className="mobile-floating-menu" onClick={onMenu} aria-label="Open drawer">
           <Menu size={19} />
         </button>
-        <span className="mobile-floating-title">AI Mod Studio</span>
+        <span className="mobile-floating-title">ModCar AI</span>
       </div>
       <div className="mobile-floating-actions">
         <button type="button" className="mobile-floating-profile" onClick={onProfile} aria-label="Profile">

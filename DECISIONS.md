@@ -1,52 +1,48 @@
 # DECISIONS
 
-Last updated: 2026-05-30 Asia/Shanghai
+Last updated: 2026-06-01 Asia/Shanghai
 
-Only current decisions are kept here. Historical implementation notes and completed mobile-auth details have been removed.
+Only current project decisions are kept here.
 
 ## 1. Runtime SQLite Is Not Source Code
 
 SQLite holds environment-specific runtime state and admin overrides. Default providers, workflows, catalog/prompt/billing baselines, and UI/API behavior belong in code.
 
-Do not commit local SQLite as a fix for missing defaults. Do not assume provider keys can be moved with SQLite unless the environment secret is identical.
+## 2. Prompt Authority Is Git Seed
 
-## 2. Provider Keys Are Environment Secrets
+Runtime prompt text comes from `lib/catalog.ts` seed. `config/prompt-packs` is validation evidence. Admin prompt pages and prompt APIs are read-only for prompt bodies; config export/apply excludes prompt bodies. SQLite prompt rows are compatibility data only.
 
-API keys must be saved in each real environment through admin or a controlled secret workflow. If decryption fails, check `CAR_MOD_SECRET` / PM2 env before changing provider code.
+## 3. Vehicle Model Recognition Is Display Metadata
 
-## 3. Real Provider Failures Must Stay Visible
+Auto-recognized vehicle model must not enter `GenerationStandardJson.vehicle.model` by default. Only a user-edited model should enter prompt JSON. UI/history display uses `displayVehicleModel` / `generation_jobs.display_vehicle_model`.
 
-Do not silently replace a failed real generation with mock/original/demo output. This is especially important while debugging 302 because failed submits can still charge credits.
+## 4. Real Provider Failures Must Stay Visible
 
-## 4. Provider Images Must Be Materialized Locally
+Do not silently replace a failed real generation with mock/original/demo output. Failed provider submits may still charge credits.
 
-New durable generation/history/chat records should use app-local image paths or app-origin proxied/downloadable images, not raw `file.302` or other provider-hosted URLs.
+## 5. Provider Images Must Be Materialized Locally
 
-Old external URLs may remain in historical records and can only be migrated if the server can still fetch them.
+New durable generation/history/chat records should use app-local paths or app-origin proxy/download helpers, not raw provider-hosted URLs. Old external URLs may remain and can only be migrated if still fetchable.
 
-## 5. 302 Polling Must Respect The Configured Host
+## 6. Provider Keys Are Environment Secrets
 
-302 may return prediction/result URLs on a different host such as `api.302.ai`. The app should normalize compatible 302 polling URLs to the host used by the selected provider endpoint so the test server does not accidentally route through a blocked host.
+Keys must be saved per environment through admin or controlled secrets. If decryption fails, check environment secrets before changing provider code.
 
-## 6. Real Provider Tests Require User Approval
+## 7. Real Provider Tests Require User Approval
 
-Do not run live Nano/GPT Image/provider smoke tests without explicit approval. A failed result retrieval can still deduct credits.
+Do not run live provider smoke tests without explicit approval and a credit-usage warning.
 
-## 7. Desktop And Mobile Are Separate UI Surfaces
+## 8. Desktop And Mobile Are Separate UI Surfaces
 
-Desktop and mobile share backend/state contracts but have separate visual surfaces. Fix the reported surface without broad redesign unless shared logic is the cause.
-
-## 8. Generation Uses Standard JSON
-
-Config and Chat must converge on `GenerationStandardJson`. The first image is the vehicle canvas; later images are references. Prompt/provider code should preserve unselected vehicle details.
+They share backend/state contracts, but visual behavior can diverge. Fix the reported surface without broad redesign unless shared logic is the cause.
 
 ## 9. Workflow Provider Selection Is Capability-Based
 
-Workflow steps must validate provider capability. Image steps need image-capable providers, recognition steps need vision-capable providers, LLM steps need text/LLM providers, and vector steps need embedding/vector providers.
+Image steps need image-capable providers, recognition steps need vision-capable providers, LLM steps need text/LLM providers, and vector steps need embedding/vector providers.
 
-## 10. Admin Is Still Internal Tooling
+## 10. Admin Is Internal Tooling
 
-The admin console can support testing and operations, but it is not yet a production-grade operations platform. Production user/order/quota/provider-cost workflows and audit hardening remain future work.
+The admin console supports testing and operations, but it is not a production-grade operations platform yet.
 
 ## 11. Verification Is Sequential
 
@@ -54,4 +50,4 @@ Run `npm.cmd run build` before `npx.cmd tsc --noEmit`. Do not run them in parall
 
 ## 12. Avoid Unsafe Logging
 
-Temporary provider diagnostics may log endpoint hosts, response status, safe IDs, and response shape. They must not log API keys, base64 images, user photos, or full signed provider URLs.
+Provider diagnostics may log endpoint hosts, response status, safe IDs, and response shape. They must not log API keys, base64 images, user photos, or full signed provider URLs.

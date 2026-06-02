@@ -16,6 +16,7 @@ Do not read every document here during handoff. Pick the document for the subsys
 - `PROMPT_REAL_EFFECT_REGRESSION_CHECKLIST.md`: manual real-effect prompt regression checklist; only run with user approval.
 - `PROJECT_AUDIT_AND_BOUNDARIES.md`: project/runtime DB boundary, image persistence policy, provider policy, audit command.
 - `DEPLOYMENT_AND_CONFIG_MIGRATION.md`: config export/apply/compare flow for keeping local and test server aligned.
+- `ALIYUN_PHONE_AUTH.md`: Aliyun PNVS SMS verification and H5 one-tap phone auth setup, env vars, and non-paid verification.
 
 ## Historical Or Condensed
 

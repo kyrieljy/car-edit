@@ -32,14 +32,15 @@ import {
   X,
 } from "lucide-react"
 import { AuthModal } from "@/components/auth-modal"
+import { AccountAvatar } from "@/components/account-avatar"
 import { ChatMode } from "@/components/chat-mode"
 import { MobileLoadingScreen, MobileStudioApp } from "@/components/mobile/mobile-studio-app"
 import { SubscribeModal } from "@/components/subscribe-modal"
 import {
-  accountInitials,
   changeAccountPassword,
   changeAccountPhone,
   formatAccountQuota,
+  listAccountAvatarPresets,
   sendPhoneChangeCode,
   updateAccountProfile,
   type AccountPayload,
@@ -47,6 +48,7 @@ import {
 import { readProgressResponse } from "@/lib/progress-client"
 import { canvasSafeImageUrl, downloadCompareImage, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import type {
+  AccountAvatarPreset,
   AuthUser,
   CatalogResponse,
   EntitlementStatus,
@@ -164,7 +166,7 @@ const paintCopy: Record<Language, Record<string, string>> = {
 
 const copy = {
   en: {
-    title: "AI Mod Studio",
+    title: "ModCar AI",
     configMode: "Config Mode",
     chatMode: "Chat Mode",
     input: "Input",
@@ -215,7 +217,7 @@ const copy = {
     loading: "Loading studio...",
   },
   zh: {
-    title: "AI 改装工作室",
+    title: "ModCar AI",
     configMode: "自选配置",
     chatMode: "模型对话",
     input: "输入",
@@ -300,7 +302,7 @@ const studioPaintCopy: typeof paintCopy = {
 const studioCopy: typeof copy = {
   en: copy.en,
   zh: {
-    title: "AI 改装效果工作室",
+    title: "ModCar AI",
     configMode: "自选配置",
     chatMode: "模型对话",
     input: "输入",
@@ -443,7 +445,7 @@ const cleanStudioCopy = {
     elapsedUnit: "sec",
   },
   zh: {
-    title: "AI 改装效果工作室",
+    title: "ModCar AI",
     configMode: "配置模式",
     chatMode: "对话模式",
     input: "输入",
@@ -519,8 +521,8 @@ function ResponsiveStudioLoading({ language, text }: { language: Language; text:
           <b />
         </div>
         <div className="mobile-loading-copy">
-          <strong>AI MOD STUDIO</strong>
-          <span>{language === "zh" ? "正在加载改装工作室" : "Loading tuning studio"}</span>
+          <strong>ModCar AI</strong>
+          <span>{language === "zh" ? "正在加载工作室" : "Loading ModCar AI"}</span>
         </div>
         <div className="mobile-loading-progress" aria-hidden="true">
           <em />
@@ -2002,6 +2004,7 @@ export function CarModStudio() {
               <ChatMode
                 language={language}
                 authUser={authUser}
+                billing={billing}
                 onAuthRequired={() => setAuthOpen(true)}
                 onSubscribeRequired={(nextBilling) => {
                   if (nextBilling) setBilling(nextBilling)
@@ -2086,6 +2089,8 @@ function DesktopAccountPanel({
   const [mode, setMode] = useState<AccountPanelMode>("overview")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [avatarId, setAvatarId] = useState("person_default")
+  const [avatarPresets, setAvatarPresets] = useState<AccountAvatarPreset[]>([])
   const [currentPassword, setCurrentPassword] = useState("")
   const [nextPassword, setNextPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -2100,6 +2105,7 @@ function DesktopAccountPanel({
     setMode("overview")
     setName(authUser?.name || authUser?.username || "")
     setEmail(authUser?.email || "")
+    setAvatarId(authUser?.avatarId || "person_default")
     setPhone(authUser?.phone || "")
     setCurrentPassword("")
     setNextPassword("")
@@ -2109,6 +2115,21 @@ function DesktopAccountPanel({
     setError("")
     setLoading(false)
   }, [authUser, open])
+
+  useEffect(() => {
+    if (!open) return undefined
+    let cancelled = false
+    listAccountAvatarPresets()
+      .then((payload) => {
+        if (!cancelled) setAvatarPresets(payload.avatars)
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarPresets([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   const copy = {
     title: isZh ? "个人中心" : "Profile",
@@ -2121,6 +2142,7 @@ function DesktopAccountPanel({
     unlimited: isZh ? "不限" : "Unlimited",
     upgrade: isZh ? "升级会员" : "Upgrade",
     profile: isZh ? "资料" : "Profile",
+    avatar: isZh ? "设置头像" : "Set avatar",
     password: isZh ? "密码" : "Password",
     phone: isZh ? "手机号" : "Phone",
     save: isZh ? "保存" : "Save",
@@ -2138,6 +2160,11 @@ function DesktopAccountPanel({
   const planName = billing?.plan.label || authUser?.plan || "--"
   const configRemaining = formatAccountQuota(billing?.configRemaining, copy.unlimited)
   const chatRemaining = formatAccountQuota(billing?.chatRemainingToday, copy.unlimited)
+  const activeAvatarPresets = avatarPresets.length
+    ? avatarPresets
+    : authUser?.avatarUrl
+      ? [{ id: authUser.avatarId, label: displayName, imageUrl: authUser.avatarUrl, active: true, sortOrder: 0, builtIn: true, createdAt: 0, updatedAt: 0 }]
+      : []
   const subscriptionEnd = billing?.subscription?.currentPeriodEnd
     ? new Date(billing.subscription.currentPeriodEnd).toLocaleDateString(isZh ? "zh-CN" : "en-US")
     : isZh ? "未订阅" : "No active subscription"
@@ -2156,7 +2183,7 @@ function DesktopAccountPanel({
   }
 
   const saveProfile = () => runAccountAction(async () => {
-    const payload = await updateAccountProfile({ name, email })
+    const payload = await updateAccountProfile({ name, email, avatarId })
     onAccountUpdated(payload)
     setNotice(copy.done)
   })
@@ -2175,8 +2202,8 @@ function DesktopAccountPanel({
   })
 
   const sendCode = () => runAccountAction(async () => {
-    const result = await sendPhoneChangeCode(phone)
-    setNotice(result.mockCode ? `${copy.codeSent}: ${result.mockCode}` : copy.codeSent)
+    await sendPhoneChangeCode(phone)
+    setNotice(copy.codeSent)
   })
 
   const savePhone = () => runAccountAction(async () => {
@@ -2220,7 +2247,12 @@ function DesktopAccountPanel({
             {authUser ? (
               <>
                 <section className="account-panel-hero">
-                  <div className="account-avatar">{accountInitials(authUser)}</div>
+                  <button type="button" className="account-avatar-trigger" onClick={() => setMode("profile")} aria-label={copy.avatar}>
+                    <AccountAvatar user={authUser} className="account-avatar" />
+                    <span>
+                      <Camera size={13} />
+                    </span>
+                  </button>
                   <div>
                     <strong>{displayName}</strong>
                     <span>{authUser.phone || authUser.email || authUser.username}</span>
@@ -2271,6 +2303,10 @@ function DesktopAccountPanel({
                 <section className="account-panel-body">
                   {mode === "overview" && (
                     <div className="account-action-grid">
+                      <button type="button" onClick={() => setMode("profile")}>
+                        <Camera size={16} />
+                        {copy.avatar}
+                      </button>
                       <button type="button" onClick={onSubscribe}>
                         <BadgeCheck size={16} />
                         {copy.upgrade}
@@ -2287,6 +2323,23 @@ function DesktopAccountPanel({
                       event.preventDefault()
                       void saveProfile()
                     }}>
+                      <fieldset className="account-avatar-picker">
+                        <legend>{isZh ? "头像" : "Avatar"}</legend>
+                        <div>
+                          {activeAvatarPresets.map((preset) => (
+                            <button
+                              type="button"
+                              key={preset.id}
+                              className={avatarId === preset.id ? "selected" : ""}
+                              onClick={() => setAvatarId(preset.id)}
+                              aria-pressed={avatarId === preset.id}
+                              aria-label={preset.label}
+                            >
+                              <AccountAvatar imageUrl={preset.imageUrl} label={preset.label} />
+                            </button>
+                          ))}
+                        </div>
+                      </fieldset>
                       <label>
                         <span>{isZh ? "昵称" : "Display name"}</span>
                         <input value={name} onChange={(event) => setName(event.target.value)} />

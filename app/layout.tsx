@@ -3,8 +3,8 @@ import type { Metadata } from "next"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "AI Mod Studio",
-  description: "Upload a car photo, choose modification parts, and generate an AI render.",
+  title: "ModCar AI",
+  description: "ModCar AI turns vehicle photos and modification choices into AI render previews.",
 }
 
 export default function RootLayout({

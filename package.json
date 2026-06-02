@@ -17,6 +17,8 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@alicloud/dypnsapi20170525": "^2.0.0",
+    "aliyun_numberauthsdk_web": "^2.1.15",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.454.0",
     "next": "14.2.25",

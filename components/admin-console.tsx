@@ -10,6 +10,7 @@ import {
   Database,
   Eye,
   Grid2X2,
+  ImageIcon,
   KeyRound,
   ListPlus,
   LogOut,
@@ -25,6 +26,7 @@ import { WorkflowDesigner } from "@/components/workflow-designer"
 import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
+  AccountAvatarPreset,
   AuthUser,
   GenerationJob,
   GenerationStandardJson,
@@ -44,12 +46,13 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit"
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
 
 const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.ReactNode }> = [
   { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
+  { id: "avatars", label: "头像预设", sub: "账号头像 / 启用状态", icon: <ImageIcon size={20} /> },
   { id: "providers", label: "模型 API", sub: "全局生效接口", icon: <ServerCog size={20} /> },
   { id: "prompts", label: "提示词", sub: "配置 / 对话 / 负面词", icon: <ListPlus size={20} /> },
   { id: "guardrail", label: "风控 SOP", sub: "检测与 Workflow", icon: <ShieldCheck size={20} /> },
@@ -62,6 +65,7 @@ const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.Re
 const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.ReactNode }> = [
   { id: "dashboard", label: "数据看板", sub: "指标 / 状态 / 趋势", icon: <Database size={20} /> },
   { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
+  { id: "avatars", label: "头像预设", sub: "账号头像 / 排序 / 状态", icon: <ImageIcon size={20} /> },
   { id: "providers", label: "模型 API", sub: "全局模型接口", icon: <ServerCog size={20} /> },
   { id: "prompts", label: "提示词", sub: "模板 / 负面词 / 重试", icon: <ListPlus size={20} /> },
   { id: "workflows", label: "Workflow", sub: "配置 / 对话 / 检查", icon: <Activity size={20} /> },
@@ -78,6 +82,7 @@ function adminTabTitle(tab: AdminTab) {
   return {
     dashboard: "数据看板",
     assets: "资源库管理",
+    avatars: "头像预设",
     providers: "模型 API 配置",
     prompts: "提示词管理",
     workflows: "Workflow 管理",
@@ -138,9 +143,10 @@ export function AdminConsole() {
     const response = await fetch("/api/auth/send-code", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: "+8618928268686", purpose: "admin" }),
+      body: JSON.stringify({ identifier, password, purpose: "admin" }),
     })
-    setNotice(response.ok ? "管理员验证码已发送，开发模式验证码为 123456" : "验证码发送失败")
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    setNotice(response.ok ? "管理员验证码已发送" : body.error || "验证码发送失败")
   }
 
   const login = async () => {
@@ -185,7 +191,7 @@ export function AdminConsole() {
           <label className="clinical-field code-field">
             <span>手机号验证码</span>
             <div>
-              <input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="123456" />
+              <input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="验证码" />
               <button type="button" onClick={sendAdminCode}>
                 获取验证码
               </button>
@@ -272,6 +278,7 @@ export function AdminConsole() {
 
           {tab === "dashboard" && <DashboardPanel summary={summary} />}
           {tab === "assets" && <AssetManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+          {tab === "avatars" && <AvatarPresetManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
@@ -279,7 +286,12 @@ export function AdminConsole() {
           {tab === "plans" && <PlanManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "usage" && <UsageOpsTable summary={summary} />}
           {tab === "badcases" && <BadCaseOpsTable summary={summary} />}
-          {tab === "users" && <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+          {tab === "users" && (
+            <>
+              <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+              <SmsRecordsTable summary={summary} />
+            </>
+          )}
           {tab === "profiles" && <UserProfilesOpsTable summary={summary} />}
           {tab === "audit" && <AuditOpsTable summary={summary} />}
           {notice && <div className="notice admin-notice">{notice}</div>}
@@ -396,6 +408,11 @@ function AdminToastOverlayV2({ toast, onClose }: { toast: NonNullable<AdminToast
       </div>
     </div>
   )
+}
+
+async function readAdminError(response: Response, fallback: string) {
+  const body = await response.json().catch(() => ({}))
+  return typeof body.error === "string" ? body.error : fallback
 }
 
 function moveIdBefore(ids: string[], draggedId: string, targetId: string) {
@@ -2797,6 +2814,156 @@ function PlanManagerV2({ summary, onChanged, notify }: { summary: AdminSummary; 
   )
 }
 
+const emptyAvatarDraft = {
+  id: "",
+  label: "",
+  imageUrl: "",
+  active: true,
+  sortOrder: 100,
+}
+
+function AvatarPresetManager({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+  const [draft, setDraft] = useState(emptyAvatarDraft)
+  const presets = useMemo(() => [...summary.avatarPresets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt || a.id.localeCompare(b.id)), [summary.avatarPresets])
+
+  const create = async () => {
+    const response = await fetch("/api/admin/avatar-presets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    })
+    if (!response.ok) {
+      notify("error", await readAdminError(response, "头像预设新增失败"))
+      return
+    }
+    setDraft(emptyAvatarDraft)
+    notify("success", "头像预设已新增")
+    onChanged()
+  }
+
+  return (
+    <section className="admin-ops-stack avatar-admin-panel">
+      <article className="admin-panel provider-card avatar-admin-form">
+        <PanelHeading label="AVATAR" title="新增头像预设" count={`${presets.length} 个预设`} />
+        <label>
+          头像 ID
+          <input value={draft.id} placeholder="custom_avatar" onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))} />
+        </label>
+        <label>
+          名称
+          <input value={draft.label} placeholder="头像名称" onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))} />
+        </label>
+        <label>
+          图片 URL
+          <input value={draft.imageUrl} placeholder="/assets/avatars/custom.png" onChange={(event) => setDraft((current) => ({ ...current, imageUrl: event.target.value }))} />
+        </label>
+        <label>
+          排序
+          <input type="number" value={draft.sortOrder} onChange={(event) => setDraft((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
+        </label>
+        <label className="check-line">
+          <input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} />
+          启用
+        </label>
+        <button type="button" onClick={() => void create()}>
+          <BadgeCheck size={16} />
+          新增头像
+        </button>
+      </article>
+
+      <div className="avatar-admin-grid">
+        {presets.map((preset) => (
+          <AvatarPresetCard key={preset.id} preset={preset} onChanged={onChanged} notify={notify} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function AvatarPresetCard({ preset, onChanged, notify }: { preset: AccountAvatarPreset; onChanged: () => void; notify: NotifyAdmin }) {
+  const [draft, setDraft] = useState({
+    label: preset.label,
+    imageUrl: preset.imageUrl,
+    active: preset.active,
+    sortOrder: preset.sortOrder,
+  })
+
+  useEffect(() => {
+    setDraft({
+      label: preset.label,
+      imageUrl: preset.imageUrl,
+      active: preset.active,
+      sortOrder: preset.sortOrder,
+    })
+  }, [preset])
+
+  const isDefault = preset.id === "person_default"
+  const save = async () => {
+    const response = await fetch(`/api/admin/avatar-presets/${encodeURIComponent(preset.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    })
+    if (!response.ok) {
+      notify("error", await readAdminError(response, "头像预设保存失败"))
+      return
+    }
+    notify("success", "头像预设已保存")
+    onChanged()
+  }
+
+  const remove = async () => {
+    const response = await fetch(`/api/admin/avatar-presets/${encodeURIComponent(preset.id)}`, { method: "DELETE" })
+    if (!response.ok) {
+      notify("error", await readAdminError(response, "头像预设删除失败"))
+      return
+    }
+    notify("success", "头像预设已删除")
+    onChanged()
+  }
+
+  return (
+    <article className="admin-panel provider-card avatar-admin-card">
+      <div className="avatar-admin-preview">
+        <img src={draft.imageUrl || preset.imageUrl} alt="" />
+        <span>{preset.builtIn ? "内置" : "自定义"}</span>
+      </div>
+      <strong>{preset.id}</strong>
+      <label>
+        名称
+        <input value={draft.label} onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))} />
+      </label>
+      <label>
+        图片 URL
+        <input value={draft.imageUrl} onChange={(event) => setDraft((current) => ({ ...current, imageUrl: event.target.value }))} />
+      </label>
+      <label>
+        排序
+        <input type="number" value={draft.sortOrder} onChange={(event) => setDraft((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
+      </label>
+      <label className="check-line">
+        <input
+          type="checkbox"
+          checked={draft.active}
+          disabled={isDefault}
+          onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))}
+        />
+        启用
+      </label>
+      <div className="avatar-admin-actions">
+        <button type="button" onClick={() => void save()}>
+          <BadgeCheck size={16} />
+          保存
+        </button>
+        <button type="button" disabled={isDefault} onClick={() => void remove()}>
+          <Trash2 size={16} />
+          删除
+        </button>
+      </div>
+    </article>
+  )
+}
+
 function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
   return (
     <section className="admin-ops-stack">
@@ -2882,6 +3049,7 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
           </tbody>
         </table>
       </article>
+
     </section>
   )
 }
@@ -3015,6 +3183,13 @@ type QuotaDraft = {
   saving: boolean
 }
 
+type UserEditDraft = {
+  role: "user" | "admin"
+  plan: string
+  status: "active" | "disabled"
+  saving: boolean
+}
+
 const defaultQuotaDraft: QuotaDraft = {
   mode: "config",
   delta: "1",
@@ -3024,12 +3199,64 @@ const defaultQuotaDraft: QuotaDraft = {
 
 function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
   const [drafts, setDrafts] = useState<Record<string, QuotaDraft>>({})
+  const [userDrafts, setUserDrafts] = useState<Record<string, UserEditDraft>>({})
+  const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "disabled">("all")
+
+  const filteredUsers = summary.users.filter((user) => {
+    const haystack = `${user.name} ${user.username} ${user.phone} ${user.email} ${user.id}`.toLowerCase()
+    const matchesQuery = !query.trim() || haystack.includes(query.trim().toLowerCase())
+    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+    return matchesQuery && matchesStatus
+  })
 
   const patchDraft = (userId: string, patch: Partial<QuotaDraft>) => {
     setDrafts((current) => ({
       ...current,
       [userId]: { ...(current[userId] || defaultQuotaDraft), ...patch },
     }))
+  }
+
+  const userDraftFor = (user: AdminSummary["users"][number]): UserEditDraft => {
+    return userDrafts[user.id] || {
+      role: user.role === "admin" ? "admin" : "user",
+      plan: user.plan || "free",
+      status: user.status || "active",
+      saving: false,
+    }
+  }
+
+  const patchUserDraft = (user: AdminSummary["users"][number], patch: Partial<UserEditDraft>) => {
+    setUserDrafts((current) => ({
+      ...current,
+      [user.id]: { ...userDraftFor(user), ...patch },
+    }))
+  }
+
+  const saveUser = async (user: AdminSummary["users"][number]) => {
+    const draft = userDraftFor(user)
+    patchUserDraft(user, { saving: true })
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: draft.role, plan: draft.plan, status: draft.status }),
+      })
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string }
+        notify("error", body.error || "User update failed")
+        return
+      }
+      notify("success", "User updated")
+      setUserDrafts((current) => {
+        const next = { ...current }
+        delete next[user.id]
+        return next
+      })
+      onChanged()
+    } finally {
+      patchUserDraft(user, { saving: false })
+    }
   }
 
   const adjustQuota = async (userId: string) => {
@@ -3073,7 +3300,16 @@ function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; 
       <article className="admin-panel data-table">
         <PanelHeading label="账号 // 用户" title="用户管理与额度调整" count={`${summary.users.length} 个用户`} />
         <p className="admin-inline-help">额度调整填正数表示发放额外额度，填负数表示扣减额度；点击“保存调整”后立即生效，并写入审计日志。</p>
-        <table>
+        <table className="admin-users-table">
+          <colgroup>
+            <col className="admin-users-col-user" />
+            <col className="admin-users-col-account" />
+            <col className="admin-users-col-role" />
+            <col className="admin-users-col-plan" />
+            <col className="admin-users-col-quota" />
+            <col className="admin-users-col-quota" />
+            <col className="admin-users-col-adjust" />
+          </colgroup>
           <thead>
             <tr>
               <th>用户</th>
@@ -3086,27 +3322,60 @@ function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; 
             </tr>
           </thead>
           <tbody>
-            {summary.users.map((user) => {
+            <tr>
+              <td colSpan={7}>
+                <div className="admin-inline-form admin-users-filter-form">
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search user, phone, email" />
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value === "disabled" ? "disabled" : event.target.value === "active" ? "active" : "all")}>
+                    <option value="all">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+              </td>
+            </tr>
+            {filteredUsers.map((user) => {
               const draft = drafts[user.id] || defaultQuotaDraft
+              const userDraft = userDraftFor(user)
               return (
                 <tr key={user.id}>
-                  <td>
+                  <td className="admin-user-identity-cell">
                     <strong>{user.name || user.username || user.id}</strong>
                     <small className="admin-cell-sub">{user.phone || user.email || user.id}</small>
                   </td>
-                  <td>{user.username}</td>
-                  <td>{user.role}</td>
-                  <td>{user.plan}</td>
-                  <td>
+                  <td className="admin-user-account-cell">{user.username}</td>
+                  <td className="admin-user-role-cell">
+                    <select value={userDraft.role} onChange={(event) => patchUserDraft(user, { role: event.target.value === "admin" ? "admin" : "user" })}>
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                    <small className="admin-cell-sub">{user.status}</small>
+                  </td>
+                  <td className="admin-user-plan-cell">
+                    <select value={userDraft.plan} onChange={(event) => patchUserDraft(user, { plan: event.target.value })}>
+                      <option value="free">free</option>
+                      <option value="pro">pro</option>
+                      <option value="max">max</option>
+                      <option value="internal">internal</option>
+                    </select>
+                    <select value={userDraft.status} onChange={(event) => patchUserDraft(user, { status: event.target.value === "disabled" ? "disabled" : "active" })}>
+                      <option value="active">active</option>
+                      <option value="disabled">disabled</option>
+                    </select>
+                    <button type="button" disabled={userDraft.saving} onClick={() => void saveUser(user)}>
+                      {userDraft.saving ? "Saving" : "Save user"}
+                    </button>
+                  </td>
+                  <td className="admin-user-quota-summary">
                     {formatAdminQuota(user.configRemaining)}
                     <small className="admin-cell-sub">已用 {user.configUsed}</small>
                   </td>
-                  <td>
+                  <td className="admin-user-quota-summary">
                     {formatAdminQuota(user.chatRemainingToday)}
                     <small className="admin-cell-sub">今日已用 {user.chatUsedToday}</small>
                   </td>
                   <td className="admin-quota-cell">
-                    <div className="admin-inline-form">
+                    <div className="admin-inline-form admin-quota-adjust-form">
                       <select aria-label="调整额度类型" value={draft.mode} onChange={(event) => patchDraft(user.id, { mode: event.target.value === "chat" ? "chat" : "config" })}>
                         <option value="config">配置</option>
                         <option value="chat">对话</option>
@@ -3161,6 +3430,45 @@ function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; 
           </tbody>
         </table>
       </article>
+    </section>
+  )
+}
+
+function SmsRecordsTable({ summary }: { summary: AdminSummary }) {
+  return (
+    <section className="admin-panel data-table">
+      <PanelHeading label="SMS" title="Verification code records" count={`${summary.smsRecords.length} records`} />
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Phone</th>
+            <th>Purpose</th>
+            <th>Status</th>
+            <th>Provider</th>
+            <th>Attempts</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.smsRecords.map((row) => (
+            <tr key={row.id}>
+              <td>{formatAdminDate(row.createdAt)}</td>
+              <td>{row.phone}</td>
+              <td>{row.purpose}</td>
+              <td>{row.status}</td>
+              <td>{row.provider}</td>
+              <td>{row.attemptCount}</td>
+              <td className="admin-wrap-cell">{row.errorMessage || row.requestId}</td>
+            </tr>
+          ))}
+          {!summary.smsRecords.length && (
+            <tr>
+              <td colSpan={7}>No SMS records</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </section>
   )
 }
@@ -3468,6 +3776,7 @@ function tabTitle(tab: Exclude<AdminTab, "workflows" | "badcases" | "profiles">)
   return {
     dashboard: "数据看板",
     assets: "资源库管理",
+    avatars: "头像预设",
     providers: "模型 API 配置",
     prompts: "提示词管理",
     guardrail: "风控 SOP 配置",
