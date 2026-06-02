@@ -83,8 +83,8 @@ const subscribeCopy = {
     checkoutFailed: "创建支付订单失败。",
     mockPaymentFailed: "模拟支付失败。",
     subscriptionFailed: "订阅失败。",
-    subscriptionManaged: "测试版已关闭自助开通，请联系后台管理员配置套餐和额度。",
-    subscriptionAction: "管理员配置",
+    subscriptionManaged: "测试版已关闭自助开通，请联系管理员爸爸配置套餐和额度。",
+    subscriptionAction: "联系管理员爸爸配置",
   },
 } satisfies Record<Language, Record<string, string>>
 

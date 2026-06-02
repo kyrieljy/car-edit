@@ -4,7 +4,7 @@ import { authErrorResponse, requireUser } from "@/lib/server/auth"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const SUBSCRIPTION_CHECKOUT_DISABLED_ERROR = "测试版已关闭自助开通，请联系后台管理员配置套餐和额度。"
+const SUBSCRIPTION_CHECKOUT_DISABLED_ERROR = "测试版已关闭自助开通，请联系管理员爸爸配置套餐和额度。"
 
 export async function POST() {
   try {
