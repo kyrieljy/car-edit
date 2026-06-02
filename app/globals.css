@@ -6913,8 +6913,14 @@ a {
 .admin-clinical .admin-quota-adjust-form {
   width: 100%;
   max-width: none;
-  grid-template-columns: minmax(0, 1fr) 68px;
+  grid-template-columns: 112px 54px;
+  justify-content: start;
   overflow: hidden;
+}
+
+.admin-clinical .admin-quota-adjust-form select,
+.admin-clinical .admin-quota-adjust-form input[type="number"] {
+  width: 100%;
 }
 
 .admin-inline-form button {
