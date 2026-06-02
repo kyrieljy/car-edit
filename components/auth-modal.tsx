@@ -163,7 +163,7 @@ const authCopy = {
     close: "关闭",
     back: "返回",
     account: "账号",
-    oneTapTitle: "本机号码登录",
+    oneTapTitle: "ModCar AI",
     oneTapSubtitle: "运营商将为当前设备提供号码认证服务。",
     oneTapCta: "本机号码一键登录/注册",
     moreMethods: "更多登录方式",
@@ -229,7 +229,7 @@ const authCopy = {
     oneTapFallback: "本机号码登录失败，可能是当前未使用移动数据或运营商暂不可用，请使用短信验证码登录。",
     socialSoon: (name: string) => `${name} 登录在当前测试版本暂未开放。`,
     duplicatePhone: (username: string) => `该手机号已注册并绑定 ${username} 用户。`,
-    maskedPhone: "运营商认证",
+    maskedPhone: "本机号码登录",
   },
 }
 
