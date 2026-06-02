@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
 import fs from "node:fs/promises"
+import { DatabaseSync } from "node:sqlite"
 
 const cwd = process.cwd()
 const baseUrl = process.env.AUTH_TEST_BASE_URL || "http://127.0.0.1:3124"
@@ -119,6 +120,39 @@ function assert(pass, message) {
   if (!pass) throw new Error(message)
 }
 
+async function adminSessionCookie() {
+  const adminIdentifier = "admin_16698604646"
+  const codeResult = await post("/api/auth/send-code", { purpose: "admin", identifier: adminIdentifier, password: "Admin@1234" }, 200)
+  assert(/^\d{6}$/.test(String(codeResult.data.devCode || "")), "Admin code request should return a mock devCode.")
+
+  const login = await post("/api/auth/login", { mode: "password", identifier: adminIdentifier, password: "Admin@1234", adminCode: codeResult.data.devCode }, 200)
+  const cookie = sessionCookie(login.response)
+  assert(Boolean(cookie), "Admin login should set session cookie.")
+  return cookie
+}
+
+function insertActiveSubscription(userId, planId = "pro") {
+  const db = new DatabaseSync("data/car_mod_effect.sqlite")
+  try {
+    const now = Date.now()
+    db.prepare("UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE user_id = ? AND status = 'active'").run(now, userId)
+    db.prepare("INSERT INTO subscriptions (id, user_id, plan_id, status, current_period_end, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(`sub_dry_${runId}_${userId}_${planId}`, userId, planId, "active", now + 30 * 24 * 60 * 60 * 1000, now, now)
+  } finally {
+    db.close()
+  }
+}
+
+function activeSubscriptionCount(userId) {
+  const db = new DatabaseSync("data/car_mod_effect.sqlite", { readOnly: true })
+  try {
+    const row = db.prepare("SELECT COUNT(*) AS value FROM subscriptions WHERE user_id = ? AND status = 'active'").get(userId)
+    return Number(row?.value || 0)
+  } finally {
+    db.close()
+  }
+}
+
 async function testExistingPhoneLogin() {
   const registerCode = await sendCode(phones.existing, "register")
   const username = `existing_${runId}`
@@ -217,15 +251,29 @@ async function testBillingCheckoutDisabled() {
   assert(mockPaid.data.code === "SUBSCRIPTION_MANAGED_BY_ADMIN", "Mock payment completion should be disabled for test users.")
 }
 
-async function testInternalAdminUnlimitedBilling() {
-  const adminIdentifier = "admin_16698604646"
-  const codeResult = await post("/api/auth/send-code", { purpose: "admin", identifier: adminIdentifier, password: "Admin@1234" }, 200)
-  assert(/^\d{6}$/.test(String(codeResult.data.devCode || "")), "Admin code request should return a mock devCode.")
-
-  const login = await post("/api/auth/login", { mode: "password", identifier: adminIdentifier, password: "Admin@1234", adminCode: codeResult.data.devCode }, 200)
+async function testAdminPlanOverridesActiveSubscription() {
+  const login = await post("/api/auth/login", { mode: "password", identifier: `mobile_${runId}`, password: "AuthTest@1234" }, 200)
   const cookie = sessionCookie(login.response)
-  assert(Boolean(cookie), "Internal admin login should set session cookie.")
+  const userId = login.data.user?.id
+  assert(Boolean(cookie) && Boolean(userId), "Plan override test should have a logged-in target user.")
 
+  insertActiveSubscription(userId, "pro")
+  const billingBeforeSave = await getJson("/api/billing/status", 200, cookie)
+  assert(billingBeforeSave.data.billing?.plan?.id === "free", "User plan should override stale active subscriptions.")
+  assert(billingBeforeSave.data.billing?.configRemaining === 5, "Free user should keep the free config quota.")
+  assert(billingBeforeSave.data.billing?.chatRemainingToday === 0, "Free user should not inherit pro chat quota.")
+
+  const adminCookie = await adminSessionCookie()
+  const saved = await patchWithCookie(`/api/admin/users/${encodeURIComponent(userId)}`, { role: "user", plan: "free", status: "active" }, adminCookie, 200)
+  assert(saved.data.billing?.plan?.id === "free", "Admin save should return the selected free plan.")
+  assert(activeSubscriptionCount(userId) === 0, "Admin save should cancel stale active subscriptions.")
+
+  const billingAfterSave = await getJson("/api/billing/status", 200, cookie)
+  assert(billingAfterSave.data.billing?.plan?.id === "free", "Billing status should stay free after admin save.")
+}
+
+async function testInternalAdminUnlimitedBilling() {
+  const cookie = await adminSessionCookie()
   const billing = await getJson("/api/billing/status", 200, cookie)
   assert(billing.data.billing?.configRemaining === "unlimited", "Internal admin should have unlimited config quota.")
   assert(billing.data.billing?.chatRemainingToday === "unlimited", "Internal admin should have unlimited chat quota.")
@@ -301,6 +349,7 @@ const tests = [
   ["phone-only password-not-set warning", testPhoneOnlyPasswordNotSet],
   ["mobile other-phone register + password login", testMobileOtherPhoneRegister],
   ["billing checkout disabled", testBillingCheckoutDisabled],
+  ["admin plan overrides active subscription", testAdminPlanOverridesActiveSubscription],
   ["internal admin unlimited billing", testInternalAdminUnlimitedBilling],
   ["duplicate register warnings", testDuplicateRegisterWarnings],
   ["duplicate username warning", testUsernameRegisterWarning],

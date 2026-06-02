@@ -1854,7 +1854,7 @@ export function getBillingStatus(userId: string): EntitlementStatus {
   syncExpiredSubscriptions(userId)
   const activeSub = activeSubscription(userId)
   const plans = membershipPlans()
-  const plan = user?.plan === "internal" ? internalBillingPlan(plans) : plans.find((item) => item.id === (activeSub?.planId || planId)) || plans[0]
+  const plan = user?.plan === "internal" ? internalBillingPlan(plans) : plans.find((item) => item.id === planId) || plans[0]
   const configUsed = usageFor(userId, "config", "lifetime")
   const chatDateKey = todayKey()
   const chatUsedToday = usageFor(userId, "chat", chatDateKey)
@@ -2021,6 +2021,8 @@ export function updateAdminUser(
   }
 
   const now = nowMs()
+  const planWasSubmitted = typeof input.plan === "string" && input.plan.trim().length > 0
+  const canceledSubscriptionCount = planWasSubmitted ? cancelActiveSubscriptionsForUser(userId, now) : 0
   database()
     .prepare("UPDATE users SET role = ?, plan = ?, status = ?, updated_at = ? WHERE id = ?")
     .run(nextRole, nextPlan, nextStatus, now, userId)
@@ -2029,8 +2031,16 @@ export function updateAdminUser(
     role: { before: currentRole, after: nextRole },
     plan: { before: String(current.plan || ""), after: nextPlan },
     status: { before: currentStatus, after: nextStatus },
+    canceledSubscriptions: canceledSubscriptionCount,
   })
   return getUserById(userId) as AuthUser
+}
+
+function cancelActiveSubscriptionsForUser(userId: string, now: number) {
+  const result = database()
+    .prepare("UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE user_id = ? AND status = 'active'")
+    .run(now, userId) as { changes?: number }
+  return Number(result.changes || 0)
 }
 
 export function accountMessages(userId: string): AccountMessage[] {
