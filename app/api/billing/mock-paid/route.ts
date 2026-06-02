@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
-import { completeMockPayment } from "@/lib/server/db"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function POST(request: Request) {
+const MOCK_PAYMENT_DISABLED_ERROR = "测试版已关闭模拟支付，请联系后台管理员配置套餐和额度。"
+
+export async function POST() {
   try {
-    const user = requireUser()
-    const body = await request.json()
-    const billing = completeMockPayment({ userId: user.id, orderId: String(body.orderId || "") })
-    return NextResponse.json({ billing })
+    requireUser()
+    return NextResponse.json({ error: MOCK_PAYMENT_DISABLED_ERROR, code: "SUBSCRIPTION_MANAGED_BY_ADMIN" }, { status: 403 })
   } catch (error) {
     return error instanceof Error && !(error as { status?: number }).status
       ? NextResponse.json({ error: error.message }, { status: 400 })

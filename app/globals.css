@@ -9911,6 +9911,12 @@ a {
   font-weight: 500;
 }
 
+.pricing-template-card > button:disabled {
+  background: rgba(148, 163, 184, 0.34);
+  color: rgba(255, 255, 255, 0.58);
+  cursor: not-allowed;
+}
+
 .pricing-template-card ul {
   display: grid;
   gap: 24px;

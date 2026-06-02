@@ -58,6 +58,8 @@ const subscribeCopy = {
     checkoutFailed: "Checkout failed.",
     mockPaymentFailed: "Mock payment failed.",
     subscriptionFailed: "Subscription failed.",
+    subscriptionManaged: "Subscription changes are disabled in this test build. Ask an admin to configure plan and quota.",
+    subscriptionAction: "Admin managed",
   },
   zh: {
     close: "关闭",
@@ -81,8 +83,12 @@ const subscribeCopy = {
     checkoutFailed: "创建支付订单失败。",
     mockPaymentFailed: "模拟支付失败。",
     subscriptionFailed: "订阅失败。",
+    subscriptionManaged: "测试版已关闭自助开通，请联系后台管理员配置套餐和额度。",
+    subscriptionAction: "管理员配置",
   },
 } satisfies Record<Language, Record<string, string>>
+
+const USER_SUBSCRIPTION_CHECKOUT_ENABLED = false
 
 const mobileCopy = {
   en: {
@@ -291,8 +297,11 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
   const mobileYearlyPrice = selectedPlan ? formatPlanPrice(annualPriceCents(selectedPlan)) : "--"
   const selectedIsCurrent = Boolean(selectedPlan && billing?.plan.id === selectedPlan.id)
   const selectedIsPaidToFree = Boolean(selectedPlan?.id === "free" && billing?.plan.id && billing.plan.id !== "free")
+  const userCheckoutDisabled = !USER_SUBSCRIPTION_CHECKOUT_ENABLED
   const currentPlanName = billing ? planDisplayName(billing.plan, language) : ""
-  const mobileCtaText = selectedIsCurrent
+  const mobileCtaText = userCheckoutDisabled
+    ? t.subscriptionAction
+    : selectedIsCurrent
     ? mobile.ctaCurrent
     : selectedIsPaidToFree
       ? language === "zh"
@@ -400,7 +409,7 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
             </button>
           </div>
 
-          {selectedPlan && selectedPlan.id !== "free" && !selectedIsCurrent && (
+          {selectedPlan && selectedPlan.id !== "free" && !selectedIsCurrent && !userCheckoutDisabled && (
             <div className="subscribe-mobile-payment-methods" role="group" aria-label={t.choosePayment}>
               <button type="button" className={method === "wechat" ? "selected" : ""} onClick={() => setMethod("wechat")}>
                 <span className="subscribe-pay-icon wechat" aria-hidden="true">
@@ -420,9 +429,10 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
 
           <button
             className="subscribe-mobile-cta"
-            disabled={!selectedPlan || loading || selectedIsCurrent || selectedIsPaidToFree}
+            disabled={userCheckoutDisabled || !selectedPlan || loading || selectedIsCurrent || selectedIsPaidToFree}
             onClick={() => {
               if (!selectedPlan) return
+              if (userCheckoutDisabled) return
               if (selectedPlan.id === "free") {
                 void completeCheckout(selectedPlan, method)
                 return
@@ -432,6 +442,7 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
           >
             {loading ? t.processing : `${mobileCtaText}${selectedPlan && !selectedIsCurrent && selectedPlan.id !== "free" ? ` ${selectedPlanTitle}` : ""}`}
           </button>
+          {userCheckoutDisabled && <p className="auth-notice pricing-notice">{t.subscriptionManaged}</p>}
 
           {notice && <p className="auth-notice pricing-notice">{notice}</p>}
         </div>
@@ -474,8 +485,8 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
                     <span>{t.month}</span>
                   </div>
                 </div>
-                <button disabled={planIsPaidToFree} onClick={() => (plan.id === "free" ? onClose() : setCheckoutPlan(plan))}>
-                  {planIsPaidToFree ? (language === "zh" ? "到期后回到免费版" : "Returns after expiry") : plan.id === "free" ? `${t.keep} ${planDisplayName(plan, language)}` : `${t.get} ${planDisplayName(plan, language)}`}
+                <button disabled={userCheckoutDisabled || planIsPaidToFree} onClick={() => (plan.id === "free" ? onClose() : setCheckoutPlan(plan))}>
+                  {userCheckoutDisabled ? t.subscriptionAction : planIsPaidToFree ? (language === "zh" ? "到期后回到免费版" : "Returns after expiry") : plan.id === "free" ? `${t.keep} ${planDisplayName(plan, language)}` : `${t.get} ${planDisplayName(plan, language)}`}
                 </button>
                 <ul>
                   {planFeatures(plan, language).map((feature) => (
@@ -490,10 +501,11 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
           })}
         </div>
 
+        {userCheckoutDisabled && <p className="auth-notice pricing-notice">{t.subscriptionManaged}</p>}
         {notice && <p className="auth-notice pricing-notice">{notice}</p>}
       </motion.section>
 
-      {checkoutPlan && (
+      {checkoutPlan && !userCheckoutDisabled && (
         <motion.section
           className="payment-template-modal"
           data-lang={language}

@@ -85,6 +85,19 @@ async function patchWithCookie(path, body, cookie, expectedStatus = undefined) {
   return { response, data }
 }
 
+async function postWithCookie(path, body, cookie, expectedStatus = undefined) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": testIp, cookie },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(async () => ({ raw: await response.text().catch(() => "") }))
+  if (expectedStatus !== undefined && response.status !== expectedStatus) {
+    throw new Error(`${path} expected ${expectedStatus}, got ${response.status}: ${JSON.stringify(data)}`)
+  }
+  return { response, data }
+}
+
 async function getJson(path, expectedStatus = undefined, cookie = "") {
   const response = await fetch(`${baseUrl}${path}`, {
     headers: cookie ? { cookie } : undefined,
@@ -192,6 +205,18 @@ async function testMobileOtherPhoneRegister() {
   assert(login.data.user?.id === result.data.user.id, "Password login should work after phone registration.")
 }
 
+async function testBillingCheckoutDisabled() {
+  const login = await post("/api/auth/login", { mode: "password", identifier: `mobile_${runId}`, password: "AuthTest@1234" }, 200)
+  const cookie = sessionCookie(login.response)
+  assert(Boolean(cookie), "Billing checkout test should have a logged-in user session.")
+
+  const checkout = await postWithCookie("/api/billing/checkout", { planId: "max", method: "wechat" }, cookie, 403)
+  assert(checkout.data.code === "SUBSCRIPTION_MANAGED_BY_ADMIN", "Checkout should be disabled for test users.")
+
+  const mockPaid = await postWithCookie("/api/billing/mock-paid", { orderId: "order_mock" }, cookie, 403)
+  assert(mockPaid.data.code === "SUBSCRIPTION_MANAGED_BY_ADMIN", "Mock payment completion should be disabled for test users.")
+}
+
 async function testDuplicateRegisterWarnings() {
   const sendResult = await post("/api/auth/send-code", { phone: phones.existing, purpose: "register" }, 409)
   assert(sendResult.data.code === "PHONE_ALREADY_REGISTERED", "Duplicate register send-code should return PHONE_ALREADY_REGISTERED.")
@@ -260,6 +285,7 @@ const tests = [
   ["mobile mock one-tap login", testOneTapMock],
   ["phone-only password-not-set warning", testPhoneOnlyPasswordNotSet],
   ["mobile other-phone register + password login", testMobileOtherPhoneRegister],
+  ["billing checkout disabled", testBillingCheckoutDisabled],
   ["duplicate register warnings", testDuplicateRegisterWarnings],
   ["duplicate username warning", testUsernameRegisterWarning],
   ["forgot password reset", testForgotPasswordReset],

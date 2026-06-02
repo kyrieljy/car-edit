@@ -1,21 +1,15 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
-import { createPaymentOrder } from "@/lib/server/db"
-import type { MembershipPlanId } from "@/lib/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function POST(request: Request) {
+const SUBSCRIPTION_CHECKOUT_DISABLED_ERROR = "测试版已关闭自助开通，请联系后台管理员配置套餐和额度。"
+
+export async function POST() {
   try {
-    const user = requireUser()
-    const body = await request.json()
-    const order = createPaymentOrder({
-      userId: user.id,
-      planId: String(body.planId || "pro") as MembershipPlanId,
-      method: String(body.method || "wechat") === "alipay" ? "alipay" : "wechat",
-    })
-    return NextResponse.json({ order, mockPayment: true })
+    requireUser()
+    return NextResponse.json({ error: SUBSCRIPTION_CHECKOUT_DISABLED_ERROR, code: "SUBSCRIPTION_MANAGED_BY_ADMIN" }, { status: 403 })
   } catch (error) {
     return error instanceof Error && !(error as { status?: number }).status
       ? NextResponse.json({ error: error.message }, { status: 400 })
