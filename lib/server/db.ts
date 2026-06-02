@@ -1853,12 +1853,24 @@ export function getBillingStatus(userId: string): EntitlementStatus {
   const planId = (user?.plan === "pro" || user?.plan === "max" ? user.plan : "free") as MembershipPlanId
   syncExpiredSubscriptions(userId)
   const activeSub = activeSubscription(userId)
-  const plan = membershipPlans().find((item) => item.id === (activeSub?.planId || planId)) || membershipPlans()[0]
+  const plans = membershipPlans()
+  const plan = user?.plan === "internal" ? internalBillingPlan(plans) : plans.find((item) => item.id === (activeSub?.planId || planId)) || plans[0]
   const configUsed = usageFor(userId, "config", "lifetime")
   const chatDateKey = todayKey()
   const chatUsedToday = usageFor(userId, "chat", chatDateKey)
   const configAdjustment = quotaAdjustmentTotal(userId, "config", "lifetime")
   const chatAdjustment = quotaAdjustmentTotal(userId, "chat", chatDateKey)
+  if (user?.plan === "internal") {
+    return {
+      plan,
+      subscription: activeSub,
+      configUsed,
+      chatUsedToday,
+      configRemaining: "unlimited",
+      chatRemainingToday: "unlimited",
+      chatEnabled: true,
+    }
+  }
   return {
     plan,
     subscription: activeSub,
@@ -1867,6 +1879,19 @@ export function getBillingStatus(userId: string): EntitlementStatus {
     configRemaining: plan.configUnlimited ? "unlimited" : Math.max(0, plan.configLimit + configAdjustment - configUsed),
     chatRemainingToday: plan.chatUnlimited ? "unlimited" : Math.max(0, plan.chatDailyLimit + chatAdjustment - chatUsedToday),
     chatEnabled: plan.chatEnabled,
+  }
+}
+
+function internalBillingPlan(plans: MembershipPlan[]) {
+  const maxPlan = plans.find((item) => item.id === "max") || plans[0]
+  return {
+    ...maxPlan,
+    label: "Internal",
+    priceCents: 0,
+    configUnlimited: true,
+    chatUnlimited: true,
+    chatEnabled: true,
+    active: true,
   }
 }
 

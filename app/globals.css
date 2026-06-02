@@ -6821,11 +6821,11 @@ a {
 }
 
 .admin-clinical .admin-users-table .admin-users-col-user {
-  width: 220px;
+  width: 200px;
 }
 
 .admin-clinical .admin-users-table .admin-users-col-account {
-  width: 230px;
+  width: 210px;
 }
 
 .admin-clinical .admin-users-table .admin-users-col-role {
@@ -6833,7 +6833,7 @@ a {
 }
 
 .admin-clinical .admin-users-table .admin-users-col-plan {
-  width: 180px;
+  width: 160px;
 }
 
 .admin-clinical .admin-users-table .admin-users-col-quota {
@@ -6841,7 +6841,7 @@ a {
 }
 
 .admin-clinical .admin-users-table .admin-users-col-adjust {
-  width: 320px;
+  width: 360px;
 }
 
 .admin-clinical .admin-users-table th,
@@ -6905,10 +6905,16 @@ a {
   text-align: right;
 }
 
+.admin-clinical .admin-users-table .admin-quota-cell {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 .admin-clinical .admin-quota-adjust-form {
   width: 100%;
   max-width: none;
-  grid-template-columns: minmax(0, 1fr) 76px;
+  grid-template-columns: minmax(0, 1fr) 68px;
+  overflow: hidden;
 }
 
 .admin-inline-form button {

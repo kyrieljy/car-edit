@@ -217,6 +217,21 @@ async function testBillingCheckoutDisabled() {
   assert(mockPaid.data.code === "SUBSCRIPTION_MANAGED_BY_ADMIN", "Mock payment completion should be disabled for test users.")
 }
 
+async function testInternalAdminUnlimitedBilling() {
+  const adminIdentifier = "admin_16698604646"
+  const codeResult = await post("/api/auth/send-code", { purpose: "admin", identifier: adminIdentifier, password: "Admin@1234" }, 200)
+  assert(/^\d{6}$/.test(String(codeResult.data.devCode || "")), "Admin code request should return a mock devCode.")
+
+  const login = await post("/api/auth/login", { mode: "password", identifier: adminIdentifier, password: "Admin@1234", adminCode: codeResult.data.devCode }, 200)
+  const cookie = sessionCookie(login.response)
+  assert(Boolean(cookie), "Internal admin login should set session cookie.")
+
+  const billing = await getJson("/api/billing/status", 200, cookie)
+  assert(billing.data.billing?.configRemaining === "unlimited", "Internal admin should have unlimited config quota.")
+  assert(billing.data.billing?.chatRemainingToday === "unlimited", "Internal admin should have unlimited chat quota.")
+  assert(billing.data.billing?.chatEnabled === true, "Internal admin should have chat enabled.")
+}
+
 async function testDuplicateRegisterWarnings() {
   const sendResult = await post("/api/auth/send-code", { phone: phones.existing, purpose: "register" }, 409)
   assert(sendResult.data.code === "PHONE_ALREADY_REGISTERED", "Duplicate register send-code should return PHONE_ALREADY_REGISTERED.")
@@ -286,6 +301,7 @@ const tests = [
   ["phone-only password-not-set warning", testPhoneOnlyPasswordNotSet],
   ["mobile other-phone register + password login", testMobileOtherPhoneRegister],
   ["billing checkout disabled", testBillingCheckoutDisabled],
+  ["internal admin unlimited billing", testInternalAdminUnlimitedBilling],
   ["duplicate register warnings", testDuplicateRegisterWarnings],
   ["duplicate username warning", testUsernameRegisterWarning],
   ["forgot password reset", testForgotPasswordReset],
