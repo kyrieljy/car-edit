@@ -1,6 +1,6 @@
 # TODO
 
-Last updated: 2026-06-01 Asia/Shanghai
+Last updated: 2026-06-06 Asia/Shanghai
 
 Short active queue. Start with `PROJECT_CONTEXT.md`; do not bulk-read `docs/` unless a linked topic is needed.
 
@@ -9,7 +9,7 @@ Short active queue. Start with `PROJECT_CONTEXT.md`; do not bulk-read `docs/` un
 Latest pushed commit:
 
 ```text
-a3f3b2e Stabilize mobile mode switch position
+5d796f5 Make admin plan override subscriptions
 ```
 
 Deploy:
@@ -23,14 +23,31 @@ pm2 restart car-edit --update-env
 
 Expected smoke checks after deploy:
 
-- Mobile Chat mode switch does not shift when switching Config/Chat.
-- Mobile Chat page has no white edge lines.
-- Mobile Chat drawer stays above the top bar while closing.
-- Mobile Chat drawer has no search box and history items are shifted up.
-- Mobile Chat composer remains one line when empty; placeholder does not wrap.
-- `+` upload menu is not covered by validation notices.
-- Banner text has no extra glow/highlight block behind it.
-- User avatar is human icon; assistant avatar is car icon.
+- Login/register/reset/admin verification still work with mock SMS in local dry-run and configured Aliyun SMS on the server.
+- H5 one-tap gracefully falls back to SMS when carrier token fetch is unavailable.
+- Self-service subscription buttons stay disabled and show the managed-by-admin copy.
+- `/api/billing/status` follows the admin-saved `users.plan`; a stale active subscription must not make a `free` user appear as `pro`.
+- Admin user management table does not horizontally overflow on the current desktop view.
+- Secondary admin `admin_16698604646 / Admin@1234` can log in with admin verification and has unlimited internal quota.
+
+## P0 - Guard Account, Billing, And Auth Invariants
+
+For any change touching account/login/billing/admin users:
+
+- Do not run real SMS, real one-tap carrier auth, or real payment tests without explicit user approval; these can cost money.
+- Local auth tests should keep `SMS_PROVIDER=mock` and `PHONE_ONE_TAP_PROVIDER=mock`.
+- Test-build subscription purchase remains disabled until real payment/webhook/refund/idempotency are implemented.
+- Admin user `plan` is the source of truth for billing entitlements.
+- Saving a user plan from admin should cancel stale active subscriptions so the UI cannot drift back to an old paid plan.
+- Internal/admin users should show unlimited config and chat quota.
+
+Useful checks:
+
+```powershell
+npx.cmd tsc --noEmit
+node scripts\auth-flow-dry-run-tests.mjs
+npm.cmd run build
+```
 
 ## P0 - Guard Prompt And History Invariants
 
@@ -63,11 +80,23 @@ Use existing records where possible:
 
 Real provider tests require explicit approval. Before a paid test, confirm latest commit is deployed, provider key exists, and `APP_URL` / `PROVIDER_PUBLIC_BASE_URL` point to the test server.
 
+## P1 - Mobile Performance Pass
+
+The mobile H5 UI feels somewhat low-framerate on real phones. Before moving to mini program or native app, profile the production build on an actual phone and reduce obvious H5 paint costs:
+
+- large full-screen blur/backdrop-filter/shadow layers
+- unnecessary layout shifts or React rerenders during modal/input interactions
+- heavy mobile drawer/login animations
+- oversized images or uncompressed assets
+
+Wrapping the same H5 in a WebView app or mini program is not expected to fix performance by itself.
+
 ## P2 - Production Gaps
 
 Still prototype-only:
 
-- real SMS and WeChat OAuth
+- production-grade SMS and WeChat OAuth operations
+- production-grade H5/native one-tap carrier auth handling
 - real payment/webhook/refund/idempotency
 - production DB/object storage/CDN/backups
 - production operations console for users/orders/quota/provider cost

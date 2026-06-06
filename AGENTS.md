@@ -1,6 +1,6 @@
 # AGENTS
 
-Last updated: 2026-06-01 Asia/Shanghai
+Last updated: 2026-06-06 Asia/Shanghai
 
 Small entrypoint for the next Codex window.
 
@@ -24,10 +24,12 @@ Do not bulk-read `docs/`, `skills/`, or `prototypes/`.
 Latest pushed commit:
 
 ```text
-a3f3b2e Stabilize mobile mode switch position
+5d796f5 Make admin plan override subscriptions
 ```
 
-Current `main` already includes prompt lock-down, repo slimming, Config history display fixes, and the recent mobile Chat UI polish.
+Current `main` already includes prompt lock-down, repo slimming, Config history display fixes, mobile Chat UI polish, Aliyun SMS/H5 one-tap integration scaffolding, admin-managed subscriptions, secondary admin seeding, and account/billing fixes.
+
+Admin billing rule: `users.plan` is authoritative. Stale active subscription rows must not override a plan saved from the admin user table.
 
 If this documentation cleanup has not been pushed, the only expected local changes should be root handoff docs.
 
@@ -36,6 +38,7 @@ If this documentation cleanup has not been pushed, the only expected local chang
 - Do not run real provider tests without explicit user approval.
 - Do not put auto-recognized vehicle model into `GenerationStandardJson.vehicle.model`; only user-edited model may enter prompt JSON.
 - Prompt text is managed from Git seed (`lib/catalog.ts`) and validated by `config/prompt-packs`; SQLite prompt rows are compatibility data only.
+- Test-build subscription upgrades are admin-managed only; do not re-enable checkout/mock-paid without explicit user direction.
 - Do not commit runtime DB files, uploads/results, artifacts, or secrets.
 
 ## How To Work
@@ -68,6 +71,7 @@ git diff --check
 npm.cmd run build
 npx.cmd tsc --noEmit
 node scripts\chat-mode-dry-run-tests.mjs
+node scripts\auth-flow-dry-run-tests.mjs
 ```
 
 Run build and `tsc` sequentially; do not run them in parallel.
