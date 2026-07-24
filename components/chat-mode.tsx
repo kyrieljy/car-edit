@@ -388,9 +388,9 @@ export function ChatMode({
   const mobileLoginBlocked = mobileVariant && mobileAccessKind === "login"
   const mobileChatQuotaBlocked = mobileVariant && mobileAccessKind === "chat_quota"
   const mobileSendBlocked = mobileLoginBlocked || mobileChatQuotaBlocked
-  const blockMobileAccess = () => {
+  const blockMobileAccess = useCallback(() => {
     onMobileAccessBlocked?.()
-  }
+  }, [onMobileAccessBlocked])
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const thread = threadRef.current
@@ -745,7 +745,7 @@ export function ChatMode({
     }
   }
 
-  const onVehicleFile = (file: File | undefined) => {
+  const onVehicleFile = useCallback((file: File | undefined) => {
     if (!file) return
     if (mobileLoginBlocked) {
       blockMobileAccess()
@@ -762,7 +762,7 @@ export function ChatMode({
     setNotice("")
     setMobileAttachMenuOpen(false)
     if (vehicleInputRef.current) vehicleInputRef.current.value = ""
-  }
+  }, [blockMobileAccess, mobileLoginBlocked, t])
 
   const onPartFiles = (files: FileList | null) => {
     if (mobileLoginBlocked) {
@@ -785,6 +785,38 @@ export function ChatMode({
     setMobileAttachMenuOpen(false)
     if (partInputRef.current) partInputRef.current.value = ""
   }
+
+  useEffect(() => {
+    if (mobileVariant) return
+    const handlePaste = (event: ClipboardEvent) => {
+      if (isEditableChatPasteTarget(event.target)) return
+      const imageFile = Array.from(event.clipboardData?.items ?? [])
+        .find((item) => item.kind === "file" && item.type.startsWith("image/"))
+        ?.getAsFile()
+      if (!imageFile) return
+      event.preventDefault()
+      if (!vehicleFile) {
+        onVehicleFile(imageFile)
+        return
+      }
+      const validationError = imageValidationError(imageFile)
+      if (validationError) {
+        setNotice(t[validationError])
+        return
+      }
+      setPartFiles((items) => {
+        if (items.length >= MAX_CHAT_PART_IMAGES) {
+          setNotice(t.partLimit)
+          return items
+        }
+        return [...items, imageFile]
+      })
+      setNotice("")
+      setMobileAttachMenuOpen(false)
+    }
+    window.addEventListener("paste", handlePaste)
+    return () => window.removeEventListener("paste", handlePaste)
+  }, [mobileVariant, onVehicleFile, t, vehicleFile])
 
   const openVehiclePicker = () => {
     if (mobileLoginBlocked) {
@@ -1768,6 +1800,12 @@ function imageValidationError(file: File): "invalidFile" | "fileTooLarge" | "" {
   if (!isAllowedImageMimeType(file.type)) return "invalidFile"
   if (file.size > IMAGE_UPLOAD_MAX_BYTES) return "fileTooLarge"
   return ""
+}
+
+function isEditableChatPasteTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  const tagName = target.tagName.toLowerCase()
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable
 }
 
 function fileKey(file: File) {

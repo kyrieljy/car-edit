@@ -1136,11 +1136,17 @@ function shouldPreserveSpecificFollowUp(result: ChatIntentParseResult) {
 function missingPartReferenceContent(result: ChatIntentParseResult, language: ResponseLanguage, categories: PartCategory[]) {
   const part = requestedPartDescriptor(result, language, categories)
   if (language === "zh") {
-    if (part.explicitName) return `系统暂未收录该配件${part.explicitName}，请您上传${part.explicitName}的配件参考图。`
+    if (part.explicitName) {
+      const target = part.categoryLabel ? `${part.categoryLabel} ${part.explicitName}` : part.explicitName
+      return `系统暂未收录该配件${target}，请您上传${target}的配件参考图。`
+    }
     if (part.categoryLabel) return `请您补充${part.categoryLabel}的具体品牌/型号，并上传${part.categoryLabel}的配件参考图。`
     return "请您补充该配件的具体品牌/型号，并上传对应配件的参考图。"
   }
-  if (part.explicitName) return `The system has not collected ${part.explicitName} yet. Please upload reference image(s) for ${part.explicitName}.`
+  if (part.explicitName) {
+    const target = part.categoryLabel ? `${part.categoryLabel} ${part.explicitName}` : part.explicitName
+    return `The system has not collected ${target} yet. Please upload reference image(s) for ${target}.`
+  }
   if (part.categoryLabel) return `Please provide the exact brand/model for ${part.categoryLabel} and upload reference image(s) for ${part.categoryLabel}.`
   return "Please provide the exact brand/model for that part and upload reference image(s) for it."
 }

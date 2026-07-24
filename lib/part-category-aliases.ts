@@ -90,7 +90,70 @@ export const builtinPartCategoryConfigs: BuiltinPartCategoryConfig[] = [
   },
 ]
 
-const builtinById = new Map(builtinPartCategoryConfigs.map((config) => [config.id, config]))
+const v2BuiltinPartCategoryConfigs: BuiltinPartCategoryConfig[] = [
+  {
+    id: "wheels",
+    aliases: ["wheel", "wheels", "rim", "rims", "alloy", "alloy wheels", "forged wheels", "wheelset", "bbs", "lm-r", "lmr", "\u8f6e\u6bc2", "\u8f6e\u5708", "\u94a2\u5708", "\u94dd\u5708", "\u8f66\u8f6e", "\u8f6e\u5b50", "\u6539\u5708", "\u6362\u5708"],
+    chatEnabled: true,
+    referenceHighRisk: false,
+  },
+  {
+    id: "calipers",
+    aliases: ["caliper", "calipers", "brake", "brakes", "brake caliper", "brake calipers", "brake kit", "big brake kit", "bbk", "brembo", "ap racing", "rotor", "rotors", "brake disc", "brake disk", "carbon ceramic", "\u5361\u94b3", "\u5239\u8f66\u5361\u94b3", "\u5236\u52a8\u5361\u94b3", "\u5239\u8f66\u5957\u4ef6", "\u5236\u52a8\u5957\u4ef6", "\u52a0\u5927\u5239\u8f66\u76d8", "\u78b3\u9676\u5239\u8f66\u76d8", "\u5239\u8f66\u76d8", "\u789f\u76d8"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "rear-wing",
+    aliases: ["rear wing", "gt wing", "wing", "spoiler", "rear spoiler", "ducktail", "duck tail", "trunk lip", "lip spoiler", "trunk spoiler", "decklid spoiler", "swan neck", "time attack wing", "\u5c3e\u7ffc", "\u9e2d\u5c3e", "\u5c0f\u5c3e\u7ffc", "\u6270\u6d41\u677f", "\u540e\u6270\u6d41", "\u9ad8\u811a\u5c3e\u7ffc", "\u5929\u9e45\u9888\u5c3e\u7ffc", "\u53cc\u5c42\u5c3e\u7ffc", "\u5c3e\u7bb1\u76d6\u6270\u6d41", "\u884c\u674e\u7bb1\u76d6\u6270\u6d41"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "front-bumper",
+    aliases: ["front lip", "front splitter", "splitter", "front spoiler", "front aero", "front blade", "\u524d\u5507", "\u524d\u94f2", "\u524d\u4e0b\u5507", "\u524d\u5206\u6d41\u5668", "\u98ce\u5200", "\u5c0f\u98ce\u5200"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "side-skirts",
+    aliases: ["side skirt", "side skirts", "skirts", "rocker", "rockers", "rocker panel", "side lip", "side blade", "side aero", "\u4fa7\u88d9", "\u4fa7\u8fb9\u88d9", "\u4fa7\u88d9\u677f", "\u8fb9\u88d9", "\u88d9\u8fb9", "\u95e8\u69db", "\u95e8\u69db\u6761", "\u4fa7\u88d9\u5ef6\u957f"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "exhaust",
+    aliases: ["exhaust", "muffler", "tailpipe", "tail pipe", "tailpipes", "tail pipes", "exhaust tip", "exhaust tips", "tips", "catback", "cat-back", "center exit", "quad exhaust", "\u6392\u6c14", "\u6392\u6c14\u7ba1", "\u5c3e\u5634", "\u5c3e\u5589", "\u5c3e\u6bb5", "\u4e2d\u7f6e\u6392\u6c14", "\u5c45\u4e2d\u6392\u6c14", "\u53cc\u8fb9\u56db\u51fa", "\u53cc\u8fb9\u5355\u51fa", "\u5355\u8fb9\u5355\u51fa", "\u5355\u8fb9\u53cc\u51fa"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "hood",
+    aliases: ["hood", "bonnet", "front hood", "carbon hood", "carbon bonnet", "engine hood", "engine cover", "dry carbon hood", "\u673a\u76d6", "\u5f15\u64ce\u76d6", "\u524d\u673a\u76d6", "\u8f66\u524d\u76d6", "\u524d\u76d6", "\u53d1\u52a8\u673a\u76d6", "\u78b3\u76d6", "\u78b3\u7ea4\u7ef4\u673a\u76d6", "\u88f8\u78b3\u673a\u76d6", "\u524d\u8231\u76d6"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "mirrors",
+    aliases: ["mirror", "mirrors", "side mirror", "side mirrors", "wing mirror", "wing mirrors", "mirror cap", "mirror caps", "carbon mirror", "carbon mirrors", "dry carbon mirrors", "\u540e\u89c6\u955c", "\u5012\u8f66\u955c", "\u53cd\u5149\u955c", "\u5916\u540e\u89c6\u955c", "\u8033\u6735", "\u540e\u89c6\u955c\u58f3", "\u955c\u58f3", "\u955c\u76d6", "\u725b\u89d2\u955c"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "fenders",
+    aliases: ["fender", "fenders", "front fender", "rear fender", "wide fender", "dry carbon fenders", "\u53f6\u5b50\u677f", "\u8449\u5b50\u677f", "\u7ffc\u5b50\u677f", "\u524d\u53f6\u5b50\u677f", "\u540e\u53f6\u5b50\u677f", "\u88f8\u78b3\u53f6\u5b50\u677f"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+  {
+    id: "trunk-lid",
+    aliases: ["trunk lid", "boot lid", "decklid", "tailgate", "rear hatch", "dry carbon trunk", "dry carbon trunk lid", "\u540e\u5907\u7bb1\u76d6", "\u5c3e\u7bb1\u76d6", "\u540e\u5907\u53a2\u76d6", "\u5c3e\u95e8", "\u540e\u5c3e\u95e8", "\u884c\u674e\u7bb1\u76d6", "\u88f8\u78b3\u540e\u5907\u7bb1\u76d6"],
+    chatEnabled: true,
+    referenceHighRisk: true,
+  },
+]
+
+const builtinById = new Map(v2BuiltinPartCategoryConfigs.map((config) => [config.id, config]))
 
 export function defaultAliasesForCategory(id: string) {
   return builtinById.get(id)?.aliases ?? []
@@ -141,7 +204,7 @@ export function categoryRecognitionList(categories?: PartCategoryAliasSource[]) 
 }
 
 function categoryAliasEntries(categories?: PartCategoryAliasSource[]) {
-  const source = categories?.length ? categories : builtinPartCategoryConfigs
+  const source = categories?.length ? categories : v2BuiltinPartCategoryConfigs
   return source.map((category) => {
     const builtin = builtinById.get(category.id)
     const aliases = uniqueStrings([

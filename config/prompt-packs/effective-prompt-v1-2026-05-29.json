@@ -32,10 +32,10 @@
     "id": "preset_oem_plus_v1",
     "title": "Effective Prompt v1 中文有效版",
     "version": "3.0-effective-v1",
+    "active": true,
+    "createdAt": 0,
     "body": "请对第一张上传的原车照片做真实照片局部编辑。第一张图片是唯一原车画布；后面的图片都是配件参考图，不是车身参考，不是场景参考，不是画布。\n\n绝对保留原图：背景、地面、墙面、车位线、其它车辆、室内/室外环境、光线方向、反射、阴影、相机角度、裁切范围、车辆位置、车身比例、车牌位置和形状、玻璃、灯组、轮毂、轮胎、黑色塑料饰条、碳纤维件、进气格栅、尾翼和未选择的原厂部件。\n\n参考配件图的优先级低于原车图和后台配置。参考图只用于理解选中配件的局部形状、材质和安装位置，不继承参考图的背景、场景、整车、轮毂、颜色、文字、水印、人物、包装或展示台。\n\n如果某张配件参考图质量低、角度不适合、包含其它车辆、或与当前车辆视角不匹配，宁可忽略这张参考图，也不要改变原车、背景、车型、轮毂或未选择类别。",
-    "negativePrompt": "不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。",
-    "bodyHash": "8a17e4bd439a2e0b",
-    "negativePromptHash": "a371c1bd00060ffe"
+    "negativePrompt": "不要重新生成整车，不要换背景，不要换场景，不要换停车场，不要换道路，不要换墙面，不要换光线，不要换相机角度，不要换裁切，不要换车辆位置，不要换车型，不要改变车身比例，不要改变车顶线，不要改变窗线，不要改变轮拱形状，不要改变未选择轮毂，不要把轮毂改成 BBS，不要改变轮胎，不要添加未选择配件，不要添加大尾翼，不要改变未选择尾翼，不要添加排气，不要改变尾灯，不要改变后视镜，不要复制参考图背景，不要复制参考图里的其它车辆，不要复制参考图文字，不要水印，不要人物，不要展厅广告图，不要户外新场景，不要黑色机盖，除非明确要求裸露碳纤维机盖，不要让车身颜色污染玻璃、灯组、轮毂、轮胎、车牌、黑色塑料饰条、碳纤维件、进气格栅、尾翼、背景或地面。"
   },
   "promptTemplates": [
     {
@@ -46,11 +46,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 5,
-      "bodyHash": "80957bc09d850642",
-      "dbBodyHash": "80957bc09d850642",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 5
     },
     {
       "id": "tpl_config_mode_default",
@@ -60,11 +56,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "7260ef381dfbefb0",
-      "dbBodyHash": "7260ef381dfbefb0",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_chat_mode_default",
@@ -74,25 +66,17 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "31e1c2ddfc54588f",
-      "dbBodyHash": "31e1c2ddfc54588f",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_config_base_default",
       "scope": "config_base",
       "title": "配置模式基础 Prompt - 白名单",
-      "body": "前台 UI 选择就是本次允许编辑的白名单。如果某个类别没有被选择，必须保持原图不变。未选择轮毂时，轮毂款式、颜色、尺寸、辐条数量、轮唇、中心盖、轮胎和接地关系必须完全保持原图。未选择尾翼、排气、尾灯、后视镜、扩散器、前唇、侧裙或中网时，不要生成或替换这些部件。",
+      "body": "前台 UI 选择就是本次允许编辑的白名单。如果某个类别没有被选择，必须保持原图不变。未选择轮毂时，轮毂款式、颜色、尺寸、辐条数量、轮唇、中心盖、轮胎和接地关系必须完全保持原图。未选择卡钳时，不要改变卡钳颜色或刹车盘。未选择尾翼、排气、后视镜、前铲、侧裙、机盖、叶子板或后备箱盖时，不要生成或替换这些部件。",
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 12,
-      "bodyHash": "b21ad80d7c751e40",
-      "dbBodyHash": "b21ad80d7c751e40",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 12
     },
     {
       "id": "tpl_category_wheels",
@@ -102,67 +86,47 @@
       "assetId": "",
       "combinationKey": "wheels",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "2dc8216c7d8275e0",
-      "dbBodyHash": "2dc8216c7d8275e0",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_category_calipers",
       "scope": "category",
       "title": "分类 Prompt - 刹车卡钳",
-      "body": "刹车卡钳必须位于轮辐后方并贴合刹车盘，不能漂浮在轮毂表面，也不能盖住轮毂主体造型。卡钳大小要符合车辆比例，受轮辐自然遮挡，颜色清晰但不过曝。",
+      "body": "刹车卡钳必须位于轮辐后方并贴合刹车盘，不能漂浮在轮毂表面，也不能盖住轮毂主体造型。只允许修改轮辐后方可见的卡钳颜色和标准 JSON 指定的刹车盘类型，不要改变轮毂款式、轮胎、车身、车高或背景。加大刹车盘要体现更大的盘面直径和合理间隙；碳陶瓷刹车盘要体现更浅的陶瓷盘面和真实金属/陶瓷层次。",
       "assetId": "",
       "combinationKey": "calipers",
       "active": true,
-      "sortOrder": 20,
-      "bodyHash": "4d843b92e4eb5f31",
-      "dbBodyHash": "4d843b92e4eb5f31",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 20
     },
     {
       "id": "tpl_category_rear_wing",
       "scope": "category",
       "title": "分类 Prompt - 尾翼 / 后扰流",
-      "body": "尾翼或 trunk lip spoiler 只能安装在第一张原图可见的后备箱上沿、尾箱盖或原厂扰流区域。低调 trunk lip 必须是一条薄而连续、贴合曲面的亮黑/碳纤维边缘；不要做成大 GT wing，不要竖支架，不要改变车尾角度，不要重画车尾，不要改变尾灯、车牌、排气或扩散器。",
+      "body": "尾翼只能按标准 JSON 的固定分类安装：鸭尾、小尾翼/Lip Spoiler、高脚尾翼/GT Wing、Swan Neck/天鹅颈或双层尾翼/Time Attack。必须安装在第一张原图可见的后备箱上沿、尾箱盖或原厂扰流区域，按指定黑色、碳纤维或车身同色处理。不要把低调鸭尾/小尾翼做成高脚尾翼，也不要改变尾灯、车牌、排气、后杠、相机角度或背景。",
       "assetId": "",
       "combinationKey": "rear-wing",
       "active": true,
-      "sortOrder": 30,
-      "bodyHash": "c3b52619f8fa0426",
-      "dbBodyHash": "c3b52619f8fa0426",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 30
     },
     {
       "id": "tpl_category_front_bumper",
       "scope": "category",
       "title": "分类 Prompt - 前唇 / 前包围",
-      "body": "前唇和前铲只能安装在原车前保险杠下沿。保留原车大灯、中网、进气口、车牌区域、机盖线和车头基础轮廓。前唇离地高度、投影阴影和碳纤维反光要真实，不能生成夸张赛车包围。",
+      "body": "前铲只按有/无选择安装在原车前保险杠下沿，并按标准 JSON 指定的黑色、碳纤维或车身同色处理。保留原车大灯、中网、进气口、车牌区域、机盖线和车头基础轮廓。前铲离地高度、投影阴影和材质反光要真实，不能生成夸张赛车包围。",
       "assetId": "",
       "combinationKey": "front-bumper",
       "active": true,
-      "sortOrder": 40,
-      "bodyHash": "cc6f92f1a9154b15",
-      "dbBodyHash": "cc6f92f1a9154b15",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 40
     },
     {
       "id": "tpl_category_side_skirts",
       "scope": "category",
       "title": "分类 Prompt - 侧裙",
-      "body": "侧裙必须沿车身下侧门槛自然延伸，并与前后轮拱衔接顺畅。保持车门缝隙、侧面反光和原图透视，不能让侧裙穿入地面、遮挡轮胎或改变车身长度。",
+      "body": "侧裙只按有/无选择沿车身下侧门槛自然延伸，并按标准 JSON 指定的黑色、碳纤维或车身同色处理。必须与前后轮拱衔接顺畅，保持车门缝隙、侧面反光和原图透视，不能让侧裙穿入地面、遮挡轮胎或改变车身长度。",
       "assetId": "",
       "combinationKey": "side-skirts",
       "active": true,
-      "sortOrder": 50,
-      "bodyHash": "d22132bda7e55d55",
-      "dbBodyHash": "d22132bda7e55d55",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 50
     },
     {
       "id": "tpl_category_diffuser",
@@ -172,25 +136,17 @@
       "assetId": "",
       "combinationKey": "diffuser",
       "active": true,
-      "sortOrder": 60,
-      "bodyHash": "80dc95c3d4db45a3",
-      "dbBodyHash": "80dc95c3d4db45a3",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 60
     },
     {
       "id": "tpl_category_exhaust",
       "scope": "category",
       "title": "分类 Prompt - 排气",
-      "body": "排气尾喉必须出现在车尾后包围合理开口位置，数量、左右对称、金属材质、内腔暗部和烧蓝/钛色反光要真实。不要改变整个后包围结构、尾灯、车牌或相机角度。",
+      "body": "排气必须严格执行标准 JSON 的固定布局：单边单出、单边双出（左）、单边双出（右）、双边双出、双边单出、居中单管、居中双管或居中四管。尾喉必须出现在车尾后包围合理开口位置，数量、左右位置、对称关系、金属材质和内腔暗部要真实。不要改变整个后包围结构、尾灯、车牌、相机角度或背景。",
       "assetId": "",
       "combinationKey": "exhaust",
       "active": true,
-      "sortOrder": 70,
-      "bodyHash": "dbbccd5cd4310de1",
-      "dbBodyHash": "dbbccd5cd4310de1",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 70
     },
     {
       "id": "tpl_category_hood",
@@ -200,11 +156,7 @@
       "assetId": "",
       "combinationKey": "hood",
       "active": true,
-      "sortOrder": 80,
-      "bodyHash": "9f05498196031ed8",
-      "dbBodyHash": "9f05498196031ed8",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 80
     },
     {
       "id": "tpl_category_lights",
@@ -214,11 +166,7 @@
       "assetId": "",
       "combinationKey": "lights",
       "active": true,
-      "sortOrder": 90,
-      "bodyHash": "129eb4c34fce2733",
-      "dbBodyHash": "129eb4c34fce2733",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 90
     },
     {
       "id": "tpl_category_wrap",
@@ -228,25 +176,37 @@
       "assetId": "",
       "combinationKey": "wrap",
       "active": true,
-      "sortOrder": 100,
-      "bodyHash": "a451daf7417f4bf7",
-      "dbBodyHash": "a451daf7417f4bf7",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 100
     },
     {
       "id": "tpl_category_mirrors",
       "scope": "category",
       "title": "分类 Prompt - 后视镜",
-      "body": "后视镜改装只修改后视镜外壳或镜盖材质，必须保留原后视镜形状、角度、镜片位置、边缘缝隙和车门连接结构。碳纤维纹理要细腻，不能让后视镜变形或消失。",
+      "body": "后视镜改装只修改后视镜外壳或镜盖材质；本轮只支持裸露干碳纤维开关。必须保留原后视镜形状、角度、镜片位置、边缘缝隙和车门连接结构。碳纤维纹理要细腻，不能让后视镜变形或消失。",
       "assetId": "",
       "combinationKey": "mirrors",
       "active": true,
-      "sortOrder": 110,
-      "bodyHash": "254930143c548b52",
-      "dbBodyHash": "254930143c548b52",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 110
+    },
+    {
+      "id": "tpl_category_fenders",
+      "scope": "category",
+      "title": "分类 Prompt - 叶子板",
+      "body": "叶子板/翼子板改装只支持裸露干碳纤维材质。只修改标准 JSON 指定的可见叶子板区域，必须保留轮拱形状、门缝、机盖缝、车灯边界、轮毂、轮胎和车身比例。不要把碳纤维纹理扩散到车门、机盖、保险杠、车顶或背景。",
+      "assetId": "",
+      "combinationKey": "fenders",
+      "active": true,
+      "sortOrder": 115
+    },
+    {
+      "id": "tpl_category_trunk_lid",
+      "scope": "category",
+      "title": "分类 Prompt - 后备箱盖",
+      "body": "后备箱盖/尾门盖板改装只支持裸露干碳纤维材质。只修改标准 JSON 指定的后备箱盖区域，必须保留尾灯、车牌、后杠、尾翼、排气和周围钣金缝隙。不要让碳纤维纹理扩散到车顶、后翼子板、保险杠或背景。",
+      "assetId": "",
+      "combinationKey": "trunk-lid",
+      "active": true,
+      "sortOrder": 116
     },
     {
       "id": "tpl_category_grille",
@@ -256,11 +216,7 @@
       "assetId": "",
       "combinationKey": "grille",
       "active": true,
-      "sortOrder": 120,
-      "bodyHash": "5fcc6a788d5f467f",
-      "dbBodyHash": "5fcc6a788d5f467f",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 120
     },
     {
       "id": "tpl_combo_wheel_stance",
@@ -270,11 +226,7 @@
       "assetId": "",
       "combinationKey": "wheels,stance_lowered",
       "active": true,
-      "sortOrder": 20,
-      "bodyHash": "e75cfb8fb6d932fe",
-      "dbBodyHash": "e75cfb8fb6d932fe",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 20
     },
     {
       "id": "tpl_combo_wheel_caliper",
@@ -284,11 +236,7 @@
       "assetId": "",
       "combinationKey": "wheels,calipers",
       "active": true,
-      "sortOrder": 30,
-      "bodyHash": "311a0945fb578925",
-      "dbBodyHash": "311a0945fb578925",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 30
     },
     {
       "id": "tpl_combo_paint_carbon",
@@ -298,11 +246,7 @@
       "assetId": "",
       "combinationKey": "paint_change,carbon_parts",
       "active": true,
-      "sortOrder": 40,
-      "bodyHash": "1fff8aa95508e492",
-      "dbBodyHash": "1fff8aa95508e492",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 40
     },
     {
       "id": "tpl_combo_aero_parts",
@@ -312,11 +256,7 @@
       "assetId": "",
       "combinationKey": "front-bumper,carbon_parts",
       "active": true,
-      "sortOrder": 50,
-      "bodyHash": "84cf08c273936b30",
-      "dbBodyHash": "84cf08c273936b30",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 50
     },
     {
       "id": "tpl_combo_uploaded_reference",
@@ -326,11 +266,7 @@
       "assetId": "",
       "combinationKey": "uploaded_reference",
       "active": true,
-      "sortOrder": 60,
-      "bodyHash": "534890704a86d5f3",
-      "dbBodyHash": "534890704a86d5f3",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 60
     },
     {
       "id": "tpl_combo_hood_body_color",
@@ -340,11 +276,7 @@
       "assetId": "",
       "combinationKey": "hood,hood_body_color",
       "active": true,
-      "sortOrder": 70,
-      "bodyHash": "5c0cb87ebdcfc15c",
-      "dbBodyHash": "5c0cb87ebdcfc15c",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 70
     },
     {
       "id": "tpl_combo_hood_exposed_carbon",
@@ -354,25 +286,17 @@
       "assetId": "",
       "combinationKey": "hood,hood_exposed_carbon",
       "active": true,
-      "sortOrder": 80,
-      "bodyHash": "d673b8d6bba172c3",
-      "dbBodyHash": "d673b8d6bba172c3",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 80
     },
     {
       "id": "tpl_chat_parser_default",
       "scope": "chat_parser",
       "title": "对话解析 Prompt - 自然语言转标准 JSON",
-      "body": "请把用户的自然语言改装需求解析成稳定标准 JSON。必须提取：车辆信息、是否改色、目标颜色、车身高度/姿态、配件类别、配件来源、参考图对应关系、风格关键词、必须保留的约束。每个 parts 项必须包含 category、source、referenceImages、instruction、colorPolicy 和 colorPolicyPrompt。机盖默认 body_color，只有用户明确说裸碳、露碳、碳纤维机盖、exposed carbon 或 carbon hood 时才设为 exposed_carbon。如果缺少关键字段，返回 needs_followup，并只问一个最关键的追问。",
+      "body": "请把用户的自然语言改装需求解析成稳定标准 JSON。必须提取：车辆信息、是否改色、目标颜色、车身高度/姿态、配件类别、配件来源、参考图对应关系、风格关键词、必须保留的约束。允许的配件类别只包括：轮毂、卡钳、尾翼、侧裙、前铲、排气、机盖、后视镜、叶子板、后备箱盖。每个 parts 项必须包含 category、source、referenceImages、instruction、colorPolicy、colorPolicyPrompt，以及需要时的 options。卡钳 options 可包含 caliperColor 和 rotorOption；尾翼/侧裙/前铲 options 可包含 surfaceColor；排气 options 可包含 layout；机盖/后视镜/叶子板/后备箱盖只表达裸碳开关。缺少关键字段时返回 needs_followup，并只问一个最关键的追问。",
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 7,
-      "bodyHash": "ddf5c9e294cca1ff",
-      "dbBodyHash": "ddf5c9e294cca1ff",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 7
     },
     {
       "id": "tpl_chat_optimizer_default",
@@ -382,11 +306,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "cffb5a19d9c7fdf3",
-      "dbBodyHash": "cffb5a19d9c7fdf3",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_vehicle_recognition_default",
@@ -396,25 +316,17 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 5,
-      "bodyHash": "30d0d305a7e1ec99",
-      "dbBodyHash": "30d0d305a7e1ec99",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 5
     },
     {
       "id": "tpl_part_recognition_default",
       "scope": "part_recognition",
       "title": "配件识别 Prompt - 参考图检测",
-      "body": "请检查用户上传的配件参考图，判断它最可能属于哪类汽车改装件：轮毂、刹车卡钳、尾翼、前唇/前包围、侧裙、扩散器、排气、机盖、灯膜、贴膜/颜色、后视镜、中网。输出结构化结果，包含 category、confidence、visualFeatures、usableAsReference、rejectReason。不确定时标记 unknown，禁止编造品牌或型号。",
+      "body": "请检查用户上传的配件参考图，判断它最可能属于哪类汽车改装件：轮毂、刹车卡钳、尾翼、前铲、侧裙、排气、机盖、后视镜、叶子板、后备箱盖。不要把扩散器、灯膜、贴膜/颜色、中网作为可选配件类目。输出结构化结果，包含 category、confidence、visualFeatures、usableAsReference、rejectReason。不确定时标记 unknown，禁止编造品牌或型号。",
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 6,
-      "bodyHash": "72c07708fcc33317",
-      "dbBodyHash": "72c07708fcc33317",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 6
     },
     {
       "id": "tpl_negative_default",
@@ -424,11 +336,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "a371c1bd00060ffe",
-      "dbBodyHash": "a371c1bd00060ffe",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_result_check_default",
@@ -438,11 +346,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "35f231aba6cf30b4",
-      "dbBodyHash": "35f231aba6cf30b4",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     },
     {
       "id": "tpl_retry_default",
@@ -452,11 +356,7 @@
       "assetId": "",
       "combinationKey": "",
       "active": true,
-      "sortOrder": 10,
-      "bodyHash": "b8df782d2b4920b0",
-      "dbBodyHash": "b8df782d2b4920b0",
-      "dbMatchesSeed": true,
-      "dbUpdatedAt": 1780048204544
+      "sortOrder": 10
     }
   ],
   "criticalAssets": [

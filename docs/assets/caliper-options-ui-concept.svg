@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920">
+  <defs>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#18191d"/>
+      <stop offset="1" stop-color="#090a0c"/>
+    </linearGradient>
+    <linearGradient id="raised" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#24262d"/>
+      <stop offset="1" stop-color="#111217"/>
+    </linearGradient>
+    <linearGradient id="selected" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f0f1f4"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity=".42"/>
+    </filter>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#ffffff" flood-opacity=".12"/>
+    </filter>
+    <style>
+      .bg { fill: #050506; }
+      .artboard { fill: url(#panel); stroke: #343743; stroke-width: 1.5; }
+      .card { fill: #111216; stroke: #343743; stroke-width: 1.4; }
+      .card2 { fill: #17191f; stroke: #3b3e49; stroke-width: 1.2; }
+      .muted-card { fill: #0d0e12; stroke: #242631; stroke-width: 1; }
+      .white-card { fill: #f8f8f9; }
+      .chip { fill: #191b20; stroke: #3d404a; stroke-width: 1.2; }
+      .chip-selected { fill: url(#selected); stroke: #ffffff; stroke-width: 1.2; }
+      .text { font-family: "Microsoft YaHei", "PingFang SC", "Inter", Arial, sans-serif; fill: #f5f7fb; }
+      .muted { fill: #9a9da8; }
+      .dim { fill: #6f737f; }
+      .dark-text { fill: #08090c; }
+      .title { font-size: 28px; font-weight: 900; }
+      .h2 { font-size: 22px; font-weight: 900; }
+      .h3 { font-size: 18px; font-weight: 900; }
+      .body { font-size: 15px; font-weight: 650; }
+      .small { font-size: 13px; font-weight: 650; }
+      .tiny { font-size: 11px; font-weight: 700; }
+      .mono { font-family: "SFMono-Regular", Consolas, monospace; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="920"/>
+  <text class="text title" x="56" y="58">卡钳配置内嵌方案</text>
+  <text class="text body muted" x="56" y="86">选择卡钳配件后，在卡钳选项卡内直接完成颜色与刹车盘样式配置；不再把这些控制放到独立“配件细项”区域。</text>
+
+  <!-- PC artboard -->
+  <rect x="56" y="126" width="842" height="706" rx="28" class="artboard" filter="url(#shadow)"/>
+  <text class="text h2" x="90" y="174">PC 配置页：卡钳选项卡内完成二级配置</text>
+  <text class="text small muted" x="90" y="199">重点：品牌 / 配件 / 颜色 / 刹车盘 在同一个上下文里，选完配件后配置区自动出现。</text>
+
+  <rect x="90" y="228" width="774" height="72" rx="18" class="muted-card"/>
+  <text class="text h2" x="122" y="273">3</text>
+  <text class="text body muted" x="154" y="272">个配件已选</text>
+  <path d="M814 272 l8 -8 l8 8" fill="none" stroke="#f5f7fb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="90" y="324" width="774" height="466" rx="28" class="card"/>
+  <text class="text h2" x="124" y="370">卡钳</text>
+  <text class="text body muted" x="124" y="396">Brembo GT · 已选择</text>
+  <circle cx="816" cy="365" r="13" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <path d="M810 365 l4 4 l8 -10" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="text body muted" x="124" y="440">品牌</text>
+  <rect x="178" y="415" width="112" height="50" rx="25" class="chip-selected"/>
+  <text class="text body dark-text" x="206" y="447">Brembo</text>
+  <rect x="304" y="415" width="132" height="50" rx="25" class="chip"/>
+  <text class="text body" x="329" y="447">AP Racing</text>
+
+  <rect x="124" y="492" width="238" height="256" rx="20" class="card2" filter="url(#soft)"/>
+  <rect x="142" y="512" width="202" height="150" rx="14" class="white-card"/>
+  <circle cx="248" cy="590" r="58" fill="#e4dba0" stroke="#b7ab6b" stroke-width="3"/>
+  <circle cx="248" cy="590" r="31" fill="#1c1d20"/>
+  <circle cx="248" cy="590" r="10" fill="#0c0d10"/>
+  <g fill="#23252a">
+    <circle cx="248" cy="542" r="3"/><circle cx="248" cy="638" r="3"/>
+    <circle cx="200" cy="590" r="3"/><circle cx="296" cy="590" r="3"/>
+    <circle cx="214" cy="556" r="3"/><circle cx="282" cy="556" r="3"/>
+    <circle cx="214" cy="624" r="3"/><circle cx="282" cy="624" r="3"/>
+  </g>
+  <path d="M153 548 C171 527 203 526 220 548 L218 643 C199 663 168 661 151 640 Z" fill="#f23a34"/>
+  <text class="text h3" x="142" y="700">Brembo GT</text>
+  <text class="text small muted" x="142" y="724">四活塞 · 街道/赛道</text>
+  <rect x="148" y="538" width="48" height="18" rx="9" fill="#ffffff" opacity=".88"/>
+  <text class="tiny mono" x="157" y="552" fill="#df2a24">GT</text>
+
+  <rect x="394" y="492" width="428" height="256" rx="22" class="card2"/>
+  <text class="text h3" x="424" y="532">卡钳配置</text>
+  <text class="text small muted" x="424" y="556">先选配件，再调颜色和刹车盘。颜色会实时写入选中卡钳。</text>
+
+  <text class="text body muted" x="424" y="596">颜色</text>
+  <rect x="480" y="574" width="82" height="42" rx="21" class="chip-selected"/>
+  <circle cx="504" cy="595" r="11" fill="#d93631" stroke="#a61f1a" stroke-width="2"/>
+  <text class="text body dark-text" x="524" y="601">红色</text>
+  <g class="text small">
+    <rect x="570" y="574" width="42" height="42" rx="21" class="chip"/><circle cx="591" cy="595" r="11" fill="#2563eb"/>
+    <rect x="620" y="574" width="42" height="42" rx="21" class="chip"/><circle cx="641" cy="595" r="11" fill="#050506" stroke="#555" stroke-width="1"/>
+    <rect x="670" y="574" width="42" height="42" rx="21" class="chip"/><circle cx="691" cy="595" r="11" fill="#f97316"/>
+    <rect x="720" y="574" width="42" height="42" rx="21" class="chip"/><circle cx="741" cy="595" r="11" fill="#f2c230"/>
+    <rect x="770" y="574" width="42" height="42" rx="21" class="chip"/><circle cx="791" cy="595" r="11" fill="#16a34a"/>
+  </g>
+  <g>
+    <rect x="480" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="501" cy="647" r="11" fill="#d8d4ca"/>
+    <rect x="530" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="551" cy="647" r="11" fill="#cbd5e1"/>
+    <rect x="580" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="601" cy="647" r="11" fill="#d4af37"/>
+    <rect x="630" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="651" cy="647" r="11" fill="#f8fafc"/>
+    <rect x="680" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="701" cy="647" r="11" fill="#ec4899"/>
+    <rect x="730" y="626" width="42" height="42" rx="21" class="chip"/><circle cx="751" cy="647" r="11" fill="#8b5cf6"/>
+    <rect x="780" y="626" width="42" height="42" rx="21" fill="#101115" stroke="#5b5f6e"/>
+    <text class="text tiny" x="792" y="651">调色</text>
+  </g>
+
+  <text class="text body muted" x="424" y="707">刹车盘</text>
+  <rect x="494" y="681" width="72" height="46" rx="14" class="chip"/>
+  <text class="text body" x="516" y="711">不变</text>
+  <rect x="578" y="681" width="118" height="46" rx="14" class="chip-selected"/>
+  <text class="text body dark-text" x="600" y="711">加大刹车盘</text>
+  <rect x="708" y="681" width="114" height="46" rx="14" class="chip"/>
+  <text class="text body" x="721" y="711">碳陶瓷刹车盘</text>
+
+  <rect x="424" y="756" width="398" height="42" rx="14" fill="#0b0c10" stroke="#2f3340"/>
+  <text class="text small muted" x="444" y="782">生成前摘要：</text>
+  <text class="text small" x="526" y="782">Brembo GT · 红色 · 加大刹车盘</text>
+
+  <!-- Mobile artboard -->
+  <rect x="944" y="126" width="440" height="706" rx="34" class="artboard" filter="url(#shadow)"/>
+  <text class="text h2" x="984" y="174">移动端：底部抽屉内联配置</text>
+  <text class="text small muted" x="984" y="199">颜色色卡紧凑横滑，调色盘单独作为最后一项。</text>
+
+  <rect x="984" y="232" width="360" height="70" rx="18" fill="#050506" stroke="#3c4050"/>
+  <text class="text h2" x="1024" y="276">3</text>
+  <text class="text small muted" x="1052" y="274">个配件已选</text>
+  <path d="M1302 272 l8 -8 l8 8" fill="none" stroke="#f5f7fb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="984" y="326" width="360" height="466" rx="28" class="card"/>
+  <text class="text h2" x="1024" y="374">卡钳</text>
+  <text class="text small muted" x="1024" y="399">Brembo GT Red</text>
+  <circle cx="1310" cy="368" r="12" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <path d="M1304 368 l4 4 l8 -10" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="text small muted" x="1024" y="438">品牌</text>
+  <rect x="1076" y="414" width="96" height="44" rx="22" class="chip-selected"/>
+  <text class="text small dark-text" x="1101" y="442">Brembo</text>
+  <rect x="1184" y="414" width="112" height="44" rx="22" class="chip"/>
+  <text class="text small" x="1205" y="442">AP Racing</text>
+
+  <rect x="1024" y="478" width="286" height="126" rx="18" class="card2"/>
+  <rect x="1040" y="494" width="112" height="94" rx="12" class="white-card"/>
+  <circle cx="1106" cy="542" r="33" fill="#e4dba0" stroke="#b7ab6b" stroke-width="2"/>
+  <circle cx="1106" cy="542" r="16" fill="#1c1d20"/>
+  <path d="M1050 517 C1062 505 1081 505 1092 518 L1090 574 C1077 586 1058 586 1049 573 Z" fill="#f23a34"/>
+  <text class="text h3" x="1170" y="530">Brembo GT</text>
+  <text class="text small muted" x="1170" y="555">当前选择</text>
+  <rect x="1170" y="566" width="108" height="28" rx="14" fill="#111217" stroke="#454957"/>
+  <text class="text tiny muted" x="1188" y="585">点卡片换型号</text>
+
+  <text class="text h3" x="1024" y="642">颜色</text>
+  <text class="text tiny muted" x="1270" y="642">可横滑</text>
+  <g>
+    <rect x="1024" y="662" width="62" height="46" rx="23" class="chip-selected"/><circle cx="1045" cy="685" r="11" fill="#d93631"/><text class="text tiny dark-text" x="1061" y="689">红</text>
+    <rect x="1094" y="662" width="46" height="46" rx="23" class="chip"/><circle cx="1117" cy="685" r="11" fill="#2563eb"/>
+    <rect x="1148" y="662" width="46" height="46" rx="23" class="chip"/><circle cx="1171" cy="685" r="11" fill="#050506" stroke="#555"/>
+    <rect x="1202" y="662" width="46" height="46" rx="23" class="chip"/><circle cx="1225" cy="685" r="11" fill="#f97316"/>
+    <rect x="1256" y="662" width="46" height="46" rx="23" class="chip"/><circle cx="1279" cy="685" r="11" fill="#f2c230"/>
+    <rect x="1310" y="662" width="46" height="46" rx="23" class="chip"/><circle cx="1333" cy="685" r="11" fill="#16a34a"/>
+  </g>
+
+  <text class="text h3" x="1024" y="740">刹车盘</text>
+  <rect x="1094" y="715" width="58" height="42" rx="13" class="chip"/>
+  <text class="text small" x="1110" y="742">不变</text>
+  <rect x="1162" y="715" width="96" height="42" rx="13" class="chip-selected"/>
+  <text class="text small dark-text" x="1181" y="742">加大盘</text>
+  <rect x="1268" y="715" width="76" height="42" rx="13" class="chip"/>
+  <text class="text small" x="1278" y="742">碳陶瓷</text>
+
+  <rect x="984" y="812" width="360" height="54" rx="18" fill="#ffffff"/>
+  <text class="text body dark-text" x="1022" y="846">确认：红色 Brembo GT + 加大刹车盘</text>
+</svg>

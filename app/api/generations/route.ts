@@ -56,7 +56,7 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
     if (customPaint && !customPaint.ok) {
       return NextResponse.json({ error: customPaint.error }, { status: 400 })
     }
-    const selectedPaint = customPaint?.paint ?? paintFromId(paintId, catalog.paints)
+    const selectedPaint = customPaint?.paint ?? paintOptionFromCatalog(paintId, catalog)
     const selectedIds = new Set(Object.values(selections))
     const hasSelectedAssets = catalog.assets.some((asset) => selectedIds.has(asset.id))
     const hasPaintChange = paintFinishEffect === "gradient" || paintFinishEffect !== "gloss" || selectedPaint.id !== "factory"
@@ -105,8 +105,8 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
       paintFinishEffect,
       paintGradient: gradientPaint?.ok ? gradientPaint.gradient : undefined,
       stance,
-      vehicleNote,
-      vehicleModel: normalizeVehicleModel(vehicleNote),
+      vehicleNote: "",
+      vehicleModel: "",
     })
     const job = await runGenerationWorkflow({
       userId: user.id,
@@ -161,16 +161,51 @@ function parseSelectionOptions(value: string): PartSelectionOptions {
     Object.entries(parsed as Record<string, unknown>)
       .map(([categoryId, options]) => {
         if (!options || typeof options !== "object" || Array.isArray(options)) return undefined
-        const colorPolicy = (options as { colorPolicy?: unknown }).colorPolicy
-        if (!isPartColorPolicy(colorPolicy)) return undefined
-        return [categoryId, { colorPolicy }] as const
+        const raw = options as Record<string, unknown>
+        const normalized: PartSelectionOptions[string] = {}
+        if (isPartColorPolicy(raw.colorPolicy)) normalized.colorPolicy = raw.colorPolicy
+        if (isPartSurfaceColor(raw.surfaceColor)) normalized.surfaceColor = raw.surfaceColor
+        if (typeof raw.caliperColor === "string" && raw.caliperColor.trim()) normalized.caliperColor = raw.caliperColor.trim().slice(0, 40)
+        if (isCaliperRotorOption(raw.rotorOption)) normalized.rotorOption = raw.rotorOption
+        if (Array.isArray(raw.dryCarbonParts)) {
+          const parts = raw.dryCarbonParts.filter(isDryCarbonPart)
+          if (parts.length) normalized.dryCarbonParts = Array.from(new Set(parts))
+        }
+        return Object.keys(normalized).length ? ([categoryId, normalized] as const) : undefined
       })
-      .filter((entry): entry is readonly [string, { colorPolicy: PartColorPolicy }] => Boolean(entry)),
+      .filter((entry): entry is readonly [string, PartSelectionOptions[string]] => Boolean(entry)),
   )
 }
 
 function isPartColorPolicy(value: unknown): value is PartColorPolicy {
   return value === "body_color" || value === "exposed_carbon" || value === "part_reference_color"
+}
+
+function isPartSurfaceColor(value: unknown): value is NonNullable<PartSelectionOptions[string]["surfaceColor"]> {
+  return value === "black" || value === "exposed_carbon" || value === "body_color"
+}
+
+function isCaliperRotorOption(value: unknown): value is NonNullable<PartSelectionOptions[string]["rotorOption"]> {
+  return value === "stock" || value === "big_brake" || value === "carbon_ceramic"
+}
+
+function isDryCarbonPart(value: unknown): value is NonNullable<PartSelectionOptions[string]["dryCarbonParts"]>[number] {
+  return value === "hood" || value === "mirrors" || value === "fenders" || value === "trunk-lid"
+}
+
+function paintOptionFromCatalog(paintId: string, catalog: ReturnType<typeof getCatalog>): PaintOption {
+  const classic = catalog.classicPaints.find((paint) => paint.id === paintId && paint.active)
+  if (classic) {
+    const paintLabel = classic.labelEn || classic.label
+    const brandLabel = classic.isDefault || classic.brand.trim().toLowerCase() === "default" ? "" : classic.brand
+    return {
+      id: classic.id,
+      label: [brandLabel, paintLabel, classic.colorCode].filter(Boolean).join(" "),
+      hex: classic.hex,
+      prompt: classic.prompt,
+    }
+  }
+  return paintFromId(paintId, catalog.paints)
 }
 
 function parsePaintFinishEffect(value: FormDataEntryValue | null): PaintFinishEffect {

@@ -178,6 +178,54 @@ const stancePatterns: Array<{ id: Exclude<StancePresetId, "stock">; pattern: Reg
 
 const stanceKeepPattern = /不升高|不要升高|别升高|別升高|不降低|不要降低|别降低|別降低|无需降低|無需降低|保持.{0,6}(车高|車高|高度|姿态|姿態)|原车高度|原車高度|原厂高度|原廠高度|\b(?:keep|preserve|stock|factory)\s+(?:ride\s*)?height\b/i
 
+type StanceV2PresetId = "stock" | "raise" | "flush_lower" | "air_suspension"
+
+const stanceV2Presets: Record<StanceV2PresetId, GenerationStandardJson["stance"]> = {
+  stock: { value: 0, label: "车身高度不变", prompt: "" },
+  raise: {
+    value: 25,
+    label: "升高",
+    prompt: stanceV2Prompt(
+      "将车身高度相对原图明确升高，增加轮胎上沿与轮眉之间的垂直间隙，同时增加前铲、侧裙和底盘与地面的离地间隙。适用于轿车越野化、跨界化和越野车升高，不要只是轻微抬亮阴影。",
+    ),
+  },
+  flush_lower: {
+    value: 70,
+    label: "竞技 0 指",
+    prompt: stanceV2Prompt(
+      "将车身姿态调整为竞技 0 指 fitment：轮胎上沿非常接近轮眉边缘，轮眉间隙接近 0 指宽，视觉紧凑且赛道化。轮胎不能穿进叶子板，轮毂和轮胎必须保持完整圆形，接地阴影真实。",
+    ),
+  },
+  air_suspension: {
+    value: 90,
+    label: "气动避震",
+    prompt: stanceV2Prompt(
+      "将车身姿态调整为气动避震 aired-out：车身极低，轮眉轻微盖住轮胎上沿，侧裙和前铲非常接近地面。允许轻微 tire tuck，但不要切断轮胎、压扁轮胎或改变地面。",
+    ),
+  },
+}
+
+const stanceV2KeepPattern =
+  /不变|保持.{0,6}(车高|高度|姿态)|原车高度|原厂高度|\b(?:keep|preserve|stock|factory|unchanged)\s+(?:ride\s*)?height\b/i
+const stanceV2RaisePattern =
+  /\b(?:raise|raised|lift|lifted|higher|increase\s+ride\s*height|safari|offroad|off-road|dakar)\b|提高|升高|抬高|加高|达喀尔|越野|拉高/i
+const stanceV2AirPattern =
+  /\b(?:air\s*suspension|aired\s*out|bagged|slammed|tucked|tire\s*tuck|lay\s*frame)\b|气动|气动避震|趴地|贴地|极低|藏轮/i
+const stanceV2TrackPattern =
+  /\b(?:flush|flush\s*fitment|zero\s*finger|0\s*finger|track\s*stance|competition\s*stance|fender\s*to\s*lip|lower|lowered|drop|dropped)\b|竞技|0指|零指|齐边|贴齐|轮眉齐边|降低|低趴/i
+
+function stanceV2Prompt(description: string) {
+  return [
+    description,
+    "硬约束：只改变悬挂高度、轮眉间隙、车身相对轮胎和地面的高度关系；不要缩放、拉伸、裁切、平移或重画整辆车；不要移动地面、轮胎接地点、背景、相机角度、车牌、灯、玻璃、轮毂尺寸或轮胎外径；保持车轮圆形、轮胎接地阴影和原图透视真实。",
+  ].join(" ")
+}
+
+function stanceV2FromId(id: StancePresetId | StanceV2PresetId): GenerationStandardJson["stance"] {
+  if (id === "slight_lower") return { ...stanceV2Presets.flush_lower }
+  return { ...stanceV2Presets[id as StanceV2PresetId] }
+}
+
 function stancePrompt(description: string) {
   return [
     description,
@@ -187,30 +235,32 @@ function stancePrompt(description: string) {
 
 function stancePresetFromValue(value: number): GenerationStandardJson["stance"] {
   const normalized = clampNumber(value, 0, 100)
-  if (normalized <= 0) return stanceFromId("stock")
-  if (normalized <= 30) return stanceFromId("raise")
-  if (normalized <= 55) return stanceFromId("slight_lower")
-  if (normalized <= 80) return stanceFromId("flush_lower")
-  return stanceFromId("air_suspension")
+  if (normalized <= 0) return stanceV2FromId("stock")
+  if (normalized <= 35) return stanceV2FromId("raise")
+  if (normalized <= 80) return stanceV2FromId("flush_lower")
+  return stanceV2FromId("air_suspension")
 }
 
 function stanceFromId(id: StancePresetId): GenerationStandardJson["stance"] {
-  return { ...stancePresets[id] }
+  return stanceV2FromId(id)
 }
 
 function stancePresetIdFromText(text: string): StancePresetId | null {
-  if (stanceKeepPattern.test(text)) return null
+  if (stanceV2KeepPattern.test(text) || stanceKeepPattern.test(text)) return null
+  if (stanceV2AirPattern.test(text)) return "air_suspension"
+  if (stanceV2RaisePattern.test(text)) return "raise"
+  if (stanceV2TrackPattern.test(text)) return "flush_lower"
   const matched = new Set<StancePresetId>()
   for (const item of stancePatterns) {
-    if (item.pattern.test(text)) matched.add(item.id)
+    if (item.pattern.test(text)) matched.add(item.id === "slight_lower" ? "flush_lower" : item.id)
   }
-  return stancePriority.find((id) => matched.has(id)) ?? null
+  return stancePriority.find((id) => matched.has(id === "slight_lower" ? "flush_lower" : id)) ?? null
 }
 
 function hasStanceDirectionConflict(text: string) {
-  if (stanceKeepPattern.test(text)) return false
-  const hasRaise = stancePatterns.some((item) => item.id === "raise" && item.pattern.test(text))
-  const hasLower = stancePatterns.some((item) => item.id !== "raise" && item.pattern.test(text))
+  if (stanceV2KeepPattern.test(text) || stanceKeepPattern.test(text)) return false
+  const hasRaise = stanceV2RaisePattern.test(text) || stancePatterns.some((item) => item.id === "raise" && item.pattern.test(text))
+  const hasLower = stanceV2AirPattern.test(text) || stanceV2TrackPattern.test(text) || stancePatterns.some((item) => item.id !== "raise" && item.pattern.test(text))
   return hasRaise && hasLower
 }
 
@@ -283,6 +333,7 @@ function configSelectedOnlyGuard(spec: GenerationStandardJson) {
     selectedCategories.size ? `已选配件类别: ${selectedList}` : "",
   ].filter(Boolean)
   const lockLines = [
+    "- v2 前台配件白名单：wheels、calipers、rear-wing、side-skirts、front-bumper、exhaust、hood、mirrors、fenders、trunk-lid。扩散器、灯膜/贴膜、中网不是本轮前台可编辑配件，除非标准 JSON parts 明确列出，否则必须保持原图。",
     selectedCategories.has("wheels")
       ? "- wheels 已选时，只允许替换轮毂本体外观、轮毂中心、轮辐/轮唇和与轮毂直接相关的可见刹车盘遮挡关系；不要修改车身、车门、玻璃、灯、前后包围、侧裙、机盖、后视镜或背景。"
       : "- wheels 未选：四个原车轮毂、轮胎、刹车盘透视和接地阴影必须保持原图。",
@@ -307,6 +358,153 @@ function configSelectedOnlyGuard(spec: GenerationStandardJson) {
   ].join("\n")
 }
 
+function resolveConfigAssetColorPolicy(asset: PartAsset, selectionOption: PartSelectionOptions[string] | undefined): PartColorPolicy {
+  if (selectionOption?.surfaceColor === "black") return resolveAssetColorPolicy(asset, "part_reference_color")
+  if (selectionOption?.surfaceColor === "body_color") return resolveAssetColorPolicy(asset, "body_color")
+  if (selectionOption?.surfaceColor === "exposed_carbon") return resolveAssetColorPolicy(asset, "exposed_carbon")
+  if (isDryCarbonCategory(asset.categoryId) || asset.id.startsWith("dry-carbon-")) return resolveAssetColorPolicy(asset, "exposed_carbon")
+  return resolveAssetColorPolicy(asset, selectionOption?.colorPolicy)
+}
+
+function exhaustLayoutLabel(asset: PartAsset) {
+  const labels: Record<string, string> = {
+    "exhaust-single-left": "单边单出（左）",
+    "exhaust-single-right": "单边单出（右）",
+    "exhaust-dual-left": "单边双出（左）",
+    "exhaust-dual-right": "单边双出（右）",
+    "exhaust-quad": "双边双出",
+    "exhaust-dual-single": "双边单出",
+    "exhaust-center-single": "居中 1 根",
+    "exhaust-center-dual": "居中 2 根",
+    "exhaust-center-quad": "居中 4 根",
+  }
+  return labels[asset.id] || asset.variant || asset.model
+}
+
+function configPartOptions(asset: PartAsset, selectionOption: PartSelectionOptions[string] | undefined): { optionSummary?: string; options?: Record<string, unknown> } {
+  if (asset.categoryId === "calipers") {
+    const caliperColor = cleanOptionText(selectionOption?.caliperColor) || cleanOptionText(asset.color) || "reference color"
+    const rotorOption = selectionOption?.rotorOption || "stock"
+    return {
+      optionSummary: `卡钳颜色：${caliperColor}；刹车盘：${rotorOptionLabel(rotorOption)}`,
+      options: {
+        caliperColor,
+        rotorOption,
+        rotorLabel: rotorOptionLabel(rotorOption),
+      },
+    }
+  }
+  if (asset.categoryId === "rear-wing" || asset.categoryId === "front-bumper" || asset.categoryId === "side-skirts") {
+    const surfaceColor = selectionOption?.surfaceColor || defaultSurfaceColorForAsset(asset)
+    return {
+      optionSummary: `表面颜色/材质：${surfaceColorLabel(surfaceColor)}`,
+      options: {
+        surfaceColor,
+        surfaceColorLabel: surfaceColorLabel(surfaceColor),
+      },
+    }
+  }
+  if (asset.categoryId === "exhaust") {
+    const layoutLabel = exhaustLayoutLabel(asset)
+    return {
+      optionSummary: `排气布局：${layoutLabel}`,
+      options: {
+        layout: asset.id,
+        layoutLabel,
+      },
+    }
+  }
+  if (isDryCarbonCategory(asset.categoryId) || asset.id.startsWith("dry-carbon-")) {
+    return {
+      optionSummary: "干碳纤维部件：裸露干碳纤维材质",
+      options: {
+        dryCarbon: true,
+        dryCarbonPart: asset.categoryId,
+      },
+    }
+  }
+  return {}
+}
+
+function chatSelectionOptionForAsset(asset: PartAsset, text: string, requestedPolicy?: PartColorPolicy): PartSelectionOptions[string] {
+  if (asset.categoryId === "calipers") {
+    return {
+      colorPolicy: requestedPolicy,
+      caliperColor: inferCaliperColorText(text) || asset.color,
+      rotorOption: inferRotorOption(text),
+    }
+  }
+  if (asset.categoryId === "rear-wing" || asset.categoryId === "front-bumper" || asset.categoryId === "side-skirts") {
+    return {
+      colorPolicy: requestedPolicy,
+      surfaceColor: inferSurfaceColor(text) || defaultSurfaceColorForAsset(asset),
+    }
+  }
+  if (isDryCarbonCategory(asset.categoryId) || asset.id.startsWith("dry-carbon-")) {
+    return {
+      colorPolicy: "exposed_carbon",
+      dryCarbonParts: [asset.categoryId as "hood" | "mirrors" | "fenders" | "trunk-lid"],
+    }
+  }
+  return { colorPolicy: requestedPolicy }
+}
+
+function inferCaliperColorText(text: string) {
+  const lower = text.toLowerCase()
+  if (/red|\u7ea2|\u7d05/.test(lower)) return "red"
+  if (/yellow|\u9ec4|\u9ec3/.test(lower)) return "yellow"
+  if (/blue|\u84dd|\u85cd/.test(lower)) return "blue"
+  if (/black|\u9ed1/.test(lower)) return "black"
+  if (/silver|\u94f6|\u9280/.test(lower)) return "silver"
+  if (/green|\u7eff|\u7da0/.test(lower)) return "green"
+  if (/orange|\u6a59/.test(lower)) return "orange"
+  return ""
+}
+
+function inferRotorOption(text: string): "stock" | "big_brake" | "carbon_ceramic" {
+  if (/carbon\s*ceramic|ceramic\s*brake|\u78b3\u9676|\u9676\u74f7\u5239\u8f66\u76d8|\u9676\u74f7\u789f/.test(text)) return "carbon_ceramic"
+  if (/big\s*brake|larger\s*rotor|oversized\s*rotor|\u52a0\u5927\u5239\u8f66\u76d8|\u5927\u5239\u8f66\u76d8|\u52a0\u5927\u789f/.test(text)) return "big_brake"
+  return "stock"
+}
+
+function inferSurfaceColor(text: string): "black" | "exposed_carbon" | "body_color" | "" {
+  if (bodyColorPattern.test(text) || /\u8f66\u8eab\u540c\u8272|\u540c\u8272/.test(text)) return "body_color"
+  if (explicitExposedCarbonPattern.test(text) || carbonPattern.test(text)) return "exposed_carbon"
+  if (/black|\u9ed1/.test(text.toLowerCase())) return "black"
+  return ""
+}
+
+function instructionWithOptions(instruction: string, optionSummary: string | undefined) {
+  return [instruction, optionSummary ? `本次选项：${optionSummary}。` : ""].filter(Boolean).join(" ")
+}
+
+function cleanOptionText(value: unknown) {
+  return String(value || "").trim()
+}
+
+function defaultSurfaceColorForAsset(asset: PartAsset) {
+  if (asset.defaultColorPolicy === "body_color") return "body_color"
+  if (asset.color === "configurable") return "black"
+  if (asset.defaultColorPolicy === "exposed_carbon" || carbonPattern.test(`${asset.color} ${asset.finish} ${asset.promptHint}`)) return "exposed_carbon"
+  return "black"
+}
+
+function surfaceColorLabel(value: string | undefined) {
+  if (value === "body_color") return "车身同色"
+  if (value === "exposed_carbon") return "碳纤维"
+  return "黑色"
+}
+
+function rotorOptionLabel(value: string | undefined) {
+  if (value === "big_brake") return "加大刹车盘"
+  if (value === "carbon_ceramic") return "碳陶瓷刹车盘"
+  return "不变"
+}
+
+function isDryCarbonCategory(categoryId: string) {
+  return categoryId === "hood" || categoryId === "mirrors" || categoryId === "fenders" || categoryId === "trunk-lid"
+}
+
 export function buildConfigStandardJson(input: BuildConfigSpecInput): GenerationStandardJson {
   const selectedAssets = Object.values(input.selections)
     .map((id) => input.assets.find((asset) => asset.id === id))
@@ -316,7 +514,9 @@ export function buildConfigStandardJson(input: BuildConfigSpecInput): Generation
     const category = input.categories.find((item) => item.id === asset.categoryId)
     const referenceImages = assetGenerationReferences(asset)
     const primaryReference = referenceImages[0]?.url || asset.imageUrl
-    const colorPolicy = resolveAssetColorPolicy(asset, input.selectionOptions?.[asset.categoryId]?.colorPolicy)
+    const selectionOption = input.selectionOptions?.[asset.categoryId]
+    const partOptions = configPartOptions(asset, selectionOption)
+    const colorPolicy = resolveConfigAssetColorPolicy(asset, selectionOption)
     return {
       category: asset.categoryId,
       categoryLabel: categoryLabel(category, asset.categoryId),
@@ -331,13 +531,15 @@ export function buildConfigStandardJson(input: BuildConfigSpecInput): Generation
       colorPolicyPrompt: colorPolicyInstruction(colorPolicy, categoryLabel(category, asset.categoryId), asset.categoryId),
       referenceImageUrl: primaryReference,
       referenceImages,
-      instruction: asset.promptHint,
+      instruction: instructionWithOptions(asset.promptHint, partOptions.optionSummary),
+      optionSummary: partOptions.optionSummary,
+      options: partOptions.options,
     } satisfies GenerationPartSpec
   })
 
   const configPaint = buildConfigPaint(input.paint, input.paintFinishEffect ?? "gloss", input.paintGradient)
   const configStance = configStanceFromValue(input.stance)
-  const vehicleModel = input.vehicleModel?.trim() || input.vehicleNote.trim() || "User uploaded vehicle, preserve exact identity"
+  const vehicleModel = input.vehicleModel?.trim() || "User uploaded vehicle, preserve exact identity"
   return {
     mode: "config",
     vehicle: {
@@ -879,7 +1081,8 @@ export function buildRepairPrompt(prompt: string, check: ResultCheckResult, opti
 export function summarizeSpec(spec: GenerationStandardJson) {
   const parts = spec.parts.map((part) => {
     const name = part.source === "asset_library" ? `${part.brand} ${part.model} ${part.variant}`.trim() : `${part.categoryLabel} ${part.source}`
-    return part.colorPolicy === "exposed_carbon" ? `${name} (exposed carbon)` : name
+    const summary = part.optionSummary ? `${name} (${part.optionSummary})` : name
+    return part.colorPolicy === "exposed_carbon" && !part.optionSummary ? `${summary} (exposed carbon)` : summary
   })
   const stanceSummary = spec.stance.prompt.trim() ? spec.stance.label : "车身高度不变"
   return [spec.mode, spec.vehicle.model, spec.paint.target, stanceSummary, parts.length ? parts.join(" / ") : "no part"].join(" | ")
@@ -914,6 +1117,8 @@ function partPromptBlock(part: GenerationPartSpec, index: number, templates: Pro
     part.source === "asset_library" ? `- 资产: ${[part.brand, part.model, part.variant].filter(Boolean).join(" ")}` : `- 参考图: ${part.referenceImageUrl}`,
     part.color ? `- 目录颜色: ${part.color}` : "",
     part.finish ? `- 材质/表面: ${part.finish}` : "",
+    part.optionSummary ? `- 选项摘要: ${part.optionSummary}` : "",
+    part.options ? `- options: ${JSON.stringify(part.options)}` : "",
     `- colorPolicy: ${part.colorPolicy}`,
     `- colorPolicyPrompt: ${part.colorPolicyPrompt}`,
     `- 指令: ${part.instruction}`,
@@ -925,15 +1130,49 @@ function partPromptBlock(part: GenerationPartSpec, index: number, templates: Pro
     .join("\n")
 }
 
+function exactExhaustLayoutAssetFromText(assets: PartAsset[] | undefined, text: string): PartAsset | null {
+  const normalized = normalizeSearchText(text)
+  const compact = normalized.replace(/\s+/g, "")
+  if (!compact) return null
+  const hasRight = /right|右|右侧|右邊|右边/.test(normalized)
+  const hasLeft = /left|左|左侧|左邊|左边/.test(normalized)
+  const hasCenter = /center|centre|centerexit|centerexit|中置|居中|中出|中间|中央/.test(compact)
+  const hasFour = /quad|four|4|四/.test(compact)
+  const hasTwo = /dual|double|twin|2|二|两|兩|双|雙/.test(compact)
+  const hasOne = /single|1|一|单|單/.test(compact)
+  let assetId = ""
+
+  if (/单边单出|單邊單出|singlesidesingle|singlesideone|singleexhaust|singleoutlet|singleexit/.test(compact)) {
+    assetId = hasRight && !hasLeft ? "exhaust-single-right" : "exhaust-single-left"
+  } else if (/单边双出|單邊雙出|singlesidedual|singlesidedouble|singlesidetwin/.test(compact)) {
+    assetId = hasRight && !hasLeft ? "exhaust-dual-right" : "exhaust-dual-left"
+  } else if (/双边双出|雙邊雙出|双边四出|雙邊四出|dualsidequad|quadexhaust|quadoutlet|quadexit/.test(compact)) {
+    assetId = "exhaust-quad"
+  } else if (/双边单出|雙邊單出|dualsidesingle|oneeachside/.test(compact)) {
+    assetId = "exhaust-dual-single"
+  } else if (hasCenter) {
+    if (hasFour) assetId = "exhaust-center-quad"
+    else if (hasTwo) assetId = "exhaust-center-dual"
+    else if (hasOne) assetId = "exhaust-center-single"
+  }
+
+  if (!assetId) return null
+  return assets?.find((asset) => asset.id === assetId && asset.active) ?? null
+}
+
 function exactCatalogPartFromChat(input: BuildChatSpecInput, category: PartCategory): GenerationPartSpec | null {
-  const asset = input.assets
-    ?.filter((item) => item.categoryId === category.id && item.active)
-    .sort((a, b) => Number(b.generationReady) - Number(a.generationReady) || a.sortOrder - b.sortOrder)
-    .find((item) => assetMatchesUserText(item, input.text))
+  const asset =
+    (category.id === "exhaust" ? exactExhaustLayoutAssetFromText(input.assets, input.text) : null) ??
+    input.assets
+      ?.filter((item) => item.categoryId === category.id && item.active)
+      .sort((a, b) => Number(b.generationReady) - Number(a.generationReady) || a.sortOrder - b.sortOrder)
+      .find((item) => assetMatchesUserText(item, input.text))
   if (!asset) return null
   const referenceImages = assetGenerationReferences(asset)
   const requestedPolicy = inferPartColorPolicy(input.text, category.id, input.partColorPolicyChoices?.[category.id])
-  const colorPolicy = resolveAssetColorPolicy(asset, requestedPolicy)
+  const selectionOption = chatSelectionOptionForAsset(asset, input.text, requestedPolicy)
+  const partOptions = configPartOptions(asset, selectionOption)
+  const colorPolicy = resolveConfigAssetColorPolicy(asset, selectionOption)
   return {
     category: asset.categoryId,
     categoryLabel: categoryLabel(category, asset.categoryId),
@@ -948,7 +1187,9 @@ function exactCatalogPartFromChat(input: BuildChatSpecInput, category: PartCateg
     colorPolicyPrompt: colorPolicyInstruction(colorPolicy, categoryLabel(category, asset.categoryId), asset.categoryId),
     referenceImageUrl: referenceImages[0]?.url || asset.imageUrl,
     referenceImages,
-    instruction: asset.promptHint || `按用户请求安装 ${categoryLabel(category, asset.categoryId)}，只修改对应配件区域。`,
+    instruction: instructionWithOptions(asset.promptHint || `按用户请求安装 ${categoryLabel(category, asset.categoryId)}，只修改对应配件区域。`, partOptions.optionSummary),
+    optionSummary: partOptions.optionSummary,
+    options: partOptions.options,
   }
 }
 
@@ -1101,6 +1342,7 @@ function pendingPartColorPolicyCategories(input: ParseChatIntentInput, reference
     ?.filter((asset) => asset.active && assetMatchesUserText(asset, input.text))
     .sort((a, b) => Number(b.generationReady) - Number(a.generationReady) || a.sortOrder - b.sortOrder)
     .forEach((asset) => {
+      if (asset.id.startsWith("dry-carbon-")) return
       if (isPartColorPolicyChoiceCategory(asset.categoryId) && !confirmed[asset.categoryId] && assetSupportsCarbonColorPolicy(asset)) {
         pending.add(asset.categoryId)
       }
@@ -1134,6 +1376,7 @@ function assetMatchesUserText(asset: PartAsset, text: string) {
   const lower = normalizeSearchText(text)
   if (!lower) return false
   const compactLower = lower.replace(/\s+/g, "")
+  if (asset.id.startsWith("dry-carbon-") && !carbonPattern.test(text)) return false
   const keywords = [
     ...assetKeywordList(asset.keywords),
     asset.model,
@@ -1143,11 +1386,18 @@ function assetMatchesUserText(asset: PartAsset, text: string) {
   if (
     keywords.some((keyword) => {
       const normalized = normalizeSearchText(keyword)
-      if (!normalized || normalized.length < 3) return false
+      const minLength = /[\u4e00-\u9fff]/.test(normalized) ? 2 : 3
+      if (!normalized || normalized.length < minLength) return false
       return lower.includes(normalized) || compactLower.includes(normalized.replace(/\s+/g, ""))
     })
   ) {
     return true
+  }
+  if (asset.id.startsWith("dry-carbon-") && carbonPattern.test(text)) {
+    if (asset.categoryId === "hood" && /hood|bonnet|\u673a\u76d6|\u5f15\u64ce\u76d6|\u524d\u76d6/.test(text)) return true
+    if (asset.categoryId === "mirrors" && /mirror|\u540e\u89c6\u955c|\u955c\u58f3|\u955c\u76d6|\u8033\u6735/.test(text)) return true
+    if (asset.categoryId === "fenders" && /fender|\u53f6\u5b50\u677f|\u7ffc\u5b50\u677f/.test(text)) return true
+    if (asset.categoryId === "trunk-lid" && /trunk|boot|decklid|tailgate|\u540e\u5907\u7bb1\u76d6|\u5c3e\u7bb1\u76d6|\u5c3e\u95e8/.test(text)) return true
   }
   return false
 }
@@ -1214,8 +1464,8 @@ function resolveAssetColorPolicy(asset: PartAsset, requested: PartColorPolicy | 
 }
 
 function allowedColorPoliciesForAsset(asset: PartAsset): PartColorPolicy[] {
-  if (assetSupportsCarbonColorPolicy(asset)) return ["body_color", "exposed_carbon"]
   if (asset.allowedColorPolicies?.length) return asset.allowedColorPolicies
+  if (assetSupportsCarbonColorPolicy(asset)) return ["body_color", "exposed_carbon"]
   return [asset.defaultColorPolicy || inferredDefaultColorPolicy(asset)]
 }
 
@@ -1254,6 +1504,12 @@ function colorPolicyInstruction(policy: PartColorPolicy, categoryLabelText: stri
   }
   if (policy === "exposed_carbon" && categoryId === "hood") {
     return "Use exposed carbon fiber only on the hood panel. Do not spread carbon texture to roof, trunk, doors, bumpers, mirrors, wheels, lights, windshield, or unrelated body panels."
+  }
+  if (policy === "exposed_carbon" && categoryId === "fenders") {
+    return "Use exposed dry carbon fiber only on the selected fender panels. Preserve wheel arches, doors, hood gaps, bumper edges, wheels, tires, lights, and all unrelated body panels."
+  }
+  if (policy === "exposed_carbon" && categoryId === "trunk-lid") {
+    return "Use exposed dry carbon fiber only on the trunk lid or tailgate panel. Preserve tail lights, license plate area, rear bumper, exhaust, rear wing, panel gaps, and all unrelated body panels."
   }
   if (policy === "body_color") {
     return `${categoryLabelText} 必须喷成第一张原车相同车身颜色。不要在这个部件上显示裸露碳纤维纹理或黑色碳纤维材质。`
@@ -1344,6 +1600,7 @@ function inferMirrorColorCorrection(text: string, previous?: GenerationStandardJ
       normalized,
     )
   if (!mentionsMirror) return { detected: false, target: "" }
+  if (explicitExposedCarbonPattern.test(normalized)) return { detected: false, target: "" }
   const looksLikeCorrection =
     /\b(?:why|wrong|not|isn'?t|doesn'?t|didn'?t|fix|correct|repaint|paint|change|make)\b|\u600e\u4e48|\u4e3a\u4ec0\u4e48|\u4e0d\u662f|\u4e0d\u5bf9|\u4e0d\u6539|\u6ca1\u6539|\u4fee\u6b63|\u6539\u6210|\u6539\u4e3a|\u6362\u6210|\u55b7\u6210/u.test(
       normalized,

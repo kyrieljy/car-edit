@@ -2,14 +2,18 @@
 
 import type { CSSProperties, Dispatch, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject, SetStateAction } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowDownToLine,
   BadgeCheck,
   Bell,
+  Car,
   CheckCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   CreditCard,
   ImageIcon,
   KeyRound,
@@ -58,9 +62,11 @@ import type {
   GenerationJob,
   GenerationProgressEvent,
   PaintFinishEffect,
+  PaintOption,
   PartAsset,
   PartCategory,
   PartColorPolicy,
+  PartSelectionOptions,
   SelectionMap,
 } from "@/lib/types"
 
@@ -150,9 +156,17 @@ type MobileStudioAppProps = {
   revealAsset: (asset: PartAsset) => void
   expandedCategory: string
   setExpandedCategory: (value: string) => void
+  expandedCaliperAssetId: string
+  setExpandedCaliperAssetId: (value: string) => void
   focusedAssetId: string
+  selectionOptions: PartSelectionOptions
+  selectedCaliperAsset?: PartAsset
+  selectedSurfaceAssets: PartAsset[]
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+  toggleDryCarbonPart: (part: (typeof mobileDryCarbonParts)[number]) => void
   paintId: string
   setPaintId: (value: string) => void
+  paintChoices: PaintOption[]
   setPaintFinishEffect: (value: PaintFinishEffect) => void
   setDraftPaintFinishEffect: (value: PaintFinishEffect) => void
   selectedPaintLabel: string
@@ -219,6 +233,128 @@ type MobileStudioAppProps = {
 
 const paintEffects: PaintFinishEffect[] = ["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"]
 const mobileCustomPaintSwatches = ["#2F6BFF", "#0F6B55", "#243B53", "#7B1E3B", "#FFD21F", "#7A4DF3", "#D96C2C", "#E8E1D4", "#5D676F", "#101114"]
+const mobileStyleSurfaceCategoryIds = new Set(["rear-wing", "side-skirts", "front-bumper"])
+const mobileInstallToggleSurfaceCategoryIds = new Set(["side-skirts", "front-bumper"])
+const mobileFixedStyleSurfaceAssetIds: Record<string, string> = {
+  "front-bumper": "front-splitter-style",
+  "side-skirts": "side-skirts-style",
+}
+const mobileBrandFilteredCategoryIds = new Set(["wheels", "calipers"])
+
+function isMobileConfigAssetVisible(asset: PartAsset) {
+  const fixedStyleAssetId = mobileFixedStyleSurfaceAssetIds[asset.categoryId]
+  return !fixedStyleAssetId || asset.id === fixedStyleAssetId
+}
+const mobileWingStyleInfoById: Record<string, { zh: string; en: string; description: string }> = {
+  "wing-ducktail": {
+    zh: "鸭尾",
+    en: "Ducktail",
+    description: "贴着后备箱/尾门边缘微微上翘，比较低调。常见于性能街车、复古车、M 系/AMG/R 系一些改装。主要作用是轻微改善尾部气流，视觉上让车尾更翘、更运动。",
+  },
+  "wing-lip-spoiler": {
+    zh: "小尾翼",
+    en: "Lip Spoiler",
+    description: "比鸭尾更薄，有点像一条贴片，很多原厂运动套件会用。装饰属性更强，对高速下压力帮助有限，但日常最协调，也最不容易显得夸张。",
+  },
+  "wing-gt-wing": {
+    zh: "高脚尾翼",
+    en: "GT Wing",
+    description: "GT3 赛车常见，翼面和车身分离，有支架。更偏赛道，理论上能产生更明显的下压力，但角度、宽度、高度、安装位置都很关键。",
+  },
+  "wing-swan-neck": {
+    zh: "天鹅颈尾翼",
+    en: "Swan Neck",
+    description: "支架从翼面上方连接，常见于 GT3 RS、GT4 赛车等。好处是翼面下方气流更干净，空气动力效率更高。视觉也更赛车化，改装成本和突兀感都更高。",
+  },
+  "wing-time-attack": {
+    zh: "双层尾翼",
+    en: "Time Attack Wing",
+    description: "有主翼加副翼，或者上下两层，常见于赛车、Time Attack 改装。下压力更强，但也更夸张。",
+  },
+}
+const mobileExhaustLayoutGroups = [
+  {
+    id: "single-side-single",
+    label: { zh: "单边单出", en: "Single side single" },
+    assetIds: ["exhaust-single-left", "exhaust-single-right"],
+    childLabels: {
+      "exhaust-single-left": { zh: "左", en: "Left" },
+      "exhaust-single-right": { zh: "右", en: "Right" },
+    },
+  },
+  {
+    id: "single-side-dual",
+    label: { zh: "单边双出", en: "Single side dual" },
+    assetIds: ["exhaust-dual-left", "exhaust-dual-right"],
+    childLabels: {
+      "exhaust-dual-left": { zh: "左", en: "Left" },
+      "exhaust-dual-right": { zh: "右", en: "Right" },
+    },
+  },
+  {
+    id: "dual-side-quad",
+    label: { zh: "双边双出", en: "Dual side dual" },
+    assetIds: ["exhaust-quad"],
+    childLabels: {},
+  },
+  {
+    id: "dual-side-single",
+    label: { zh: "双边单出", en: "Dual side single" },
+    assetIds: ["exhaust-dual-single"],
+    childLabels: {},
+  },
+  {
+    id: "center-exit",
+    label: { zh: "居中", en: "Center exit" },
+    assetIds: ["exhaust-center-single", "exhaust-center-dual", "exhaust-center-quad"],
+    childLabels: {
+      "exhaust-center-single": { zh: "1 根", en: "1 pipe" },
+      "exhaust-center-dual": { zh: "2 根", en: "2 pipes" },
+      "exhaust-center-quad": { zh: "4 根", en: "4 pipes" },
+    },
+  },
+] as const
+
+const mobileExhaustLayoutLabelsById: Record<string, { zh: string; en: string }> = {
+  "exhaust-single-left": { zh: "单边单出（左）", en: "Single side single (left)" },
+  "exhaust-single-right": { zh: "单边单出（右）", en: "Single side single (right)" },
+  "exhaust-dual-left": { zh: "单边双出（左）", en: "Single side dual (left)" },
+  "exhaust-dual-right": { zh: "单边双出（右）", en: "Single side dual (right)" },
+  "exhaust-quad": { zh: "双边双出", en: "Dual side dual" },
+  "exhaust-dual-single": { zh: "双边单出", en: "Dual side single" },
+  "exhaust-center-single": { zh: "居中 1 根", en: "Center 1 pipe" },
+  "exhaust-center-dual": { zh: "居中 2 根", en: "Center 2 pipes" },
+  "exhaust-center-quad": { zh: "居中 4 根", en: "Center 4 pipes" },
+}
+const mobileDryCarbonCategoryId = "dry-carbon-parts"
+const mobileDryCarbonParts = [
+  { id: "hood", assetId: "dry-carbon-hood", label: { zh: "机盖", en: "Hood" } },
+  { id: "mirrors", assetId: "dry-carbon-mirrors", label: { zh: "后视镜", en: "Mirrors" } },
+  { id: "fenders", assetId: "dry-carbon-fenders", label: { zh: "叶子板", en: "Fenders" } },
+  { id: "trunk-lid", assetId: "dry-carbon-trunk-lid", label: { zh: "后备箱盖", en: "Trunk lid" } },
+] as const
+const mobileSurfaceColorOptions = [
+  { id: "black", swatch: "#050506", label: { zh: "黑色", en: "Black" } },
+  { id: "exposed_carbon", swatch: "#202226", label: { zh: "碳纤维", en: "Carbon fiber" } },
+  { id: "body_color", swatch: "linear-gradient(135deg, #f8fafc, #64748b)", label: { zh: "车身同色", en: "Body color" } },
+] as const
+const mobileCaliperColorOptions = [
+  { id: "red", swatch: "#d71920", label: { zh: "红色", en: "Red" } },
+  { id: "blue", swatch: "#2563eb", label: { zh: "蓝色", en: "Blue" } },
+  { id: "black", swatch: "#050506", label: { zh: "黑色", en: "Black" } },
+  { id: "orange", swatch: "#f97316", label: { zh: "橙色", en: "Orange" } },
+  { id: "yellow", swatch: "#f2c230", label: { zh: "黄色", en: "Yellow" } },
+  { id: "green", swatch: "#16a34a", label: { zh: "绿色", en: "Green" } },
+  { id: "nickel", swatch: "#9ca3af", label: { zh: "镀镍色", en: "Nickel" } },
+  { id: "white", swatch: "#f8fafc", label: { zh: "白色", en: "White" } },
+  { id: "pink", swatch: "#ec4899", label: { zh: "粉色", en: "Pink" } },
+  { id: "purple", swatch: "#8b5cf6", label: { zh: "紫色", en: "Purple" } },
+] as const
+const mobileRotorOptions = [
+  { id: "stock", label: { zh: "不变", en: "Stock rotor" } },
+  { id: "big_brake", label: { zh: "加大刹车盘", en: "Big brake rotor" } },
+  { id: "carbon_ceramic", label: { zh: "碳陶瓷刹车盘", en: "Carbon ceramic" } },
+] as const
 
 function mobileRgbFromHex(hex: string): CustomRgb {
   const normalized = hex.trim().replace(/^#/, "")
@@ -230,9 +366,119 @@ function mobileRgbFromHex(hex: string): CustomRgb {
   }
 }
 
+function mobileDisplayAssetTitle(asset: PartAsset) {
+  if (asset.categoryId === "exhaust") return mobileDisplayExhaustLayoutLeafLabel(asset, "zh")
+  if (mobileStyleSurfaceCategoryIds.has(asset.categoryId)) return asset.variant || asset.model
+  if (asset.id.startsWith("dry-carbon-")) return asset.variant || asset.model
+  return `${asset.brand} ${asset.model}`.trim()
+}
+
+function mobileDisplayAssetSubtitle(asset: PartAsset) {
+  if (asset.categoryId === "exhaust") return asset.model
+  if (mobileStyleSurfaceCategoryIds.has(asset.categoryId)) return asset.model
+  return asset.variant
+}
+
+function mobileInferDefaultCaliperColor(asset: PartAsset) {
+  const text = [asset.variant, asset.color, asset.keywords].join(" ").toLowerCase()
+  if (/yellow|\u9ec4|\u9ec3/.test(text)) return "yellow"
+  if (/blue|\u84dd|\u85cd/.test(text)) return "blue"
+  if (/black|\u9ed1/.test(text)) return "black"
+  if (/silver|\u94f6|\u9280/.test(text)) return "nickel"
+  return "red"
+}
+
+function mobileDisplaySelectedAssetSummary(asset: PartAsset, language: Language = "zh") {
+  const title = asset.categoryId === "exhaust" ? mobileDisplayExhaustLayoutLeafLabel(asset, language) : mobileDisplayAssetTitle(asset)
+  if (asset.categoryId !== "wheels") return title
+  const details = [mobileDisplayAssetSubtitle(asset), asset.color, asset.finish]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+  return details.length ? `${title} (${details.join(" / ")})` : title
+}
+
+function mobileDisplayCategorySelectionStatus(language: Language, asset?: PartAsset) {
+  if (!asset) return language === "zh" ? "未选择" : "Not selected"
+  return language === "zh" ? `已选择：${mobileDisplaySelectedAssetSummary(asset, language)}` : `Selected: ${mobileDisplaySelectedAssetSummary(asset, language)}`
+}
+
+function mobileInferDefaultSurfaceColor(asset: PartAsset): "black" | "exposed_carbon" | "body_color" {
+  if (asset.defaultColorPolicy === "body_color") return "body_color"
+  const text = [asset.variant, asset.color, asset.finish, asset.promptHint].join(" ")
+  if (/carbon|\u78b3/i.test(text)) return "exposed_carbon"
+  return "black"
+}
+
+function MobileExhaustPipeIcon({ size = 16, strokeWidth = 2.2 }: { size?: number; strokeWidth?: number }) {
+  return <Car size={size} strokeWidth={strokeWidth} aria-hidden="true" focusable="false" />
+}
+
+function mobileScheduleAccordionCardScroll(card: HTMLElement | null, container: HTMLElement | null) {
+  if (!card || typeof window === "undefined") return
+  const align = () => {
+    const cardRect = card.getBoundingClientRect()
+    const triggerRect = card.querySelector<HTMLElement>(".accordion-trigger")?.getBoundingClientRect()
+    const content = card.querySelector<HTMLElement>(".accordion-content-inner") || card.querySelector<HTMLElement>(".accordion-content")
+    const contentRect = content?.getBoundingClientRect()
+    const containerRect = container?.getBoundingClientRect()
+    const topEdge = (containerRect?.top ?? 0) + 10
+    const bottomEdge = (containerRect?.bottom ?? window.innerHeight) - 18
+    const triggerTop = triggerRect?.top ?? cardRect.top
+    const contentTop = contentRect?.top ?? cardRect.bottom
+    const contentBottom = contentRect?.bottom ?? cardRect.bottom
+    const firstOptionHidden = contentTop > bottomEdge - 72 || (contentBottom > bottomEdge && contentTop > topEdge + 72)
+    if (firstOptionHidden) {
+      const desiredContentTop = topEdge + (triggerRect?.height ?? 36) + 8
+      ;(container ?? window).scrollBy({ top: contentTop - desiredContentTop, behavior: "smooth" })
+    } else if (triggerTop < topEdge) {
+      ;(container ?? window).scrollBy({ top: triggerTop - topEdge, behavior: "smooth" })
+    }
+  }
+  window.requestAnimationFrame(align)
+  window.setTimeout(align, 330)
+}
+
+function mobileSelectedDryCarbonPartsFor(selections: SelectionMap) {
+  return mobileDryCarbonParts.filter((part) => selections[part.id] === part.assetId)
+}
+
+function mobileDisplayDryCarbonCategorySelectionStatus(language: Language, parts: Array<(typeof mobileDryCarbonParts)[number]>) {
+  if (!parts.length) return language === "zh" ? "未选择" : "Not selected"
+  const labels = parts.map((part) => part.label[language]).join(language === "zh" ? "、" : ", ")
+  return language === "zh" ? `已选择：${labels}` : `Selected: ${labels}`
+}
+
+function mobileDryCarbonPartMatchesSearch(part: (typeof mobileDryCarbonParts)[number], asset: PartAsset | undefined, search: string, language: Language) {
+  if (!search) return true
+  const text = [part.label.zh, part.label.en, part.label[language], asset?.brand, asset?.model, asset?.variant, asset?.color, asset?.finish, asset?.keywords]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+  return text.includes(search)
+}
+
+function mobileDisplayExhaustLayoutLeafLabel(asset: PartAsset, language: Language) {
+  const label = mobileExhaustLayoutLabelsById[asset.id]
+  if (label) return language === "zh" ? label.zh : label.en
+  return asset.variant || asset.model
+}
+
+function mobileChildExhaustLayoutLabel(group: (typeof mobileExhaustLayoutGroups)[number], assetId: string, language: Language) {
+  const childLabels = group.childLabels as Record<string, { zh: string; en: string }>
+  const label = childLabels[assetId]
+  if (label) return language === "zh" ? label.zh : label.en
+  const assetLabel = mobileExhaustLayoutLabelsById[assetId]
+  return assetLabel ? (language === "zh" ? assetLabel.zh : assetLabel.en) : assetId
+}
+
+function mobileIsHexColorValue(value: string | undefined) {
+  return /^#[0-9a-fA-F]{6}$/.test((value || "").trim())
+}
+
 const stanceGlowById: Record<string, string> = {
+  stock: "radial-gradient(circle, rgba(148, 163, 184, 0.22) 0%, rgba(148, 163, 184, 0.09) 46%, rgba(148, 163, 184, 0) 72%)",
   raise: "radial-gradient(circle, rgba(20, 184, 166, 0.3) 0%, rgba(20, 184, 166, 0.12) 46%, rgba(20, 184, 166, 0) 72%)",
-  "slight-lower": "radial-gradient(circle, rgba(125, 92, 255, 0.3) 0%, rgba(125, 92, 255, 0.12) 46%, rgba(125, 92, 255, 0) 72%)",
   "flush-lower": "radial-gradient(circle, rgba(34, 211, 238, 0.28) 0%, rgba(34, 211, 238, 0.11) 46%, rgba(34, 211, 238, 0) 72%)",
   "extreme-low": "radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, rgba(236, 72, 153, 0.12) 46%, rgba(236, 72, 153, 0) 72%)",
 }
@@ -275,11 +521,6 @@ const appModeOrder: Record<AppMode, number> = {
 }
 
 const mobileModeTransitionMs = 360
-const mobilePartsAccordionTransition = {
-  height: { duration: 0.46, ease: [0.22, 1, 0.36, 1] },
-  opacity: { duration: 0.28, ease: "easeOut" },
-  y: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-} as const
 
 export function MobileStudioApp(props: MobileStudioAppProps) {
   const {
@@ -669,7 +910,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
     canToggleMediaChrome ? "can-toggle-chrome" : "",
     mediaChromeHidden ? "chrome-hidden" : "",
   ].filter(Boolean).join(" ")
-  const summaryText = selectedAssets.map((asset) => `${asset.brand} ${asset.variant}`).join(" / ") || selectedPaintLabel
+  const summaryText = selectedAssets.map((asset) => mobileDisplaySelectedAssetSummary(asset, language)).join(" / ") || selectedPaintLabel
   const progressText = generationProgress?.message || t.running
   const completedElapsed = hasGenerated && generationDurationSeconds !== null && !isGenerating ? generationDurationSeconds : null
   const isDockExpanded = isDockAtPageBottom
@@ -957,9 +1198,25 @@ function MobilePartsSheet({
   revealAsset,
   expandedCategory,
   setExpandedCategory,
+  expandedCaliperAssetId,
+  setExpandedCaliperAssetId,
   focusedAssetId,
+  selectionOptions,
+  selectedCaliperAsset,
+  selectedSurfaceAssets,
+  updatePartSelectionOption,
+  toggleDryCarbonPart,
 }: MobileStudioAppProps) {
   const search = assetSearch.trim().toLowerCase()
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
+  const toggleCategory = (categoryId: string, isOpen: boolean) => {
+    setExpandedCategory(isOpen ? "" : categoryId)
+    if (!isOpen) {
+      const card = categoryRefs.current[categoryId]
+      mobileScheduleAccordionCardScroll(card, dropdownRef.current ?? card?.closest<HTMLElement>(".mobile-control-sheet") ?? null)
+    }
+  }
 
   return (
     <section className="mobile-parts-panel parts-selector-block">
@@ -969,7 +1226,7 @@ function MobilePartsSheet({
         <em>{language === "zh" ? "展开" : "Open"}</em>
       </button>
       <div className="parts-dropdown open">
-        <div className="parts-dropdown-inner">
+        <div className="parts-dropdown-inner" ref={dropdownRef}>
           <label className="parts-search">
             <Search size={15} />
             <input value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder={t.searchParts} />
@@ -979,10 +1236,8 @@ function MobilePartsSheet({
               {assetSuggestions.map(({ asset, categoryLabel }) => (
                 <button key={asset.id} type="button" onClick={() => revealAsset(asset)}>
                   <span>{categoryLabel}</span>
-                  <strong>{asset.brand}</strong>
-                  <em>
-                    {asset.model} {asset.variant}
-                  </em>
+                  <strong>{mobileDisplayAssetTitle(asset)}</strong>
+                  <em>{mobileDisplayAssetSubtitle(asset)}</em>
                 </button>
               ))}
             </div>
@@ -990,38 +1245,38 @@ function MobilePartsSheet({
           <section className="parts-accordion">
             {categories.map((category) => {
               const isOpen = expandedCategory === category.id
-              const categoryBrands = catalog.brands.filter((brand) => brand.categoryId === category.id)
+              const isDryCarbonCategory = category.id === mobileDryCarbonCategoryId
+              const categoryBrands = mobileBrandFilteredCategoryIds.has(category.id) ? catalog.brands.filter((brand) => brand.categoryId === category.id) : []
               const activeBrandId = brandFilters[category.id] || categoryBrands[0]?.id || ""
               const categoryAssets = catalog.assets.filter((asset) => {
                 if (asset.categoryId !== category.id) return false
-                if (activeBrandId && asset.brandId !== activeBrandId) return false
+                if (!isMobileConfigAssetVisible(asset)) return false
+                if (activeBrandId && categoryBrands.length && asset.brandId !== activeBrandId) return false
                 if (!search) return true
                 return [asset.brand, asset.model, asset.variant, asset.color, asset.finish, category.label].some((value) =>
                   value.toLowerCase().includes(search),
                 )
               })
               const selectedAsset = catalog.assets.find((asset) => selections[category.id] === asset.id)
+              const selectedDryCarbonParts = isDryCarbonCategory ? mobileSelectedDryCarbonPartsFor(selections) : []
 
               return (
-                <article key={category.id} className={isOpen ? "accordion-card expanded" : "accordion-card"}>
-                  <button type="button" className="accordion-trigger" onClick={() => setExpandedCategory(isOpen ? "" : category.id)}>
+                <article
+                  key={category.id}
+                  ref={(node) => {
+                    categoryRefs.current[category.id] = node
+                  }}
+                  className={isOpen ? "accordion-card expanded" : "accordion-card"}
+                >
+                  <button type="button" className="accordion-trigger" onClick={() => toggleCategory(category.id, isOpen)}>
                     <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
                     <span className="accordion-copy">
                       <strong>{category.label}</strong>
-                      <small>{selectedAsset ? `${selectedAsset.brand} ${selectedAsset.model} ${selectedAsset.variant}` : category.description}</small>
+                      <small>{isDryCarbonCategory ? mobileDisplayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : mobileDisplayCategorySelectionStatus(language, selectedAsset)}</small>
                     </span>
-                    {selectedAsset && <BadgeCheck className="selected-check" size={15} />}
+                    {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
                   </button>
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                    <motion.div
-                      className="accordion-content"
-                      initial={{ height: 0, opacity: 0, y: -8 }}
-                      animate={{ height: "auto", opacity: 1, y: 0 }}
-                      exit={{ height: 0, opacity: 0, y: -6 }}
-                      transition={mobilePartsAccordionTransition}
-                      style={{ contain: "layout paint", overflow: "clip", willChange: "height, opacity, transform" } as CSSProperties}
-                    >
+                  <div className="accordion-content" aria-hidden={!isOpen}>
                       <div className="accordion-content-inner">
                         {categoryBrands.length > 0 && (
                           <div className="brand-filter-row">
@@ -1033,40 +1288,692 @@ function MobilePartsSheet({
                             ))}
                           </div>
                         )}
-                        {categoryAssets.length ? (
-                          <div className="asset-grid">
-                            {categoryAssets.map((asset) => {
-                              const isAssetSelected = selections[asset.categoryId] === asset.id
-                              return (
-                                <button
-                                  key={asset.id}
-                                  type="button"
-                                  data-asset-id={asset.id}
-                                  className={`${isAssetSelected ? "asset-card selected" : "asset-card"} ${focusedAssetId === asset.id ? "spotlight" : ""}`.trim()}
-                                  onClick={() => selectAsset(asset)}
-                                >
-                                  <img src={asset.imageUrl} alt={`${asset.brand} ${asset.model}`} style={{ objectPosition: asset.imageCrop || "center" }} />
-                                  <strong>{asset.brand} {asset.model}</strong>
-                                  <span>{asset.variant}</span>
-                                  <small>{asset.finish}</small>
-                                </button>
-                              )
-                            })}
-                          </div>
+                        {isDryCarbonCategory ? (
+                          <MobileDryCarbonPartsList
+                            language={language}
+                            catalog={catalog}
+                            selections={selections}
+                            focusedAssetId={focusedAssetId}
+                            search={search}
+                            toggleDryCarbonPart={toggleDryCarbonPart}
+                          />
+                        ) : categoryAssets.length ? (
+                          category.id === "calipers" ? (
+                            <MobileCaliperCaseList
+                              language={language}
+                              assets={categoryAssets}
+                              selectedAssetId={selections.calipers}
+                              expandedAssetId={expandedCaliperAssetId}
+                              focusedAssetId={focusedAssetId}
+                              selectionOptions={selectionOptions}
+                              selectAsset={selectAsset}
+                              setExpandedAssetId={setExpandedCaliperAssetId}
+                              updatePartSelectionOption={updatePartSelectionOption}
+                            />
+                          ) : category.id === "rear-wing" ? (
+                            <MobileWingStyleList
+                              language={language}
+                              assets={categoryAssets}
+                              selectedAssetId={selections[category.id]}
+                              focusedAssetId={focusedAssetId}
+                              selectionOptions={selectionOptions}
+                              selectAsset={selectAsset}
+                              updatePartSelectionOption={updatePartSelectionOption}
+                            />
+                          ) : category.id === "exhaust" ? (
+                            <MobileExhaustLayoutList
+                              language={language}
+                              assets={categoryAssets}
+                              selectedAssetId={selections[category.id]}
+                              focusedAssetId={focusedAssetId}
+                              selectAsset={selectAsset}
+                            />
+                          ) : mobileInstallToggleSurfaceCategoryIds.has(category.id) ? (
+                            <MobileSurfaceInstallControl
+                              language={language}
+                              asset={categoryAssets[0]}
+                              selectedAssetId={selections[category.id]}
+                              focusedAssetId={focusedAssetId}
+                              selectionOptions={selectionOptions}
+                              selectAsset={selectAsset}
+                              updatePartSelectionOption={updatePartSelectionOption}
+                            />
+                          ) : (
+                            <div className="asset-grid">
+                              {categoryAssets.map((asset) => {
+                                const isAssetSelected = selections[asset.categoryId] === asset.id
+                                return (
+                                  <button
+                                    key={asset.id}
+                                    type="button"
+                                    data-asset-id={asset.id}
+                                    className={`${isAssetSelected ? "asset-card selected" : "asset-card"} ${focusedAssetId === asset.id ? "spotlight" : ""}`.trim()}
+                                    onClick={() => selectAsset(asset)}
+                                  >
+                                    <img src={asset.imageUrl} alt={`${mobileDisplayAssetTitle(asset)} ${mobileDisplayAssetSubtitle(asset)}`} style={{ objectPosition: asset.imageCrop || "center" }} />
+                                    <strong>{mobileDisplayAssetTitle(asset)}</strong>
+                                    <span>{mobileDisplayAssetSubtitle(asset)}</span>
+                                    <small>{asset.finish}</small>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )
                         ) : (
                           <div className="empty-category">{t.emptyCategory}</div>
                         )}
                       </div>
-                    </motion.div>
-                    )}
-                  </AnimatePresence>
+                  </div>
                 </article>
               )
             })}
           </section>
+          <MobilePartOptionsPanel
+            language={language}
+            selectionOptions={selectionOptions}
+            selectedSurfaceAssets={selectedSurfaceAssets}
+            updatePartSelectionOption={updatePartSelectionOption}
+          />
         </div>
       </div>
     </section>
+  )
+}
+
+function MobileCaliperCaseList({
+  language,
+  assets,
+  selectedAssetId,
+  expandedAssetId,
+  focusedAssetId,
+  selectionOptions,
+  selectAsset,
+  setExpandedAssetId,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  assets: PartAsset[]
+  selectedAssetId?: string
+  expandedAssetId: string
+  focusedAssetId: string
+  selectionOptions: PartSelectionOptions
+  selectAsset: (asset: PartAsset) => void
+  setExpandedAssetId: (value: string) => void
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  return (
+    <div className="caliper-case-list">
+      {assets.map((asset) => {
+        const selected = selectedAssetId === asset.id
+        const expanded = selected && expandedAssetId === asset.id
+        return (
+          <article key={asset.id} className={`caliper-case-row${selected ? " selected" : ""}${expanded ? " expanded" : ""}${focusedAssetId === asset.id ? " spotlight" : ""}`}>
+            <div className="caliper-case-trigger">
+              <button
+                type="button"
+                data-asset-id={asset.id}
+                className="caliper-case-main"
+                aria-expanded={expanded}
+                disabled={!selected}
+                onClick={() => setExpandedAssetId(expanded ? "" : asset.id)}
+              >
+                <span className="caliper-case-thumb">
+                  <img src={asset.imageUrl} alt={`${mobileDisplayAssetTitle(asset)} ${mobileDisplayAssetSubtitle(asset)}`} style={{ objectPosition: asset.imageCrop || "center" }} />
+                </span>
+                <span className="caliper-case-copy">
+                  <strong>{mobileDisplayAssetTitle(asset)}</strong>
+                  <small>{mobileDisplayAssetSubtitle(asset) || asset.finish}</small>
+                </span>
+                {selected ? <ChevronDown className={`caliper-case-chevron${expanded ? " expanded" : ""}`} size={18} /> : <span aria-hidden="true" />}
+              </button>
+              <button
+                type="button"
+                className={`caliper-case-select-button${selected ? " selected" : ""}`}
+                aria-pressed={selected}
+                onClick={() => {
+                  selectAsset(asset)
+                  setExpandedAssetId(selected ? "" : asset.id)
+                }}
+              >
+                {selected && <BadgeCheck size={14} />}
+                {language === "zh" ? (selected ? "取消" : "选择") : selected ? "Remove" : "Select"}
+              </button>
+            </div>
+            <div className="caliper-case-content" aria-hidden={!expanded}>
+              <div className="caliper-case-content-inner">
+                <MobileCaliperCaseControls
+                  language={language}
+                  selectedAsset={asset}
+                  selectionOptions={selectionOptions}
+                  updatePartSelectionOption={updatePartSelectionOption}
+                />
+              </div>
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function MobileDryCarbonPartsList({
+  language,
+  catalog,
+  selections,
+  focusedAssetId,
+  search,
+  toggleDryCarbonPart,
+}: {
+  language: Language
+  catalog: CatalogResponse
+  selections: SelectionMap
+  focusedAssetId: string
+  search: string
+  toggleDryCarbonPart: (part: (typeof mobileDryCarbonParts)[number]) => void
+}) {
+  const assetsById = useMemo(() => new Map(catalog.assets.map((asset) => [asset.id, asset])), [catalog.assets])
+  const visibleParts = mobileDryCarbonParts.filter((part) => mobileDryCarbonPartMatchesSearch(part, assetsById.get(part.assetId), search, language))
+
+  if (!visibleParts.length) {
+    return <div className="empty-category">{language === "zh" ? "没有匹配的干碳纤维部件" : "No matching dry carbon parts"}</div>
+  }
+
+  return (
+    <div className="wing-style-list dry-carbon-list">
+      {visibleParts.map((part) => {
+        const asset = assetsById.get(part.assetId)
+        if (!asset) return null
+        const selected = selections[part.id] === part.assetId
+        return (
+          <article key={part.id} className={`wing-style-row dry-carbon-row${selected ? " selected" : ""}${focusedAssetId === asset.id ? " spotlight" : ""}`}>
+            <div className="wing-style-trigger">
+              <button type="button" data-asset-id={asset.id} className="wing-style-main dry-carbon-main" aria-pressed={selected} onClick={() => toggleDryCarbonPart(part)}>
+                <span className="wing-style-thumb">
+                  <img src={asset.imageUrl} alt={`${part.label[language]} ${mobileDisplayAssetSubtitle(asset)}`} style={{ objectPosition: asset.imageCrop || "center" }} />
+                </span>
+                <span className="wing-style-copy">
+                  <strong>{part.label[language]}</strong>
+                  <small>{language === "zh" ? "裸碳局部材质" : "Exposed carbon part"}</small>
+                </span>
+                {selected && <BadgeCheck className="wing-style-selected-mark" size={16} />}
+              </button>
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function MobileWingStyleList({
+  language,
+  assets,
+  selectedAssetId,
+  focusedAssetId,
+  selectionOptions,
+  selectAsset,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  assets: PartAsset[]
+  selectedAssetId?: string
+  focusedAssetId: string
+  selectionOptions: PartSelectionOptions
+  selectAsset: (asset: PartAsset) => void
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  const [infoPopup, setInfoPopup] = useState<{ assetId: string; body: string; top: number; left: number; width: number } | null>(null)
+  const fixedAssets = assets.filter((asset) => mobileWingStyleInfoById[asset.id])
+  const visibleAssets = fixedAssets.length ? fixedAssets : assets
+
+  useEffect(() => {
+    if (!infoPopup) return
+    const closeOnPointer = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest(".wing-style-info-button")) return
+      setInfoPopup(null)
+    }
+    const close = () => setInfoPopup(null)
+    window.addEventListener("pointerdown", closeOnPointer)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    return () => {
+      window.removeEventListener("pointerdown", closeOnPointer)
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+    }
+  }, [infoPopup])
+
+  return (
+    <>
+      <div className="wing-style-list">
+        {visibleAssets.map((asset) => {
+          const selected = selectedAssetId === asset.id
+          const info = mobileWingStyleInfoById[asset.id]
+          const title = info ? (language === "zh" ? info.zh : info.en) : mobileDisplayAssetTitle(asset)
+          const subtitle = info ? (language === "zh" ? info.en : info.zh) : mobileDisplayAssetSubtitle(asset)
+          const infoOpen = infoPopup?.assetId === asset.id
+          const description = info?.description || asset.promptHint || asset.finish
+          return (
+            <article key={asset.id} className={`wing-style-row${selected ? " selected" : ""}${infoOpen ? " info-open" : ""}${focusedAssetId === asset.id ? " spotlight" : ""}`}>
+              <div className="wing-style-trigger">
+                <button
+                  type="button"
+                  data-asset-id={asset.id}
+                  className="wing-style-main"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setInfoPopup(null)
+                    selectAsset(asset)
+                  }}
+                >
+                  <span className="wing-style-thumb">
+                    <img src={asset.imageUrl} alt={`${title} ${subtitle}`} style={{ objectPosition: asset.imageCrop || "center" }} />
+                  </span>
+                  <span className="wing-style-copy">
+                    <strong>{title}</strong>
+                    <small>{subtitle}</small>
+                  </span>
+                  {selected && <BadgeCheck className="wing-style-selected-mark" size={16} />}
+                </button>
+                {info && (
+                <button
+                  type="button"
+                  className={`wing-style-info-button${infoOpen ? " active" : ""}`}
+                  aria-expanded={infoOpen}
+                  aria-label={language === "zh" ? `${title}说明` : `${subtitle || title} info`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    const rect = event.currentTarget.getBoundingClientRect()
+                    const width = Math.min(300, window.innerWidth - 24)
+                    const nextPopup = {
+                      assetId: asset.id,
+                      body: description,
+                      top: Math.min(window.innerHeight - 132, Math.max(12, rect.bottom + 8)),
+                      left: Math.min(window.innerWidth - width - 12, Math.max(12, rect.right - width)),
+                      width,
+                    }
+                    setInfoPopup((current) => {
+                      if (current?.assetId === asset.id) return null
+                      return nextPopup
+                    })
+                  }}
+                >
+                  <CircleHelp size={16} />
+                </button>
+                )}
+              </div>
+              <div className="wing-style-content" aria-hidden={!selected}>
+                <div className="wing-style-content-inner">
+                  <MobileWingSurfaceControls
+                    language={language}
+                    asset={asset}
+                    selectionOptions={selectionOptions}
+                    updatePartSelectionOption={updatePartSelectionOption}
+                  />
+                </div>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+      {infoPopup &&
+        createPortal(
+          <div className="wing-style-popover wing-style-popover-tap" style={{ top: infoPopup.top, left: infoPopup.left, "--wing-style-popover-width": `${infoPopup.width}px` } as CSSProperties} role="dialog">
+            <p>{infoPopup.body}</p>
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
+function MobileExhaustLayoutList({
+  language,
+  assets,
+  selectedAssetId,
+  focusedAssetId,
+  selectAsset,
+}: {
+  language: Language
+  assets: PartAsset[]
+  selectedAssetId?: string
+  focusedAssetId: string
+  selectAsset: (asset: PartAsset) => void
+}) {
+  const [expandedGroupId, setExpandedGroupId] = useState("")
+  const assetById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets])
+
+  return (
+    <div className="wing-style-list exhaust-layout-list">
+      {mobileExhaustLayoutGroups.map((group) => {
+        const groupAssets = group.assetIds.map((assetId) => assetById.get(assetId)).filter((asset): asset is PartAsset => Boolean(asset))
+        if (!groupAssets.length) return null
+        const selectedAsset = selectedAssetId ? groupAssets.find((asset) => asset.id === selectedAssetId) : undefined
+        const selected = Boolean(selectedAsset)
+        const expanded = expandedGroupId === group.id
+        const hasChildren = groupAssets.length > 1
+        const primaryAsset = selectedAsset || groupAssets[0]
+        const groupLabel = language === "zh" ? group.label.zh : group.label.en
+        const status = selectedAsset
+          ? language === "zh"
+            ? `已选择：${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language)}`
+            : `Selected: ${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language)}`
+          : language === "zh"
+            ? "未选择"
+            : "Not selected"
+
+        return (
+          <article key={group.id} className={`wing-style-row exhaust-layout-row${expanded ? " expanded" : ""}${groupAssets.some((asset) => asset.id === focusedAssetId) ? " spotlight" : ""}`}>
+            <div className="wing-style-trigger">
+              <button
+                type="button"
+                data-asset-id={selectedAsset?.id || groupAssets[0].id}
+                className="wing-style-main exhaust-layout-main"
+                aria-expanded={hasChildren ? expanded : undefined}
+                aria-pressed={selected}
+                onClick={() => {
+                  if (hasChildren) {
+                    setExpandedGroupId((current) => (current === group.id ? "" : group.id))
+                    return
+                  }
+                  setExpandedGroupId("")
+                  selectAsset(groupAssets[0])
+                }}
+              >
+                <span className="wing-style-thumb">
+                  <img src={primaryAsset.imageUrl} alt={`${groupLabel} ${status}`} style={{ objectPosition: primaryAsset.imageCrop || "center" }} />
+                </span>
+                <span className="wing-style-copy">
+                  <strong>{groupLabel}</strong>
+                  <small>{status}</small>
+                </span>
+                {selected ? (
+                  <BadgeCheck className="wing-style-selected-mark" size={16} />
+                ) : hasChildren ? (
+                  <ChevronDown className={`exhaust-layout-chevron${expanded ? " expanded" : ""}`} size={16} />
+                ) : (
+                  <span aria-hidden="true" />
+                )}
+              </button>
+            </div>
+            {hasChildren && (
+              <div className="wing-style-content exhaust-layout-content" aria-hidden={!expanded}>
+                <div className="wing-style-content-inner">
+                  <div className="exhaust-layout-children">
+                    <strong className="exhaust-layout-icon" aria-label={language === "zh" ? "排气位置" : "Exhaust position"} title={language === "zh" ? "排气位置" : "Exhaust position"}>
+                      <MobileExhaustPipeIcon />
+                    </strong>
+                    <div className="exhaust-layout-option-row">
+                    {groupAssets.map((asset) => {
+                      const childSelected = selectedAssetId === asset.id
+                      const childLabel = mobileChildExhaustLayoutLabel(group, asset.id, language)
+                      return (
+                        <button
+                          key={asset.id}
+                          type="button"
+                          data-asset-id={asset.id}
+                          className={`exhaust-layout-child${childSelected ? " selected" : ""}${focusedAssetId === asset.id ? " spotlight" : ""}`}
+                          aria-pressed={childSelected}
+                          onClick={() => selectAsset(asset)}
+                        >
+                          {childLabel}
+                        </button>
+                      )
+                    })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function MobileSurfaceInstallControl({
+  language,
+  asset,
+  selectedAssetId,
+  focusedAssetId,
+  selectionOptions,
+  selectAsset,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  asset: PartAsset
+  selectedAssetId?: string
+  focusedAssetId: string
+  selectionOptions: PartSelectionOptions
+  selectAsset: (asset: PartAsset) => void
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  const selected = selectedAssetId === asset.id
+  const title = mobileDisplayAssetTitle(asset)
+  const ariaLabel = selected ? (language === "zh" ? `取消安装${title}` : `Remove ${title}`) : language === "zh" ? `安装${title}` : `Install ${title}`
+
+  return (
+    <div className={`surface-install-control${selected ? " selected" : ""}${focusedAssetId === asset.id ? " spotlight" : ""}`}>
+      <button type="button" data-asset-id={asset.id} className="surface-install-button" aria-label={ariaLabel} aria-pressed={selected} onClick={() => selectAsset(asset)}>
+        <i aria-hidden="true" />
+      </button>
+      <div className="surface-install-options">
+        <MobileWingSurfaceControls
+          language={language}
+          asset={asset}
+          selectionOptions={selectionOptions}
+          updatePartSelectionOption={updatePartSelectionOption}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MobileWingSurfaceControls({
+  language,
+  asset,
+  selectionOptions,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  asset: PartAsset
+  selectionOptions: PartSelectionOptions
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  const activeSurface = selectionOptions[asset.categoryId]?.surfaceColor || mobileInferDefaultSurfaceColor(asset)
+  return (
+    <div className="wing-surface-controls">
+      <strong className="wing-surface-icon-label" aria-label={language === "zh" ? "颜色" : "Color"} title={language === "zh" ? "颜色" : "Color"}>
+        <Palette size={14} strokeWidth={2.2} />
+      </strong>
+      <div className="wing-surface-row" aria-label={language === "zh" ? "颜色/材质" : "Color/material"}>
+        {mobileSurfaceColorOptions.map((option) => {
+          const selected = activeSurface === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              className={`wing-surface-chip${selected ? " selected" : ""}`}
+              aria-pressed={selected}
+              onClick={() => updatePartSelectionOption(asset.categoryId, { surfaceColor: option.id })}
+            >
+              {option.label[language]}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function MobileCaliperCaseControls({
+  language,
+  selectedAsset,
+  selectionOptions,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  selectedAsset: PartAsset
+  selectionOptions: PartSelectionOptions
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  const activeColor = selectionOptions.calipers?.caliperColor || mobileInferDefaultCaliperColor(selectedAsset)
+  const customColorSelected = mobileIsHexColorValue(activeColor)
+  const customColorValue = customColorSelected ? activeColor : "#d71920"
+  const activeRotor = selectionOptions.calipers?.rotorOption || "stock"
+
+  return (
+    <div className="caliper-case-controls">
+      <div className="caliper-case-control-group">
+        <div className="caliper-color-dot-row" aria-label={language === "zh" ? "卡钳颜色" : "Caliper color"}>
+          {mobileCaliperColorOptions.map((option) => {
+            const selected = activeColor === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                className={`caliper-color-dot${selected ? " selected" : ""}`}
+                style={{ "--caliper-color": option.swatch } as CSSProperties}
+                aria-label={option.label[language]}
+                title={option.label[language]}
+                aria-pressed={selected}
+                onClick={() => updatePartSelectionOption("calipers", { caliperColor: option.id })}
+              />
+            )
+          })}
+          <label className={`caliper-color-picker${customColorSelected ? " selected" : ""}`} aria-label={language === "zh" ? "自定义卡钳颜色" : "Custom caliper color"} title={language === "zh" ? "调色" : "Custom"}>
+            <span style={{ "--caliper-color": customColorValue } as CSSProperties} />
+            <Palette size={17} />
+            <input type="color" value={customColorValue} onChange={(event) => updatePartSelectionOption("calipers", { caliperColor: event.target.value })} />
+          </label>
+        </div>
+      </div>
+      <div className="caliper-case-control-group caliper-style-control-group">
+        <strong className="caliper-style-icon-label" aria-label={language === "zh" ? "样式" : "Style"} title={language === "zh" ? "样式" : "Style"}>
+          <SlidersHorizontal size={14} strokeWidth={2.2} />
+        </strong>
+        <div className="caliper-rotor-row" aria-label={language === "zh" ? "样式选择" : "Style selection"}>
+          {mobileRotorOptions.map((option) => {
+            const selected = activeRotor === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                className={`caliper-rotor-option${selected ? " selected" : ""}`}
+                aria-pressed={selected}
+                onClick={() => updatePartSelectionOption("calipers", { rotorOption: option.id })}
+              >
+                {option.label[language]}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MobileCaliperInlineOptions({
+  language,
+  selectedAsset,
+  selectionOptions,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  selectedAsset: PartAsset
+  selectionOptions: PartSelectionOptions
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  const activeColor = selectionOptions.calipers?.caliperColor || mobileInferDefaultCaliperColor(selectedAsset)
+  const customColorSelected = mobileIsHexColorValue(activeColor)
+  const customColorValue = customColorSelected ? activeColor : "#d71920"
+
+  return (
+    <div className="caliper-inline-options">
+      <div className="caliper-inline-heading">
+        <strong>{language === "zh" ? "卡钳配置" : "Caliper setup"}</strong>
+        <span>{mobileDisplayAssetTitle(selectedAsset)}</span>
+      </div>
+      <div className="caliper-inline-row" aria-label={language === "zh" ? "卡钳颜色" : "Caliper color"}>
+        {mobileCaliperColorOptions.map((option) => {
+          const selected = activeColor === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              className={`caliper-inline-chip${selected ? " selected" : ""}`}
+              aria-pressed={selected}
+              onClick={() => updatePartSelectionOption("calipers", { caliperColor: option.id })}
+            >
+              <span className="caliper-inline-swatch" style={{ background: option.swatch }} />
+              {option.label[language]}
+            </button>
+          )
+        })}
+        <label className={`caliper-custom-color${customColorSelected ? " selected" : ""}`}>
+          <span className="caliper-inline-swatch" style={{ background: customColorValue }} />
+          <input type="color" value={customColorValue} onChange={(event) => updatePartSelectionOption("calipers", { caliperColor: event.target.value })} />
+          <span>{language === "zh" ? "调色" : "Custom"}</span>
+        </label>
+      </div>
+      <div className="caliper-inline-row" aria-label={language === "zh" ? "刹车盘样式" : "Brake rotor style"}>
+        {mobileRotorOptions.map((option) => {
+          const selected = (selectionOptions.calipers?.rotorOption || "stock") === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              className={`caliper-inline-chip${selected ? " selected" : ""}`}
+              aria-pressed={selected}
+              onClick={() => updatePartSelectionOption("calipers", { rotorOption: option.id })}
+            >
+              {option.label[language]}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function MobilePartOptionsPanel({
+  language,
+  selectionOptions,
+  selectedSurfaceAssets,
+  updatePartSelectionOption,
+}: {
+  language: Language
+  selectionOptions: PartSelectionOptions
+  selectedSurfaceAssets: PartAsset[]
+  updatePartSelectionOption: (categoryId: string, patch: PartSelectionOptions[string]) => void
+}) {
+  if (selectedSurfaceAssets.length === 0) return null
+
+  return (
+    <article className="mobile-sheet-card part-v2-options-card">
+      <h3>{language === "zh" ? "配件细项" : "Part options"}</h3>
+      {selectedSurfaceAssets.map((asset) => (
+        <div key={asset.id} className="part-v2-option-group">
+          <div className="part-v2-option-heading">
+            <strong>{mobileDisplayAssetTitle(asset)}</strong>
+            <span>{language === "zh" ? "颜色/材质" : "Color/material"}</span>
+          </div>
+          <div className="part-v2-segment-row">
+            {mobileSurfaceColorOptions.map((option) => {
+              const selected = (selectionOptions[asset.categoryId]?.surfaceColor || mobileInferDefaultSurfaceColor(asset)) === option.id
+              return (
+                <button key={option.id} type="button" className={`part-v2-chip${selected ? " selected" : ""}`} onClick={() => updatePartSelectionOption(asset.categoryId, { surfaceColor: option.id })}>
+                  <span className="part-v2-swatch" style={{ background: option.swatch }} />
+                  {option.label[language]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </article>
   )
 }
 
@@ -1076,6 +1983,7 @@ function MobilePaintSheet({
   catalog,
   paintId,
   setPaintId,
+  paintChoices,
   setPaintFinishEffect,
   setDraftPaintFinishEffect,
   selectedPaintLabel,
@@ -1147,7 +2055,7 @@ function MobilePaintSheet({
           </button>
         </div>
         <div className="color-dots">
-          {catalog.paints.map((paint) => (
+          {paintChoices.map((paint) => (
             <button
               key={paint.id}
               type="button"
@@ -1155,9 +2063,10 @@ function MobilePaintSheet({
               style={{ backgroundColor: paint.hex }}
               title={paint.label}
               onClick={() => {
+                const classicPaint = catalog.classicPaints.find((item) => item.id === paint.id)
                 setPaintId(paint.id)
-                setPaintFinishEffect("gloss")
-                setDraftPaintFinishEffect("gloss")
+                setPaintFinishEffect(classicPaint?.material ?? "gloss")
+                setDraftPaintFinishEffect(classicPaint?.material ?? "gloss")
                 collapsePaintOptions()
               }}
             />

@@ -1,0 +1,15 @@
+<svg width="320" height="220" viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="220" rx="24" fill="#f7f7f4"/>
+  <path d="M42 62h236l-18 70H60L42 62Z" fill="#18191c"/>
+  <path d="M68 132h184v18H68z" fill="#2b2d31"/>
+  <circle cx="118" cy="150" r="15" fill="#101114"/>
+  <circle cx="118" cy="150" r="7" fill="#d9dde2"/>
+  <circle cx="146" cy="150" r="15" fill="#101114"/>
+  <circle cx="146" cy="150" r="7" fill="#d9dde2"/>
+  <circle cx="174" cy="150" r="15" fill="#101114"/>
+  <circle cx="174" cy="150" r="7" fill="#d9dde2"/>
+  <circle cx="202" cy="150" r="15" fill="#101114"/>
+  <circle cx="202" cy="150" r="7" fill="#d9dde2"/>
+  <path d="M100 166h120" stroke="#6b7280" stroke-width="5" stroke-linecap="round"/>
+  <text x="160" y="194" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#202226">Center 4</text>
+</svg>

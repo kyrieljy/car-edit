@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1120" viewBox="0 0 1440 1120">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#050607"/>
+      <stop offset=".52" stop-color="#090a0d"/>
+      <stop offset="1" stop-color="#120d06"/>
+    </linearGradient>
+    <linearGradient id="activeGreen" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#58eebf"/>
+      <stop offset="1" stop-color="#28b989"/>
+    </linearGradient>
+    <linearGradient id="wheelLip" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset=".45" stop-color="#cfd4dd"/>
+      <stop offset="1" stop-color="#6d7480"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="50%" cy="0%" r="70%">
+      <stop offset="0" stop-color="#67ffca" stop-opacity=".14"/>
+      <stop offset=".52" stop-color="#67ffca" stop-opacity=".03"/>
+      <stop offset="1" stop-color="#67ffca" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-8%" width="120%" height="116%">
+      <feDropShadow dx="0" dy="28" stdDeviation="26" flood-color="#000000" flood-opacity=".5"/>
+    </filter>
+    <style>
+      .page { fill: #030304; }
+      .panel { fill: url(#bg); stroke: #2c3340; stroke-width: 1.4; }
+      .aura { fill: url(#aura); }
+      .line { stroke: rgba(255,255,255,.12); stroke-width: 1; }
+      .softLine { stroke: rgba(255,255,255,.07); stroke-width: 1; }
+      .chip { fill: rgba(255,255,255,.055); stroke: rgba(255,255,255,.18); stroke-width: 1; }
+      .chipActive { fill: url(#activeGreen); stroke: #78ffd2; stroke-width: 1; }
+      .thumb { fill: #f8fafc; }
+      .confirm { fill: #ffffff; }
+      .text { font-family: "Microsoft YaHei", "PingFang SC", "Inter", Arial, sans-serif; fill: #f7f8fb; }
+      .muted { fill: #9aa3b2; }
+      .activeText { fill: #d8fff2; }
+      .darkText { fill: #07080a; }
+      .h1 { font-size: 34px; font-weight: 950; }
+      .h2 { font-size: 27px; font-weight: 950; }
+      .h3 { font-size: 22px; font-weight: 900; }
+      .body { font-size: 16px; font-weight: 720; }
+      .small { font-size: 13px; font-weight: 650; }
+      .tiny { font-size: 11px; font-weight: 750; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1440" height="1120"/>
+  <text class="text h1" x="54" y="58">无卡片化 Accordion 方案</text>
+  <text class="text body muted" x="54" y="88">外层只保留一个抽屉/面板边界，配件项用分隔线和留白组织；展开内容直接挂在当前行下方。</text>
+
+  <!-- PC mock -->
+  <rect x="54" y="126" width="820" height="900" rx="30" class="panel" filter="url(#shadow)"/>
+  <rect x="56" y="128" width="816" height="300" rx="30" class="aura"/>
+  <text class="text h2" x="94" y="184">PC 配置：列表行 + 分隔线</text>
+  <text class="text small muted" x="94" y="210">轮毂选项本身已有框体，外层 accordion 不再给每个配件 item 套卡片。</text>
+
+  <rect x="94" y="246" width="740" height="64" rx="18" fill="#050607" stroke="#343a46"/>
+  <path d="M128 267 h20 M128 282 h20 M128 297 h20 M134 262 v10 M144 277 v10 M136 292 v10" stroke="#f7f8fb" stroke-width="2.4" stroke-linecap="round"/>
+  <text class="text h2" x="170" y="290">3</text>
+  <text class="text body muted" x="202" y="288">个配件已选</text>
+  <path d="M794 286 l10 -10 l10 10" fill="none" stroke="#f7f8fb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="text h2" x="94" y="366">轮毂</text>
+  <text class="text small muted" x="94" y="392">当前：BBS LM-R · 银色 · 标准</text>
+  <circle cx="818" cy="361" r="14" fill="none" stroke="#f7f8fb" stroke-width="2.5"/>
+  <path d="M811 361 l5 5 l12 -15" fill="none" stroke="#f7f8fb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="text small muted" x="94" y="448">品牌</text>
+  <rect x="150" y="424" width="92" height="44" rx="22" fill="#ffffff"/>
+  <text class="text body darkText" x="181" y="452">BBS</text>
+  <rect x="256" y="424" width="104" height="44" rx="22" class="chip"/>
+  <text class="text body" x="288" y="452">RAYS</text>
+  <rect x="374" y="424" width="92" height="44" rx="22" class="chip"/>
+  <text class="text body" x="406" y="452">HRE</text>
+
+  <line x1="94" y1="500" x2="834" y2="500" class="line"/>
+  <rect x="102" y="523" width="54" height="54" rx="13" class="thumb"/>
+  <circle cx="129" cy="550" r="22" fill="#111317"/>
+  <circle cx="129" cy="550" r="18" fill="url(#wheelLip)"/>
+  <circle cx="129" cy="550" r="12" fill="#24262b"/>
+  <circle cx="129" cy="550" r="5" fill="#090a0c"/>
+  <path d="M129 532 L134 545 L124 545 Z M147 550 L134 555 L134 545 Z M129 568 L124 555 L134 555 Z M111 550 L124 545 L124 555 Z" fill="#eef2f7"/>
+  <text class="text h3" x="178" y="544">BBS LM-R DS-BKBD</text>
+  <text class="text small muted" x="178" y="568">银色 · 标准 · 当前展开</text>
+  <path d="M796 556 l10 -10 l10 10" fill="none" stroke="#f7f8fb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Expanded config without an extra card -->
+  <text class="text h3" x="178" y="630">颜色</text>
+  <circle cx="250" cy="624" r="15" fill="#cfd4dd" stroke="#78ffd2" stroke-width="4"/>
+  <circle cx="294" cy="624" r="14" fill="#050506" stroke="#555"/>
+  <circle cx="338" cy="624" r="14" fill="#737984"/>
+  <circle cx="382" cy="624" r="14" fill="#d4af37"/>
+  <rect x="420" y="603" width="76" height="42" rx="21" class="chip"/>
+  <text class="text tiny" x="445" y="628">调色</text>
+
+  <text class="text h3" x="178" y="690">样式</text>
+  <rect x="248" y="666" width="82" height="42" rx="14" class="chipActive"/>
+  <text class="text small activeText" x="276" y="692">标准</text>
+  <rect x="342" y="666" width="82" height="42" rx="14" class="chip"/>
+  <text class="text small" x="370" y="692">深凹</text>
+  <rect x="436" y="666" width="102" height="42" rx="14" class="chip"/>
+  <text class="text small" x="462" y="692">多片式</text>
+  <rect x="574" y="666" width="228" height="42" rx="14" class="confirm"/>
+  <text class="text small darkText" x="604" y="692">确认：BBS LM-R · 银色</text>
+  <line x1="94" y1="734" x2="834" y2="734" class="line"/>
+
+  <rect x="102" y="756" width="50" height="50" rx="12" class="thumb"/>
+  <circle cx="127" cy="781" r="20" fill="#111317"/>
+  <circle cx="127" cy="781" r="16" fill="#737984"/>
+  <text class="text h3" x="178" y="778">RAYS TE37 SL</text>
+  <text class="text small muted" x="178" y="802">枪灰 · 竞技 · 可展开</text>
+  <path d="M796 790 l10 10 l10 -10" fill="none" stroke="#9aa3b2" stroke-width="3" stroke-linecap="round"/>
+  <line x1="94" y1="824" x2="834" y2="824" class="softLine"/>
+
+  <rect x="102" y="846" width="50" height="50" rx="12" class="thumb"/>
+  <circle cx="127" cy="871" r="20" fill="#111317"/>
+  <circle cx="127" cy="871" r="16" fill="#d4af37"/>
+  <text class="text h3" x="178" y="868">HRE FF11 FlowForm</text>
+  <text class="text small muted" x="178" y="892">金色 · 多辐 · 可展开</text>
+  <path d="M796 880 l10 10 l10 -10" fill="none" stroke="#9aa3b2" stroke-width="3" stroke-linecap="round"/>
+  <line x1="94" y1="914" x2="834" y2="914" class="softLine"/>
+
+  <rect x="102" y="936" width="50" height="50" rx="12" class="thumb"/>
+  <circle cx="127" cy="961" r="20" fill="#111317"/>
+  <circle cx="127" cy="961" r="16" fill="#eef2f7"/>
+  <text class="text h3" x="178" y="958">BBS RI-D</text>
+  <text class="text small muted" x="178" y="982">白色 · 锻造 · 可展开</text>
+  <path d="M796 970 l10 10 l10 -10" fill="none" stroke="#9aa3b2" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Mobile mock -->
+  <rect x="930" y="126" width="420" height="900" rx="42" class="panel" filter="url(#shadow)"/>
+  <rect x="932" y="128" width="416" height="250" rx="42" class="aura"/>
+  <text class="text tiny" x="972" y="190">12:51</text>
+  <rect x="1248" y="176" width="48" height="16" rx="8" fill="#f7f8fb" opacity=".92"/>
+  <text class="text h2" x="972" y="246">配件</text>
+  <text class="text small muted" x="972" y="270">轮毂 · 少框列表</text>
+
+  <rect x="972" y="306" width="336" height="64" rx="18" fill="#050607" stroke="#343a46"/>
+  <path d="M1002 327 h18 M1002 342 h18 M1002 357 h18 M1008 322 v10 M1016 337 v10 M1010 352 v10" stroke="#f7f8fb" stroke-width="2.4" stroke-linecap="round"/>
+  <text class="text h2" x="1042" y="350">3</text>
+  <text class="text small muted" x="1074" y="348">个配件已选</text>
+  <path d="M1264 348 l10 -10 l10 10" fill="none" stroke="#f7f8fb" stroke-width="3" stroke-linecap="round"/>
+
+  <text class="text h2" x="972" y="424">轮毂</text>
+  <text class="text small muted" x="972" y="448">BBS LM-R · 银色 · 标准</text>
+  <circle cx="1288" cy="420" r="14" fill="none" stroke="#f7f8fb" stroke-width="2.5"/>
+  <path d="M1281 420 l5 5 l12 -15" fill="none" stroke="#f7f8fb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="text small muted" x="972" y="500">品牌</text>
+  <rect x="1024" y="476" width="78" height="42" rx="21" fill="#ffffff"/>
+  <text class="text small darkText" x="1050" y="503">BBS</text>
+  <rect x="1114" y="476" width="86" height="42" rx="21" class="chip"/>
+  <text class="text small" x="1140" y="503">RAYS</text>
+  <rect x="1212" y="476" width="72" height="42" rx="21" class="chip"/>
+  <text class="text small" x="1238" y="503">HRE</text>
+
+  <line x1="972" y1="548" x2="1308" y2="548" class="line"/>
+  <rect x="980" y="566" width="46" height="46" rx="11" class="thumb"/>
+  <circle cx="1003" cy="589" r="18" fill="#111317"/>
+  <circle cx="1003" cy="589" r="15" fill="url(#wheelLip)"/>
+  <circle cx="1003" cy="589" r="10" fill="#24262b"/>
+  <text class="text h3" x="1042" y="586">BBS LM-R</text>
+  <text class="text small muted" x="1042" y="608">银色 · 标准</text>
+  <path d="M1266 600 l9 -9 l9 9" fill="none" stroke="#f7f8fb" stroke-width="3" stroke-linecap="round"/>
+
+  <text class="text h3" x="1042" y="662">颜色</text>
+  <circle cx="1114" cy="656" r="14" fill="#cfd4dd" stroke="#78ffd2" stroke-width="4"/>
+  <circle cx="1156" cy="656" r="13" fill="#050506" stroke="#555"/>
+  <circle cx="1198" cy="656" r="13" fill="#737984"/>
+  <rect x="1230" y="637" width="62" height="38" rx="19" class="chip"/>
+  <text class="text tiny" x="1248" y="661">调色</text>
+
+  <text class="text h3" x="1042" y="718">样式</text>
+  <rect x="1110" y="696" width="70" height="38" rx="14" class="chipActive"/>
+  <text class="text tiny activeText" x="1132" y="720">标准</text>
+  <rect x="1190" y="696" width="70" height="38" rx="14" class="chip"/>
+  <text class="text tiny" x="1212" y="720">深凹</text>
+  <rect x="980" y="756" width="300" height="44" rx="16" class="confirm"/>
+  <text class="text small darkText" x="1034" y="784">确认：BBS LM-R · 银色 · 标准</text>
+  <line x1="972" y1="824" x2="1308" y2="824" class="line"/>
+
+  <rect x="980" y="842" width="42" height="42" rx="10" class="thumb"/>
+  <circle cx="1001" cy="863" r="17" fill="#111317"/>
+  <circle cx="1001" cy="863" r="14" fill="#737984"/>
+  <text class="text h3" x="1040" y="862">RAYS TE37</text>
+  <text class="text small muted" x="1040" y="884">枪灰 · 可展开</text>
+  <path d="M1266 870 l9 9 l9 -9" fill="none" stroke="#9aa3b2" stroke-width="3" stroke-linecap="round"/>
+  <line x1="972" y1="914" x2="1308" y2="914" class="softLine"/>
+
+  <rect x="980" y="932" width="42" height="42" rx="10" class="thumb"/>
+  <circle cx="1001" cy="953" r="17" fill="#111317"/>
+  <circle cx="1001" cy="953" r="14" fill="#d4af37"/>
+  <text class="text h3" x="1040" y="952">HRE FF11</text>
+  <text class="text small muted" x="1040" y="974">金色 · 可展开</text>
+  <path d="M1266 960 l9 9 l9 -9" fill="none" stroke="#9aa3b2" stroke-width="3" stroke-linecap="round"/>
+</svg>

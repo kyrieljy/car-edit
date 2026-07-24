@@ -150,6 +150,8 @@ function summarize(body) {
           variant: partItem.variant,
           color: partItem.color,
           colorPolicy: partItem.colorPolicy,
+          optionSummary: partItem.optionSummary,
+          options: partItem.options || {},
           referenceImageUrl: partItem.referenceImageUrl,
           referenceImages: (partItem.referenceImages || []).map((reference) => ({
             role: reference.role,
@@ -240,22 +242,22 @@ registerTest("B1", "B 基础生成", "原车图 + 改成纳多灰", { text: "改
   check(!actual.promptHidden.includes("车身姿态"), "prompt should not include stance section when user did not ask for height changes"),
   check(actual.parts.length === 0, `parts=${actual.parts.length}`),
 ], "Mock guardrail 的中文允许词缺少“纳多灰/灰色/白色/改色/颜色”等 color-only 请求，导致只改色请求在进入 parser 前被拒绝。")
-registerTest("B2", "B 基础生成", "原车图 + 降低一点", { text: "降低一点", vehicleFiles: [vehicle()] }, "dry run ready；parts=[]；paint.keep_original；stance=50（轻微降低）。", (actual, status) => [
+registerTest("B2", "B 基础生成", "原车图 + 降低一点", { text: "降低一点", vehicleFiles: [vehicle()] }, "dry run ready；parts=[]；paint.keep_original；stance=70（竞技 0 指）。", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.paint?.action === "keep_original", JSON.stringify(actual.paint)),
-  check(Number(actual.stance?.value) === 50, JSON.stringify(actual.stance)),
+  check(Number(actual.stance?.value) === 70, JSON.stringify(actual.stance)),
   check(actual.parts.length === 0, `parts=${actual.parts.length}`),
 ])
-registerTest("B3", "B 基础生成", "原车图 + 改白色并降低", { text: "改成白色，降低一点", vehicleFiles: [vehicle()] }, "dry run ready；paint.change；stance=50（轻微降低）；parts=[]。", (actual, status) => [
+registerTest("B3", "B 基础生成", "原车图 + 改白色并降低", { text: "改成白色，降低一点", vehicleFiles: [vehicle()] }, "dry run ready；paint.change；stance=70（竞技 0 指）；parts=[]。", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.paint?.action === "change", JSON.stringify(actual.paint)),
-  check(Number(actual.stance?.value) === 50, JSON.stringify(actual.stance)),
+  check(Number(actual.stance?.value) === 70, JSON.stringify(actual.stance)),
   check(actual.parts.length === 0, `parts=${actual.parts.length}`),
 ])
-registerTest("B4", "B 基础生成", "保持原车颜色，只降低一点", { text: "保持原车颜色，只降低一点", vehicleFiles: [vehicle()] }, "dry run ready；paint.keep_original；stance=50（轻微降低）；parts=[]。", (actual, status) => [
+registerTest("B4", "B 基础生成", "保持原车颜色，只降低一点", { text: "保持原车颜色，只降低一点", vehicleFiles: [vehicle()] }, "dry run ready；paint.keep_original；stance=70（竞技 0 指）；parts=[]。", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.paint?.action === "keep_original", JSON.stringify(actual.paint)),
-  check(Number(actual.stance?.value) === 50, JSON.stringify(actual.stance)),
+  check(Number(actual.stance?.value) === 70, JSON.stringify(actual.stance)),
   check(actual.parts.length === 0, `parts=${actual.parts.length}`),
 ])
 
@@ -271,40 +273,53 @@ registerTest("E1b", "E 近似词配件追问", "只说加个车前盖", { text: 
   check(actual.missingFields.includes("part_reference:hood"), JSON.stringify(actual.missingFields)),
   check(actual.assistantContent.includes("机盖") && actual.assistantContent.includes("具体品牌/型号") && actual.assistantContent.includes("配件参考图"), actual.assistantContent),
 ], "配件类别别名需要覆盖车前盖、前机盖、前盖、车头盖、前舱盖等 hood 近似词，避免落入泛化追问。")
+const v2AutoCatalogAliasAssetIds = new Map([
+  ["E1c-rear-wing", "wing-ducktail"],
+  ["E1c-front-bumper", "front-splitter-style"],
+])
 ;[
   ["E1c-wheels", "轮圈", "wheels", "轮毂"],
   ["E1c-calipers", "刹车套件", "calipers", "卡钳"],
   ["E1c-rear-wing", "鸭尾", "rear-wing", "尾翼"],
-  ["E1c-front-bumper", "前包围", "front-bumper", "前唇"],
+  ["E1c-front-bumper", "前铲", "front-bumper", "前铲"],
   ["E1c-side-skirts", "门槛条", "side-skirts", "侧裙"],
-  ["E1c-diffuser", "后下巴", "diffuser", "扩散器"],
   ["E1c-exhaust", "尾嘴", "exhaust", "排气"],
-  ["E1c-lights", "日行灯", "lights", "车灯"],
   ["E1c-mirrors", "反光镜", "mirrors", "后视镜"],
-  ["E1c-grille", "鼻孔", "grille", "中网"],
+  ["E1c-fenders", "叶子板", "fenders", "叶子板"],
+  ["E1c-trunk-lid", "后备箱盖", "trunk-lid", "后备箱盖"],
 ].forEach(([id, alias, categoryId, label]) => {
-  registerTest(id, "E 近似词配件追问", `只说加个${alias}`, { text: `加个${alias}`, vehicleFiles: [vehicle()] }, `needs_followup；${alias} 应归类为 ${categoryId}；提示补充${label}具体品牌/型号并上传参考图。`, (actual, status) => [
-    check(status === 200, `status=${status}`),
-    check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
-    check(actual.missingFields.includes(`part_reference:${categoryId}`), JSON.stringify(actual.missingFields)),
-    check(actual.assistantContent.includes(label) && actual.assistantContent.includes("具体品牌/型号") && actual.assistantContent.includes("配件参考图"), actual.assistantContent),
-  ])
+  const autoAssetId = v2AutoCatalogAliasAssetIds.get(id)
+  registerTest(id, "E 近似词配件追问", `只说加个${alias}`, { text: `加个${alias}`, vehicleFiles: [vehicle()] }, autoAssetId ? `ready；${alias} 命中新版固定样式资产 ${autoAssetId}。` : `needs_followup；${alias} 应归类为 ${categoryId}；提示补充${label}具体品牌/型号并上传参考图。`, (actual, status) => {
+    if (autoAssetId) {
+      return [
+        check(status === 200, `status=${status}`),
+        check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+        check(actual.parts.some((item) => item.category === categoryId && item.assetId === autoAssetId), JSON.stringify(actual.parts)),
+      ]
+    }
+    return [
+      check(status === 200, `status=${status}`),
+      check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
+      check(actual.missingFields.includes(`part_reference:${categoryId}`), JSON.stringify(actual.missingFields)),
+      check(actual.assistantContent.includes(label) && actual.assistantContent.includes("具体品牌/型号") && actual.assistantContent.includes("配件参考图"), actual.assistantContent),
+    ]
+  })
 })
 registerTest("E2", "E 未上传配件追问", "未收录具体型号 ABC999 轮毂", { text: "换 ABC999 轮毂", vehicleFiles: [vehicle()] }, "needs_followup；提示系统暂未收录该配件 ABC999，并要求上传 ABC999 参考图。", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
   check(actual.assistantContent.includes("ABC999") && actual.assistantContent.includes("系统暂未收录"), actual.assistantContent),
 ])
-registerTest("E3", "E 后台资产命中", "具体型号 RSCBMW001 侧裙", { text: "换 RSCBMW001 侧裙", vehicleFiles: [vehicle()] }, "命中后台资产；ready；parts[0].source=asset_library；variant/model 包含 RSCBMW001。", (actual, status) => [
+registerTest("E3", "E 新版固定样式资产", "具体型号 RSCBMW001 侧裙", { text: "换 RSCBMW001 侧裙", vehicleFiles: [vehicle()] }, "ready；旧 RSC 型号不再前台展示，侧裙命中新版固定样式资产。", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
-  check(actual.parts.some((item) => item.source === "asset_library" && `${item.model} ${item.variant}`.includes("RSCBMW001")), JSON.stringify(actual.parts)),
+  check(actual.parts.some((item) => item.category === "side-skirts" && item.assetId === "side-skirts-style"), JSON.stringify(actual.parts)),
 ])
-registerTest("E3a", "E 后台资产关键字命中", "具体关键字 HD14BMWF80-OE 机盖", { text: "换 HD14BMWF80-OE 机盖", vehicleFiles: [vehicle()] }, "命中后台资产；ready；parts[0].source=asset_library；assetId=seibon-oe-carbon-hood。", (actual, status) => [
+registerTest("E3a", "E 新版干碳开关", "具体关键字 HD14BMWF80-OE 机盖", { text: "换 HD14BMWF80-OE 机盖", vehicleFiles: [vehicle()] }, "needs_followup；旧 Seibon SKU 不再作为前台机盖资产，未说明裸碳时追问机盖参考/意图。", (actual, status) => [
   check(status === 200, `status=${status}`),
-  check(actual.partColorPolicyChoiceRequired === true, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.partColorPolicyCategory === "hood", `partColorPolicyCategory=${actual.partColorPolicyCategory}`),
-  check(actual.missingFields.includes("part_color_policy:hood"), JSON.stringify(actual.missingFields)),
+  check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
+  check(actual.missingFields.includes("part_reference:hood"), JSON.stringify(actual.missingFields)),
+  check(!actual.parts.some((item) => item.assetId === "seibon-oe-carbon-hood"), JSON.stringify(actual.parts)),
 ])
 registerTest("E4", "E 上传部分配件但文字追加未上传配件", "上传机盖图，同时要求轮毂", { text: "换这个机盖，再换轮毂", vehicleFiles: [vehicle()], partFiles: [part(files.hood, "carbon-hood-reference.jpg")] }, "不生图；needs_followup；要求补充轮毂具体品牌/型号并上传轮毂参考图，动态文案只应指向轮毂。", (actual, status) => [
   check(status === 200, `status=${status}`),
@@ -427,6 +442,85 @@ registerTest("B13", "B color parser", "exact Brembo GT caliper plus white body",
   check(actual.promptHidden.includes("Brembo") && actual.promptHidden.includes("\u767d\u8272"), actual.promptHidden),
 ])
 
+registerTest("V2-1", "V2 配件选项", "Brembo GT 蓝色卡钳 + 碳陶盘", { text: "改个 Brembo GT 卡钳，卡钳蓝色，碳陶瓷刹车盘", vehicleFiles: [vehicle()] }, "ready; caliper options include blue + carbon_ceramic", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "calipers" && item.options?.caliperColor === "blue" && item.options?.rotorOption === "carbon_ceramic"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-2", "V2 配件选项", "鸭尾碳纤维", { text: "装一个鸭尾，碳纤维材质", vehicleFiles: [vehicle()] }, "ready; rear-wing ducktail uses exposed carbon surface option", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "rear-wing" && item.assetId === "wing-ducktail" && item.options?.surfaceColor === "exposed_carbon"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3", "V2 配件选项", "双边双出排气", { text: "换成双边双出排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is quad", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-quad" && item.options?.layout === "exhaust-quad"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3a", "V2 配件选项", "单边单出右侧排气", { text: "换成单边单出右侧排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is single right", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-single-right" && item.options?.layout === "exhaust-single-right"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3b", "V2 配件选项", "单边双出左侧排气", { text: "换成单边双出左侧排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is dual left", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-dual-left" && item.options?.layout === "exhaust-dual-left"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3c", "V2 配件选项", "单边双出右侧排气", { text: "换成单边双出右侧排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is dual right", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-dual-right" && item.options?.layout === "exhaust-dual-right"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3d", "V2 配件选项", "双边单出排气", { text: "换成双边单出排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is dual single", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-dual-single" && item.options?.layout === "exhaust-dual-single"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3e", "V2 配件选项", "居中 1 根排气", { text: "换成居中1根排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is center single", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-center-single" && item.options?.layout === "exhaust-center-single"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3f", "V2 配件选项", "居中 2 根排气", { text: "换成居中2根排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is center dual", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-center-dual" && item.options?.layout === "exhaust-center-dual"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-3g", "V2 配件选项", "居中 4 根排气", { text: "换成居中4根排气", vehicleFiles: [vehicle()] }, "ready; exhaust layout is center quad", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "exhaust" && item.assetId === "exhaust-center-quad" && item.options?.layout === "exhaust-center-quad"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-4", "V2 配件选项", "前铲车身同色", { text: "加一个前铲，车身同色", vehicleFiles: [vehicle()] }, "ready; front splitter surfaceColor=body_color", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "front-bumper" && item.assetId === "front-splitter-style" && item.options?.surfaceColor === "body_color"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-5", "V2 配件选项", "侧裙黑色", { text: "加黑色侧裙", vehicleFiles: [vehicle()] }, "ready; side skirt surfaceColor=black", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "side-skirts" && item.assetId === "side-skirts-style" && item.options?.surfaceColor === "black"), JSON.stringify(actual.parts)),
+])
+
+registerTest("V2-6", "V2 干碳组合", "机盖和后视镜裸碳", { text: "机盖和后视镜改成裸碳", vehicleFiles: [vehicle()] }, "ready; dry carbon hood and mirrors are selected", (actual, status) => [
+  check(status === 200, `status=${status}`),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.parts.some((item) => item.category === "hood" && item.assetId === "dry-carbon-hood" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
+  check(actual.parts.some((item) => item.category === "mirrors" && item.assetId === "dry-carbon-mirrors" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
+])
+
 registerTest("L1", "L LLM fallback fixture", "vague dark green wording falls back to narrow paint intent", { text: "\u60f3\u8981\u6697\u4e00\u70b9\u7684\u7eff", vehicleFiles: [vehicle()] }, "dry run ready; fallback fixture supplies paint target without external AI", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
@@ -449,30 +543,32 @@ registerTest("L3", "L LLM fallback fixture", "fallback category still asks for m
   check(actual.parts.length === 0, JSON.stringify(actual.parts)),
 ])
 
-registerTest("P1", "P part color policy", "hood keyword hit asks body-color vs exposed carbon", { text: "add HD14BMWF80-OE hood", vehicleFiles: [vehicle()], language: "en" }, "partColorPolicyChoiceRequired=true; category=hood", (actual, status) => [
+registerTest("P1", "P dry carbon parts", "old Seibon hood keyword no longer auto-selects catalog asset", { text: "add HD14BMWF80-OE hood", vehicleFiles: [vehicle()], language: "en" }, "needs_followup; old Seibon SKU is not a front catalog hood asset", (actual, status) => [
   check(status === 200, `status=${status}`),
-  check(actual.partColorPolicyChoiceRequired === true, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.partColorPolicyCategory === "hood", `partColorPolicyCategory=${actual.partColorPolicyCategory}`),
-  check(actual.missingFields.includes("part_color_policy:hood"), JSON.stringify(actual.missingFields)),
+  check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
+  check(actual.missingFields.includes("part_reference:hood"), JSON.stringify(actual.missingFields)),
+  check(!actual.parts.some((item) => item.assetId === "seibon-oe-carbon-hood"), JSON.stringify(actual.parts)),
 ])
 
-registerTest("P2", "P part color policy", "confirmed exposed carbon hood proceeds to catalog asset", { text: "add HD14BMWF80-OE hood", vehicleFiles: [vehicle()], language: "en", partColorPolicyConfirmed: true, partColorPolicyCategory: "hood", partColorPolicy: "exposed_carbon" }, "ready; seibon hood selected; colorPolicy=exposed_carbon", (actual, status) => [
+registerTest("P2", "P dry carbon parts", "explicit exposed carbon hood proceeds to dry carbon asset", { text: "add exposed carbon hood", vehicleFiles: [vehicle()], language: "en" }, "ready; dry-carbon hood selected; colorPolicy=exposed_carbon", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
-  check(actual.parts.some((item) => item.category === "hood" && item.assetId === "seibon-oe-carbon-hood" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
+  check(actual.parts.some((item) => item.category === "hood" && item.assetId === "dry-carbon-hood" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
 ])
 
-registerTest("P3", "P part color policy", "explicit body-color hood does not ask", { text: "add body color HD14BMWF80-OE hood", vehicleFiles: [vehicle()], language: "en" }, "ready; seibon hood selected; colorPolicy=body_color", (actual, status) => [
+registerTest("P3", "P dry carbon parts", "body-color hood SKU no longer auto-selects old asset", { text: "add body color HD14BMWF80-OE hood", vehicleFiles: [vehicle()], language: "en" }, "needs_followup; body-color hood is no longer a front catalog option", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.partColorPolicyChoiceRequired === false, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.parts.some((item) => item.category === "hood" && item.assetId === "seibon-oe-carbon-hood" && item.colorPolicy === "body_color"), JSON.stringify(actual.parts)),
+  check(actual.parseStatus === "needs_followup", `parseStatus=${actual.parseStatus}`),
+  check(actual.missingFields.includes("part_reference:hood"), JSON.stringify(actual.missingFields)),
+  check(!actual.parts.some((item) => item.assetId === "seibon-oe-carbon-hood"), JSON.stringify(actual.parts)),
 ])
 
-registerTest("P4", "P part color policy", "mirror cap keyword hit asks body-color vs exposed carbon", { text: "add Carbon Mirror Caps", vehicleFiles: [vehicle()], language: "en" }, "partColorPolicyChoiceRequired=true; category=mirrors", (actual, status) => [
+registerTest("P4", "P dry carbon parts", "carbon mirror cap keyword proceeds to dry carbon asset", { text: "add Carbon Mirror Caps", vehicleFiles: [vehicle()], language: "en" }, "ready; dry-carbon mirrors selected without body-color policy choice", (actual, status) => [
   check(status === 200, `status=${status}`),
-  check(actual.partColorPolicyChoiceRequired === true, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.partColorPolicyCategory === "mirrors", `partColorPolicyCategory=${actual.partColorPolicyCategory}`),
-  check(actual.missingFields.includes("part_color_policy:mirrors"), JSON.stringify(actual.missingFields)),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.partColorPolicyChoiceRequired === false, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
+  check(actual.parts.some((item) => item.category === "mirrors" && item.assetId === "dry-carbon-mirrors" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
 ])
 
 registerTest("P5", "P result correction", "mirror color correction uses latest local mirror edit", { text: "\u8033\u6735\u600e\u4e48\u4e0d\u662f\u7c89\u8272\u7684", vehicleFiles: [vehicle()] }, "ready; parts[0]=mirrors/free_text; paint remains keep_original", (actual, status) => [
@@ -482,11 +578,11 @@ registerTest("P5", "P result correction", "mirror color correction uses latest l
   check(actual.promptHidden.includes("mirror caps") || actual.promptHidden.includes("mirror housings"), actual.promptHidden),
 ])
 
-registerTest("P6", "P part color policy", "hood keyword with carbon in model name still asks policy", { text: "add Seibon OE Carbon Hood", vehicleFiles: [vehicle()], language: "en" }, "partColorPolicyChoiceRequired=true; category=hood", (actual, status) => [
+registerTest("P6", "P dry carbon parts", "hood keyword with carbon maps to dry carbon hood", { text: "add Seibon OE Carbon Hood", vehicleFiles: [vehicle()], language: "en" }, "ready; dry-carbon hood selected without body-color policy choice", (actual, status) => [
   check(status === 200, `status=${status}`),
-  check(actual.partColorPolicyChoiceRequired === true, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.partColorPolicyCategory === "hood", `partColorPolicyCategory=${actual.partColorPolicyCategory}`),
-  check(actual.missingFields.includes("part_color_policy:hood"), JSON.stringify(actual.missingFields)),
+  check(actual.dryRun === true, `dryRun=${actual.dryRun}`),
+  check(actual.partColorPolicyChoiceRequired === false, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
+  check(actual.parts.some((item) => item.category === "hood" && item.assetId === "dry-carbon-hood" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
 ])
 
 registerTest("P7", "P part color policy", "uploaded carbon hood reference asks policy", { text: "", vehicleFiles: [vehicle()], partFiles: [part(files.hood, "carbon-hood-reference.jpg")], language: "en" }, "partColorPolicyChoiceRequired=true; category=hood", (actual, status) => [
@@ -534,10 +630,10 @@ registerTest("P9", "P part color policy", "explicit exposed carbon mirror cap do
   check(actual.parts.some((item) => item.category === "mirrors" && item.source === "asset_library" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
 ])
 
-registerTest("P10", "P part color policy", "confirmed body-color mirror cap proceeds to catalog asset", { text: "add Carbon Mirror Caps", vehicleFiles: [vehicle()], language: "en", partColorPolicyConfirmed: true, partColorPolicyCategory: "mirrors", partColorPolicy: "body_color" }, "ready; mirror cap selected; colorPolicy=body_color", (actual, status) => [
+registerTest("P10", "P dry carbon parts", "dry carbon mirror cap proceeds to dry carbon catalog asset", { text: "add dry carbon mirror caps", vehicleFiles: [vehicle()], language: "en" }, "ready; mirror cap selected; colorPolicy=exposed_carbon", (actual, status) => [
   check(status === 200, `status=${status}`),
   check(actual.partColorPolicyChoiceRequired === false, `partColorPolicyChoiceRequired=${actual.partColorPolicyChoiceRequired}`),
-  check(actual.parts.some((item) => item.category === "mirrors" && item.source === "asset_library" && item.colorPolicy === "body_color"), JSON.stringify(actual.parts)),
+  check(actual.parts.some((item) => item.category === "mirrors" && item.assetId === "dry-carbon-mirrors" && item.colorPolicy === "exposed_carbon"), JSON.stringify(actual.parts)),
 ])
 
 registerTest("S1", "S stance presets", "raise ride height maps to raise preset", { text: "\u8f66\u8eab\u5347\u9ad8\u4e00\u70b9", vehicleFiles: [vehicle()] }, "dry run ready; stance=25", (actual, status) => [
@@ -720,7 +816,7 @@ async function runTests(cookie) {
       checker: (actual, status) => [
         check(status === 200, `status=${status}`),
         check(actual.contextMode === "latest", `context=${actual.contextMode}`),
-        check(Number(actual.stance?.value) === 50, JSON.stringify(actual.stance)),
+        check(Number(actual.stance?.value) === 70, JSON.stringify(actual.stance)),
         check(actual.sourceImageUrl === gOriginalSource, `source=${actual.sourceImageUrl}; original=${gOriginalSource}`),
       ],
       fix: "",
@@ -785,7 +881,7 @@ async function runTests(cookie) {
         check(status === 200, `status=${status}`),
         check(actual.contextChoiceRequired === false, `contextChoiceRequired=${actual.contextChoiceRequired}`),
         check(actual.contextMode === "original", `context=${actual.contextMode}`),
-        check(Number(actual.stance?.value) === 50, JSON.stringify(actual.stance)),
+        check(Number(actual.stance?.value) === 70, JSON.stringify(actual.stance)),
       ],
       fix: "",
     },
@@ -849,7 +945,7 @@ function markdownReport(results) {
     "",
     failedList || "无。",
     "",
-  ].join("\n")
+  ].join("\n").replace(/[ \t]+$/gm, "")
 }
 
 try {

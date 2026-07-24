@@ -277,7 +277,12 @@ export function AdminConsole() {
           </section>
 
           {tab === "dashboard" && <DashboardPanel summary={summary} />}
-          {tab === "assets" && <AssetManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+          {tab === "assets" && (
+            <>
+              <AssetManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+              <ClassicPaintManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+            </>
+          )}
           {tab === "avatars" && <AvatarPresetManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
           {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
@@ -1833,6 +1838,220 @@ function AdminAssetPreview({ asset }: { asset: PartAsset }) {
     )
   }
   return <img src={asset.imageUrl} alt={asset.model} />
+}
+
+const classicPaintMaterials = ["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"] as const
+
+type ClassicPaintDraft = {
+  id: string
+  brand: string
+  label: string
+  labelZh: string
+  labelEn: string
+  brandAliases: string
+  colorCode: string
+  hex: string
+  material: AdminSummary["classicPaints"][number]["material"]
+  prompt: string
+  active: boolean
+  isDefault: boolean
+  sortOrder: string
+}
+
+function emptyClassicPaintDraft(): ClassicPaintDraft {
+  return {
+    id: "",
+    brand: "",
+    label: "",
+    labelZh: "",
+    labelEn: "",
+    brandAliases: "",
+    colorCode: "",
+    hex: "#1b4f9c",
+    material: "metallic",
+    prompt: "",
+    active: true,
+    isDefault: false,
+    sortOrder: "100",
+  }
+}
+
+function parseClassicPaintAliases(value: string) {
+  const seen = new Set<string>()
+  return value
+    .split(/[\n,，、;；]+/)
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter((item) => {
+      const key = item.toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
+function ClassicPaintManager({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+  const [editingId, setEditingId] = useState("")
+  const [draft, setDraft] = useState<ClassicPaintDraft>(() => emptyClassicPaintDraft())
+  const sortedPaints = useMemo(
+    () => [...summary.classicPaints].sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)) || a.brand.localeCompare(b.brand) || a.sortOrder - b.sortOrder || (a.labelEn || a.label).localeCompare(b.labelEn || b.label)),
+    [summary.classicPaints],
+  )
+
+  const edit = (paint: AdminSummary["classicPaints"][number]) => {
+    setEditingId(paint.id)
+    setDraft({
+      id: paint.id,
+      brand: paint.brand,
+      label: paint.label,
+      labelZh: paint.labelZh,
+      labelEn: paint.labelEn,
+      brandAliases: (paint.brandAliases ?? []).join(", "),
+      colorCode: paint.colorCode,
+      hex: paint.hex,
+      material: paint.material,
+      prompt: paint.prompt,
+      active: paint.active,
+      isDefault: Boolean(paint.isDefault),
+      sortOrder: String(paint.sortOrder),
+    })
+  }
+
+  const reset = () => {
+    setEditingId("")
+    setDraft(emptyClassicPaintDraft())
+  }
+
+  const save = async () => {
+    const payload = {
+      id: draft.id,
+      brand: draft.brand,
+      label: draft.label || draft.labelEn || draft.labelZh,
+      labelZh: draft.labelZh,
+      labelEn: draft.labelEn,
+      brandAliases: parseClassicPaintAliases(draft.brandAliases),
+      colorCode: draft.colorCode,
+      hex: draft.hex,
+      material: draft.material,
+      prompt: draft.prompt,
+      active: draft.active,
+      isDefault: draft.isDefault,
+      sortOrder: Number(draft.sortOrder) || 100,
+    }
+    const response = await fetch(editingId ? `/api/admin/classic-paints/${editingId}` : "/api/admin/classic-paints", {
+      method: editingId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      notify("error", typeof body.error === "string" ? body.error : "经典色保存失败")
+      return
+    }
+    notify("success", "经典色已保存")
+    reset()
+    onChanged()
+  }
+
+  const remove = async (paint: AdminSummary["classicPaints"][number]) => {
+    const response = await fetch(`/api/admin/classic-paints/${paint.id}`, { method: "DELETE" })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      notify("error", typeof body.error === "string" ? body.error : "经典色删除失败")
+      return
+    }
+    notify("success", "经典色已停用/删除")
+    if (editingId === paint.id) reset()
+    onChanged()
+  }
+
+  return (
+    <section className="admin-panel classic-paint-panel">
+      <PanelHeading label="车辆颜色" title="品牌经典色色卡" count={`${sortedPaints.length} 个色卡`} />
+      <div className="classic-paint-layout">
+        <form
+          className="admin-form classic-paint-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <label>
+            ID
+            <input value={draft.id} placeholder="bmw-isle-of-man-green-metallic" onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))} disabled={Boolean(editingId)} />
+          </label>
+          <label>
+            品牌
+            <input value={draft.brand} placeholder="BMW" onChange={(event) => setDraft((current) => ({ ...current, brand: event.target.value }))} />
+          </label>
+          <label className="wide-field">
+            品牌识别关键字
+            <textarea value={draft.brandAliases} placeholder="BMW, 宝马, M3, M4；或 Porsche, 911, 718" onChange={(event) => setDraft((current) => ({ ...current, brandAliases: event.target.value }))} />
+          </label>
+          <label>
+            中文名
+            <input value={draft.labelZh} placeholder="宝马阿布扎比蓝" onChange={(event) => setDraft((current) => ({ ...current, labelZh: event.target.value }))} />
+          </label>
+          <label>
+            英文名
+            <input value={draft.labelEn} placeholder="BMW Abu Dhabi Blue" onChange={(event) => setDraft((current) => ({ ...current, labelEn: event.target.value }))} />
+          </label>
+          <label>
+            色号
+            <input value={draft.colorCode} placeholder="C4G" onChange={(event) => setDraft((current) => ({ ...current, colorCode: event.target.value }))} />
+          </label>
+          <label>
+            HEX
+            <input value={draft.hex} placeholder="#1f4d3a" onChange={(event) => setDraft((current) => ({ ...current, hex: event.target.value }))} />
+          </label>
+          <label>
+            车漆材质
+            <select value={draft.material} onChange={(event) => setDraft((current) => ({ ...current, material: event.target.value as ClassicPaintDraft["material"] }))}>
+              {classicPaintMaterials.map((material) => (
+                <option key={material} value={material}>
+                  {material}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            排序
+            <input value={draft.sortOrder} inputMode="numeric" onChange={(event) => setDraft((current) => ({ ...current, sortOrder: event.target.value }))} />
+          </label>
+          <label className="check-line">
+            <input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} />
+            启用
+          </label>
+          <label className="check-line">
+            <input type="checkbox" checked={draft.isDefault} onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))} />
+            默认经典色清单
+          </label>
+          <label className="wide-field">
+            Prompt
+            <textarea value={draft.prompt} placeholder="将车身漆面改为..." onChange={(event) => setDraft((current) => ({ ...current, prompt: event.target.value }))} />
+          </label>
+          <div className="classic-paint-actions">
+            <button type="submit">{editingId ? "保存修改" : "新增经典色"}</button>
+            {editingId && <button type="button" onClick={reset}>取消编辑</button>}
+          </div>
+        </form>
+        <div className="classic-paint-list">
+          {sortedPaints.map((paint) => (
+            <article key={paint.id} className={paint.active ? "classic-paint-row" : "classic-paint-row disabled"}>
+              <span className="classic-paint-swatch" style={{ background: paint.hex }} />
+              <div>
+                <strong>{paint.brand} {paint.labelZh || paint.label}</strong>
+                <span>{paint.labelEn || paint.label} / {paint.colorCode || "-"} / {paint.material} / {paint.hex}{paint.isDefault ? " / Default" : ""}{paint.brandAliases?.length ? ` / 关键字: ${paint.brandAliases.join(", ")}` : ""}</span>
+                <small>{paint.prompt}</small>
+              </div>
+              <button type="button" onClick={() => edit(paint)}>编辑</button>
+              <button type="button" onClick={() => void remove(paint)}>{paint.active ? "停用" : "删除"}</button>
+            </article>
+          ))}
+          {!sortedPaints.length && <div className="admin-empty">暂无经典色配置</div>}
+        </div>
+      </div>
+    </section>
+  )
 }
 
 type ProviderFormValue = { label: string; baseUrl: string; modelName: string; apiKey: string; enabled: boolean; capabilities: ProviderCapability[] }

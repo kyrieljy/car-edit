@@ -1,36 +1,67 @@
 # TODO
 
-Last updated: 2026-06-06 Asia/Shanghai
+Last updated: 2026-06-29 Asia/Shanghai
 
 Short active queue. Start with `PROJECT_CONTEXT.md`; do not bulk-read `docs/` unless a linked topic is needed.
 
-## P0 - Deploy Latest Main To Test Server
+## P0 - Finish Second-Round Local QA
 
-Latest pushed commit:
+Current second-round Web/H5 changes are local only. Do not push, commit, or deploy until the user explicitly asks.
 
-```text
-5d796f5 Make admin plan override subscriptions
+Before considering the local round ready:
+
+- Re-check PC and mobile accessory selection flows after each UI change.
+- Confirm wheel selection still uses its original card style and defaults to unselected.
+- Confirm caliper color and rotor-style choices appear under each selected caliper, can be cancelled, and appear in prompt/summary output.
+- Confirm rear wing, front splitter, side skirt, exhaust, and dry carbon parts all use the intended inline category logic instead of old "brand/model" detail blocks.
+- Confirm front splitter and side skirt keep backend reference images but show no mobile preview eye.
+- Confirm bottom accordion expansion scrolls to the first visible option, not to the menu bottom.
+- Confirm mobile category rows remain compact and do not overlap expanded content.
+- Confirm admin asset/reference image layout is not broken by the new style-asset logic.
+
+Useful checks:
+
+```powershell
+git diff --check
+npx.cmd tsc --noEmit
+npm.cmd run build
 ```
 
-Deploy:
+## P0 - Guard Prompt, JSON, And Color Invariants
 
-```bash
-cd /root/car-edit
-git pull
-npm run build
-pm2 restart car-edit --update-env
+For any change touching prompt/history/color:
+
+- Runtime prompt source remains Git seed in `lib/catalog.ts`.
+- `config/prompt-packs` is validation evidence only.
+- Admin/config migration must not create, update, export, import, or apply prompt bodies.
+- Auto-recognized vehicle model must not enter `GenerationStandardJson.vehicle.model`.
+- Recognition should only choose/show classic colors. User-edited brand/model text can switch classic color matching.
+- If recognition is pending or no brand keyword matches backend config, show the default classic color list.
+- History titles should use `displayVehicleModel` when available and never show internal ids such as `gen_...`.
+
+Useful checks:
+
+```powershell
+npm.cmd run prompt:validate
+node scripts\chat-mode-dry-run-tests.mjs
+npx.cmd tsc --noEmit
 ```
 
-Expected smoke checks after deploy:
+Run `prompt:validate` only when prompt assets/templates are touched.
 
-- Login/register/reset/admin verification still work with mock SMS in local dry-run and configured Aliyun SMS on the server.
-- H5 one-tap gracefully falls back to SMS when carrier token fetch is unavailable.
-- Self-service subscription buttons stay disabled and show the managed-by-admin copy.
-- `/api/billing/status` follows the admin-saved `users.plan`; a stale active subscription must not make a `free` user appear as `pro`.
-- Admin user management table does not horizontally overflow on the current desktop view.
-- Secondary admin `admin_16698604646 / Admin@1234` can log in with admin verification and has unlimited internal quota.
+## P0 - Accessory Dry-Run Coverage
 
-## P0 - Guard Account, Billing, And Auth Invariants
+Keep `scripts\chat-mode-dry-run-tests.mjs` aligned with the second-round UI and standard JSON contract. It should cover at least:
+
+- caliper color and rotor style
+- rear wing style and black/carbon/body-color material
+- front splitter and side skirt install/material
+- exhaust final leaf layouts, including left/right and center 1/2/4 exits
+- dry carbon multi-select
+- classic paint matching default vs brand-specific list
+- height unchanged/raised/racing 0-finger/air suspension
+
+## P1 - Account, Billing, And Auth Invariants
 
 For any change touching account/login/billing/admin users:
 
@@ -49,27 +80,28 @@ node scripts\auth-flow-dry-run-tests.mjs
 npm.cmd run build
 ```
 
-## P0 - Guard Prompt And History Invariants
+## P1 - Product Gaps Before Release
 
-For any change touching prompt/history:
+Still needed before a serious external release:
 
-- Runtime prompt source remains Git seed in `lib/catalog.ts`.
-- `config/prompt-packs` is validation evidence only.
-- Admin/config migration must not create, update, export, import, or apply prompt bodies.
-- Auto-recognized vehicle model must not enter `GenerationStandardJson.vehicle.model`.
-- History titles should use `displayVehicleModel` when available and never show internal ids such as `gen_...`.
+- Implement any remaining second-version business requirements from product testing.
+- Polish the new PC personal management page, mobile personal management page, and edit page so they do not look AI-generated.
+- Plan and run database migration instead of relying on local SQLite/runtime drift.
+- Add stable login channels beyond the current test scaffolding.
+- Integrate real payment, webhook, refund, reconciliation, and idempotency.
+- Run security testing and add missing security controls.
+- Run pressure/load testing with realistic generation, upload, and chat traffic.
+- Prepare gray release/deployment rollback process.
 
-Useful checks:
+## P2 - Multi-End Strategy
 
-```powershell
-npm.cmd run prompt:validate
-npm.cmd run build
-npx.cmd tsc --noEmit
-```
+Future mini program, iOS app, and Android app work needs a product/tech decision before starting native rewrites:
 
-Run `prompt:validate` only when prompt assets/templates are touched.
+- Decide whether H5 can remain the shared core with thin shells, or whether a cross-platform stack such as React Native/Taro/uni-app is worth migrating to.
+- If native Swift/Kotlin is required, define what stays shared: API contracts, prompt/JSON schema, catalog data, assets, and admin configuration.
+- Avoid starting three independent UI implementations before the accessory and prompt contracts stabilize.
 
-## P1 - Image And Provider QA
+## P2 - Image And Provider QA
 
 Use existing records where possible:
 
@@ -79,28 +111,6 @@ Use existing records where possible:
 - Old raw provider URLs may be expired; do not treat unrecoverable historical records as current bugs.
 
 Real provider tests require explicit approval. Before a paid test, confirm latest commit is deployed, provider key exists, and `APP_URL` / `PROVIDER_PUBLIC_BASE_URL` point to the test server.
-
-## P1 - Mobile Performance Pass
-
-The mobile H5 UI feels somewhat low-framerate on real phones. Before moving to mini program or native app, profile the production build on an actual phone and reduce obvious H5 paint costs:
-
-- large full-screen blur/backdrop-filter/shadow layers
-- unnecessary layout shifts or React rerenders during modal/input interactions
-- heavy mobile drawer/login animations
-- oversized images or uncompressed assets
-
-Wrapping the same H5 in a WebView app or mini program is not expected to fix performance by itself.
-
-## P2 - Production Gaps
-
-Still prototype-only:
-
-- production-grade SMS and WeChat OAuth operations
-- production-grade H5/native one-tap carrier auth handling
-- real payment/webhook/refund/idempotency
-- production DB/object storage/CDN/backups
-- production operations console for users/orders/quota/provider cost
-- stronger admin audit and runtime-config safety
 
 ## Verification Commands
 
@@ -118,8 +128,15 @@ npm.cmd run build
 npx.cmd tsc --noEmit
 ```
 
-Chat logic:
+Prompt and Chat logic:
 
 ```powershell
+npm.cmd run prompt:validate
 node scripts\chat-mode-dry-run-tests.mjs
+```
+
+Auth logic:
+
+```powershell
+node scripts\auth-flow-dry-run-tests.mjs
 ```

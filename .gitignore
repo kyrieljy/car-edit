@@ -24,6 +24,9 @@ artifacts/
 # local browser automation profiles
 .edge-chatgpt-batch/
 
+# local assistant memory
+.workbuddy/
+
 # archived prototype and prompt-regression test assets
 prototypes/**/renders/*.mp4
 prototypes/**/assets/

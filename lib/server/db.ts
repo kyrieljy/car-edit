@@ -3,7 +3,20 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, r
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { DEFAULT_AVATAR_ID, SEEDED_AVATAR_PRESETS, normalizeAvatarPresetId } from "../avatar-presets"
-import { assetsSeed, brandsSeed, categoriesSeed, guardrailSeed, paintsSeed, promptSeed, promptTemplateSeed, providerSeed, workflowSeed } from "../catalog"
+import {
+  assetsSeed,
+  brandsSeed,
+  categoriesSeed,
+  classicPaintsSeed,
+  guardrailSeed,
+  paintsSeed,
+  promptSeed,
+  promptTemplateSeed,
+  providerSeed,
+  v2FrontCatalogAssetIds,
+  v2FrontCatalogBrandIds,
+  workflowSeed,
+} from "../catalog"
 import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory } from "../part-category-aliases"
 import type {
   AdminSummary,
@@ -16,6 +29,7 @@ import type {
   ChatAttachment,
   ChatMessage,
   ChatSession,
+  BrandClassicPaint,
   EntitlementStatus,
   GenerationBadCase,
   GenerationJob,
@@ -68,6 +82,7 @@ const SEEDED_ADMINS = [
 const systemCategoryIds = new Set(categoriesSeed.map((item) => item.id))
 const systemBrandIds = new Set(brandsSeed.map((item) => item.id))
 const systemAssetIds = new Set(assetsSeed.map((item) => item.id))
+const systemClassicPaintIds = new Set(classicPaintsSeed.map((item) => item.id))
 const systemProviderIds = new Set(providerSeed.map((item) => item.id))
 const systemWorkflowIds = new Set(workflowSeed.map((item) => item.id))
 
@@ -555,6 +570,44 @@ function migrateSchema(conn: DatabaseSync) {
       created_at INTEGER NOT NULL
     );
   `)
+  conn.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_classic_paints (
+      id TEXT PRIMARY KEY,
+      brand TEXT NOT NULL,
+      label TEXT NOT NULL,
+      label_zh TEXT NOT NULL DEFAULT '',
+      label_en TEXT NOT NULL DEFAULT '',
+      brand_aliases_json TEXT NOT NULL DEFAULT '[]',
+      color_code TEXT NOT NULL DEFAULT '',
+      hex TEXT NOT NULL,
+      material TEXT NOT NULL DEFAULT 'gloss',
+      prompt TEXT NOT NULL DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      built_in INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `)
+  const classicPaintColumns = conn.prepare("PRAGMA table_info(vehicle_classic_paints)").all() as Array<{ name: string }>
+  if (!classicPaintColumns.some((column) => column.name === "is_default")) {
+    conn.exec("ALTER TABLE vehicle_classic_paints ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!classicPaintColumns.some((column) => column.name === "built_in")) {
+    conn.exec("ALTER TABLE vehicle_classic_paints ADD COLUMN built_in INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!classicPaintColumns.some((column) => column.name === "label_zh")) {
+    conn.exec("ALTER TABLE vehicle_classic_paints ADD COLUMN label_zh TEXT NOT NULL DEFAULT ''")
+    conn.exec("UPDATE vehicle_classic_paints SET label_zh = label WHERE label_zh = ''")
+  }
+  if (!classicPaintColumns.some((column) => column.name === "label_en")) {
+    conn.exec("ALTER TABLE vehicle_classic_paints ADD COLUMN label_en TEXT NOT NULL DEFAULT ''")
+    conn.exec("UPDATE vehicle_classic_paints SET label_en = label WHERE label_en = ''")
+  }
+  if (!classicPaintColumns.some((column) => column.name === "brand_aliases_json")) {
+    conn.exec("ALTER TABLE vehicle_classic_paints ADD COLUMN brand_aliases_json TEXT NOT NULL DEFAULT '[]'")
+  }
   const categoryColumns = conn.prepare("PRAGMA table_info(asset_categories)").all() as Array<{ name: string }>
   const addedCategoryLabelEn = !categoryColumns.some((column) => column.name === "label_en")
   const addedCategoryLabelZh = !categoryColumns.some((column) => column.name === "label_zh")
@@ -649,6 +702,7 @@ function seed(conn: DatabaseSync) {
   seedMembershipPlans(conn, now)
   seedAccountMessages(conn, now)
   seedProviderConfigs(conn, now)
+  seedClassicPaints(conn, now)
   if (!shouldSeedLegacyStaticConfig()) return
 
   const categoryStatement = conn.prepare(`
@@ -843,6 +897,49 @@ function seedProviderConfigs(conn: DatabaseSync, now: number) {
   const activeProviders = conn.prepare("SELECT id FROM provider_configs WHERE active = 1 ORDER BY updated_at DESC").all() as Row[]
   if (activeProviders.length > 1) {
     conn.prepare("UPDATE provider_configs SET active = CASE WHEN id = ? THEN 1 ELSE 0 END").run(String(activeProviders[0].id))
+  }
+}
+
+function seedClassicPaints(conn: DatabaseSync, now: number) {
+  const markBuiltInStatement = conn.prepare("UPDATE vehicle_classic_paints SET built_in = 1 WHERE id = ?")
+  const statement = conn.prepare(`
+    INSERT INTO vehicle_classic_paints
+    (id, brand, label, label_zh, label_en, brand_aliases_json, color_code, hex, material, prompt, active, is_default, sort_order, built_in, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      brand = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.brand ELSE vehicle_classic_paints.brand END,
+      label = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.label ELSE vehicle_classic_paints.label END,
+      label_zh = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.label_zh ELSE vehicle_classic_paints.label_zh END,
+      label_en = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.label_en ELSE vehicle_classic_paints.label_en END,
+      brand_aliases_json = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.brand_aliases_json ELSE vehicle_classic_paints.brand_aliases_json END,
+      color_code = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.color_code ELSE vehicle_classic_paints.color_code END,
+      hex = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.hex ELSE vehicle_classic_paints.hex END,
+      material = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.material ELSE vehicle_classic_paints.material END,
+      prompt = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.prompt ELSE vehicle_classic_paints.prompt END,
+      active = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.active ELSE vehicle_classic_paints.active END,
+      is_default = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.is_default ELSE vehicle_classic_paints.is_default END,
+      sort_order = CASE WHEN vehicle_classic_paints.built_in = 1 THEN excluded.sort_order ELSE vehicle_classic_paints.sort_order END
+  `)
+  for (const paint of classicPaintsSeed) {
+    markBuiltInStatement.run(paint.id)
+    statement.run(
+      paint.id,
+      paint.brand,
+      paint.label,
+      paint.labelZh,
+      paint.labelEn,
+      JSON.stringify(normalizeClassicPaintBrandAliases(paint.brandAliases)),
+      paint.colorCode,
+      paint.hex,
+      paint.material,
+      paint.prompt,
+      paint.active ? 1 : 0,
+      paint.isDefault ? 1 : 0,
+      paint.sortOrder,
+      1,
+      now,
+      now,
+    )
   }
 }
 
@@ -1420,15 +1517,130 @@ function replaceAssetReferences(assetId: string, references: AssetReferenceInput
 }
 
 export function getCatalog(): CatalogResponse {
+  const frontCategoryIds = new Set(categoriesSeed.map((category) => category.id))
   return {
-    categories: categories(),
-    brands: brands().filter((brand) => brand.active),
-    assets: assets().filter((asset) => asset.active),
+    categories: categories().filter((category) => frontCategoryIds.has(category.id)),
+    brands: brands().filter((brand) => brand.active && frontCategoryIds.has(brand.categoryId) && isFrontCatalogBrand(brand)),
+    assets: assets().filter((asset) => asset.active && frontCategoryIds.has(asset.categoryId) && isFrontCatalogAsset(asset)),
     paints: paintsSeed,
+    classicPaints: classicPaints({ activeOnly: true }),
     providers: providers(),
     promptPreset: activePrompt(),
     promptTemplates: promptTemplates(),
   }
+}
+
+const v2FrontCatalogAssetIdSet = new Set(v2FrontCatalogAssetIds)
+const v2FrontCatalogBrandIdSet = new Set(v2FrontCatalogBrandIds)
+
+function isFrontCatalogAsset(asset: Pick<PartAsset, "id" | "categoryId">) {
+  if (asset.categoryId === "wheels" || asset.categoryId === "calipers") return true
+  return v2FrontCatalogAssetIdSet.has(asset.id)
+}
+
+function isFrontCatalogBrand(brand: Pick<PartBrand, "id" | "categoryId">) {
+  if (brand.categoryId === "wheels" || brand.categoryId === "calipers") return true
+  return v2FrontCatalogBrandIdSet.has(brand.id)
+}
+
+export function classicPaints(options: { activeOnly?: boolean } = {}): BrandClassicPaint[] {
+  const where = options.activeOnly ? "WHERE active = 1" : ""
+  const rows = database()
+    .prepare(`SELECT * FROM vehicle_classic_paints ${where} ORDER BY is_default DESC, brand ASC, sort_order ASC, label_en ASC, label ASC, id ASC`)
+    .all() as Row[]
+  return rows.map(mapClassicPaint)
+}
+
+export function getClassicPaint(id: string): BrandClassicPaint | null {
+  const paintId = normalizeClassicPaintId(id)
+  if (!paintId) return null
+  const row = database().prepare("SELECT * FROM vehicle_classic_paints WHERE id = ? LIMIT 1").get(paintId) as Row | undefined
+  return row ? mapClassicPaint(row) : null
+}
+
+export function upsertClassicPaint(input: Partial<BrandClassicPaint> & { id?: string }) {
+  const brand = String(input.brand || "").trim()
+  const labelZh = String(input.labelZh || input.label || "").trim()
+  const labelEn = String(input.labelEn || input.label || "").trim()
+  const label = String(input.label || labelEn || labelZh).trim()
+  const colorCode = String(input.colorCode || "").trim()
+  const hex = normalizeHexColor(input.hex || "")
+  const material = normalizePaintMaterial(input.material)
+  const prompt = String(input.prompt || "").trim()
+  const brandAliases = normalizeClassicPaintBrandAliases(input.brandAliases)
+  const isDefault = input.isDefault === true
+  const id = normalizeClassicPaintId(input.id || `${brand}-${labelEn || labelZh || label}-${colorCode || hex}`)
+  if (!id) throw new Error("Classic paint id is required.")
+  if (!brand) throw new Error("Classic paint brand is required.")
+  if (!labelZh && !labelEn && !label) throw new Error("Classic paint label is required.")
+  if (!hex) throw new Error("Classic paint HEX color is required.")
+  if (!prompt) throw new Error("Classic paint prompt is required.")
+  const now = nowMs()
+  database()
+    .prepare(`
+      INSERT INTO vehicle_classic_paints
+      (id, brand, label, label_zh, label_en, brand_aliases_json, color_code, hex, material, prompt, active, is_default, sort_order, built_in, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        brand = excluded.brand,
+        label = excluded.label,
+        label_zh = excluded.label_zh,
+        label_en = excluded.label_en,
+        brand_aliases_json = excluded.brand_aliases_json,
+        color_code = excluded.color_code,
+        hex = excluded.hex,
+        material = excluded.material,
+        prompt = excluded.prompt,
+        active = excluded.active,
+        is_default = excluded.is_default,
+        sort_order = excluded.sort_order,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      id,
+      brand,
+      label || labelEn || labelZh,
+      labelZh || label || labelEn,
+      labelEn || label || labelZh,
+      JSON.stringify(brandAliases),
+      colorCode,
+      hex,
+      material,
+      prompt,
+      input.active === false ? 0 : 1,
+      isDefault ? 1 : 0,
+      Number.isFinite(Number(input.sortOrder)) ? Number(input.sortOrder) : 100,
+      systemClassicPaintIds.has(id) ? 1 : 0,
+      now,
+      now,
+    )
+  writeAudit("", "admin.classic_paint.upsert", { id, brand, active: input.active !== false, isDefault })
+  return getClassicPaint(id) as BrandClassicPaint
+}
+
+export function updateClassicPaint(id: string, patch: Partial<BrandClassicPaint>) {
+  const paintId = normalizeClassicPaintId(id)
+  const current = getClassicPaint(paintId)
+  if (!current) throw new Error("Classic paint not found.")
+  const next: BrandClassicPaint = { ...current }
+  ;(Object.keys(patch) as Array<keyof BrandClassicPaint>).forEach((key) => {
+    if (patch[key] !== undefined) {
+      ;(next as Record<string, unknown>)[key] = patch[key]
+    }
+  })
+  return upsertClassicPaint({ ...next, id: paintId })
+}
+
+export function deleteClassicPaint(id: string) {
+  const paintId = normalizeClassicPaintId(id)
+  const current = getClassicPaint(paintId)
+  if (!current) throw new Error("Classic paint not found.")
+  if (systemClassicPaintIds.has(paintId)) {
+    database().prepare("UPDATE vehicle_classic_paints SET active = 0, updated_at = ? WHERE id = ?").run(nowMs(), paintId)
+  } else {
+    database().prepare("DELETE FROM vehicle_classic_paints WHERE id = ?").run(paintId)
+  }
+  writeAudit("", "admin.classic_paint.delete", { id: paintId, builtIn: systemClassicPaintIds.has(paintId) })
 }
 
 export function listAvatarPresets(options: { activeOnly?: boolean } = {}): AccountAvatarPreset[] {
@@ -2460,6 +2672,7 @@ export function getAdminSummary(): AdminSummary {
     prompts: prompts(),
     promptTemplates: promptTemplates(),
     avatarPresets: listAvatarPresets(),
+    classicPaints: classicPaints(),
     workflows: workflowConfigs(),
     guardrailConfig: getGuardrailConfig(),
     chatSessions: listChatSessions(),
@@ -2921,11 +3134,32 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
   const allowedColorPolicies = resolveAllowedColorPolicies(next, defaultColorPolicy)
   database()
     .prepare(`
-      UPDATE part_assets
-      SET category_id = ?, brand_id = ?, brand = ?, model = ?, variant = ?, keywords = ?, color = ?, finish = ?, image_url = ?, image_crop = ?, active = ?, sort_order = ?, prompt_hint = ?, default_color_policy = ?, allowed_color_policies_json = ?, prompt_test_status = ?, generation_ready = ?, bad_case_notes = ?, recommended_views_json = ?
-      WHERE id = ?
+      INSERT INTO part_assets
+      (id, category_id, brand_id, brand, model, variant, keywords, color, finish, image_url, image_crop, active, sort_order, prompt_hint, default_color_policy, allowed_color_policies_json, prompt_test_status, generation_ready, bad_case_notes, recommended_views_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        category_id = excluded.category_id,
+        brand_id = excluded.brand_id,
+        brand = excluded.brand,
+        model = excluded.model,
+        variant = excluded.variant,
+        keywords = excluded.keywords,
+        color = excluded.color,
+        finish = excluded.finish,
+        image_url = excluded.image_url,
+        image_crop = excluded.image_crop,
+        active = excluded.active,
+        sort_order = excluded.sort_order,
+        prompt_hint = excluded.prompt_hint,
+        default_color_policy = excluded.default_color_policy,
+        allowed_color_policies_json = excluded.allowed_color_policies_json,
+        prompt_test_status = excluded.prompt_test_status,
+        generation_ready = excluded.generation_ready,
+        bad_case_notes = excluded.bad_case_notes,
+        recommended_views_json = excluded.recommended_views_json
     `)
     .run(
+      id,
       next.categoryId,
       brandId,
       next.brand,
@@ -2945,7 +3179,7 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
       next.generationReady ? 1 : 0,
       next.badCaseNotes ?? "",
       JSON.stringify(recommendedViews),
-      id,
+      nowMs(),
     )
   if (patch.generationReferences) {
     replaceAssetReferences(id, patch.generationReferences as AssetReferenceInput[])
@@ -3343,29 +3577,37 @@ function mapBrandRow(row: Row): PartBrand {
   }
 }
 
-function seedAsset(asset: PartAsset, row?: Row): PartAsset {
+function normalizeAssetReferenceList(assetId: string, references: PartAssetReference[] | undefined): PartAssetReference[] {
+  return (references ?? []).map((reference, index) => ({
+    ...reference,
+    id: reference.id || `${assetId}-seed-ref-${index + 1}`,
+    assetId,
+    role: normalizeReferenceRole(reference.role),
+    view: reference.view || "product",
+    priority: Number.isFinite(Number(reference.priority)) ? Number(reference.priority) : index + 1,
+    promptHint: reference.promptHint || "",
+    uploadToModel: reference.uploadToModel !== false && reference.role !== "avoid_upload",
+    active: reference.active !== false,
+    createdAt: reference.createdAt || 0,
+  }))
+}
+
+function seedAsset(asset: PartAsset, row?: Row, references?: Map<string, PartAssetReference[]>): PartAsset {
   const defaultColorPolicy = normalizeColorPolicy(asset.defaultColorPolicy) ?? inferAssetDefaultColorPolicy(asset)
   const allowedColorPolicies = resolveAllowedColorPolicies(asset, defaultColorPolicy)
+  const runtimeImageUrl = row?.image_url === undefined ? "" : String(row.image_url || "").trim()
+  const runtimeImageCrop = row?.image_crop === undefined ? asset.imageCrop ?? "" : String(row.image_crop ?? "")
+  const runtimeReferences = references?.get(asset.id)
   return {
     ...asset,
     keywords: normalizeAssetKeywords(asset.keywords || defaultAssetKeywords(asset)),
-    imageCrop: asset.imageCrop ?? "",
+    imageUrl: runtimeImageUrl || asset.imageUrl,
+    imageCrop: runtimeImageCrop,
     active: row ? Boolean(row.active) : asset.active,
     sortOrder: Number.isFinite(Number(row?.sort_order)) ? Number(row?.sort_order) : asset.sortOrder,
     defaultColorPolicy,
     allowedColorPolicies,
-    generationReferences: (asset.generationReferences ?? []).map((reference, index) => ({
-      ...reference,
-      id: reference.id || `${asset.id}-seed-ref-${index + 1}`,
-      assetId: asset.id,
-      role: normalizeReferenceRole(reference.role),
-      view: reference.view || "product",
-      priority: Number.isFinite(Number(reference.priority)) ? Number(reference.priority) : index + 1,
-      promptHint: reference.promptHint || "",
-      uploadToModel: reference.uploadToModel !== false && reference.role !== "avoid_upload",
-      active: reference.active !== false,
-      createdAt: reference.createdAt || 0,
-    })),
+    generationReferences: normalizeAssetReferenceList(asset.id, runtimeReferences?.length ? runtimeReferences : asset.generationReferences),
     promptTestStatus: row ? normalizePromptTestStatus(row.prompt_test_status) : asset.promptTestStatus ?? "untested",
     generationReady: row ? Boolean(row.generation_ready) : asset.generationReady ?? false,
     badCaseNotes: row ? String(row.bad_case_notes ?? "") : asset.badCaseNotes ?? "",
@@ -3493,6 +3735,59 @@ function workflowFallbackProviderOverride(value: ProviderId | "", fallback: Prov
   return value
 }
 
+function mapClassicPaint(row: Row): BrandClassicPaint {
+  const label = String(row.label || "")
+  return {
+    id: String(row.id),
+    brand: String(row.brand || ""),
+    label,
+    labelZh: String(row.label_zh || label),
+    labelEn: String(row.label_en || label),
+    brandAliases: normalizeClassicPaintBrandAliases(safeJson<string[]>(String(row.brand_aliases_json || "[]"), [])),
+    colorCode: String(row.color_code || ""),
+    hex: normalizeHexColor(row.hex) || "#6f7682",
+    material: normalizePaintMaterial(row.material),
+    prompt: String(row.prompt || ""),
+    active: Boolean(row.active),
+    isDefault: Boolean(row.is_default),
+    sortOrder: Number(row.sort_order || 0),
+  }
+}
+
+function normalizeClassicPaintId(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+}
+
+function normalizeHexColor(value: unknown) {
+  const raw = String(value || "").trim()
+  const match = raw.match(/^#?([0-9a-f]{6})$/i)
+  return match ? `#${match[1].toLowerCase()}` : ""
+}
+
+function normalizePaintMaterial(value: unknown): BrandClassicPaint["material"] {
+  const material = String(value || "").trim().toLowerCase()
+  if (material === "metallic" || material === "matte" || material === "satin" || material === "pearl" || material === "chrome" || material === "gradient") return material
+  return "gloss"
+}
+
+function normalizeClassicPaintBrandAliases(value: unknown) {
+  const seen = new Set<string>()
+  return normalizeStringArray(value)
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter((item) => {
+      const key = item.toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 80)
+}
+
 function categories() {
   const rows = database().prepare("SELECT * FROM asset_categories ORDER BY sort_order ASC").all() as Row[]
   const rowById = new Map(rows.map((row) => [String(row.id), row]))
@@ -3516,7 +3811,7 @@ function assets(): PartAsset[] {
   const rowById = new Map(rows.map((row) => [String(row.id), row]))
   const references = assetReferencesByAssetId()
   return [
-    ...assetsSeed.map((asset) => seedAsset(asset, rowById.get(asset.id))),
+    ...assetsSeed.map((asset) => seedAsset(asset, rowById.get(asset.id), references)),
     ...rows.filter((row) => !systemAssetIds.has(String(row.id))).map((row) => mapAssetRow(row, references)),
   ].toSorted((a, b) => a.categoryId.localeCompare(b.categoryId) || a.brandId.localeCompare(b.brandId) || a.sortOrder - b.sortOrder)
 }

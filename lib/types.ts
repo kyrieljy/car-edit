@@ -21,10 +21,17 @@ export type PartBrand = {
 export type PartReferenceRole = "shape_reference" | "material_reference" | "color_reference" | "install_context" | "full_part_reference" | "avoid_upload"
 export type PartPromptTestStatus = "untested" | "pass" | "weak" | "fail"
 export type PartColorPolicy = "body_color" | "exposed_carbon" | "part_reference_color"
+export type PartSurfaceColor = "black" | "exposed_carbon" | "body_color"
+export type CaliperRotorOption = "stock" | "big_brake" | "carbon_ceramic"
+export type DryCarbonPartId = "hood" | "mirrors" | "fenders" | "trunk-lid"
 export type PartSelectionOptions = Record<
   string,
   {
     colorPolicy?: PartColorPolicy
+    surfaceColor?: PartSurfaceColor
+    caliperColor?: string
+    rotorOption?: CaliperRotorOption
+    dryCarbonParts?: DryCarbonPartId[]
   }
 >
 
@@ -73,6 +80,22 @@ export type PaintOption = {
 }
 
 export type PaintFinishEffect = "gloss" | "metallic" | "matte" | "satin" | "pearl" | "chrome" | "gradient"
+
+export type BrandClassicPaint = {
+  id: string
+  brand: string
+  label: string
+  labelZh: string
+  labelEn: string
+  brandAliases?: string[]
+  colorCode: string
+  hex: string
+  material: PaintFinishEffect
+  prompt: string
+  active: boolean
+  isDefault?: boolean
+  sortOrder: number
+}
 
 export type PaintGradient = {
   fromHex: string
@@ -160,6 +183,7 @@ export type CatalogResponse = {
   brands: PartBrand[]
   assets: PartAsset[]
   paints: PaintOption[]
+  classicPaints: BrandClassicPaint[]
   providers: ProviderConfig[]
   promptPreset: PromptPreset
   promptTemplates: PromptTemplate[]
@@ -294,6 +318,8 @@ export type GenerationPartSpec = {
     uploadToModel: boolean
   }>
   instruction: string
+  optionSummary?: string
+  options?: Record<string, unknown>
 }
 
 export type GenerationStandardJson = {
@@ -638,6 +664,7 @@ export type AdminSummary = {
   prompts: PromptPreset[]
   promptTemplates: PromptTemplate[]
   avatarPresets: AccountAvatarPreset[]
+  classicPaints: BrandClassicPaint[]
   workflows: WorkflowConfig[]
   guardrailConfig: GuardrailConfig
   chatSessions: ChatSession[]
