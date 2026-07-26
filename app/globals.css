@@ -5140,7 +5140,10 @@ a {
 }
 
 .compare-slider-before {
-  clip-path: inset(0 calc(100% - var(--slider-position)) 0 0);
+  /* Visible region: from var(--slider-position) to the right edge. The
+     original image is revealed on the RIGHT of the divider; dragging right
+     shrinks the original and exposes the generated image on the left. */
+  clip-path: inset(0 0 0 var(--slider-position));
   z-index: 2;
 }
 

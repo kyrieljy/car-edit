@@ -5,9 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronsLeftRight } from "lucide-react"
 
 type ImageComparisonSliderProps = {
-  // Original image, rendered on the left side of the divider.
+  // Original image, revealed on the RIGHT side of the divider.
   beforeSrc: string
-  // Generated image, rendered on the right side of the divider.
+  // Generated image, fills the container and shows on the LEFT side of the divider.
   afterSrc: string
   altBefore?: string
   altAfter?: string
@@ -27,9 +27,10 @@ const AUTOPLAY_DURATION_MS = 1500
 // 60 fps target → ~16.67 ms per frame
 const AUTOPLAY_FRAME_MS = 17
 
-// Overlapping before/after comparison slider. The before image is clipped to
-// the left of the divider; the after image fills the container underneath.
-// Dragging from left to right reveals the generated image progressively.
+// Overlapping before/after comparison slider. The before image is
+// clipped to the RIGHT of the divider; the after image fills the container underneath.
+// Dragging from left to right reveals the generated image progressively
+// (original -> generated), matching the autoPlay 0 -> 100 direction.
 export function ImageComparisonSlider({
   beforeSrc,
   afterSrc,
@@ -150,15 +151,17 @@ export function ImageComparisonSlider({
       onPointerDown={handlePointerDown}
       onClick={handleClick}
     >
-      {/* Bottom layer: generated image fills the whole container. */}
+      {/* Bottom layer: generated image fills the whole container; visible on
+          the LEFT of the divider. */}
       <img
         className="compare-slider-after compare-slider-layer"
         src={afterSrc}
         alt={altAfter}
         draggable={false}
       />
-      {/* Top layer: original image clipped to the left of the divider.
-          Dragging right reveals the generated image underneath. */}
+      {/* Top layer: original image clipped to the RIGHT of the divider.
+          Dragging right shrinks the original and exposes the generated image
+          on the left (original -> generated). */}
       <img
         className="compare-slider-before compare-slider-layer"
         src={beforeSrc}

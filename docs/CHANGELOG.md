@@ -2,6 +2,12 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## v0.1.5 - 2026-07-26
+
+### 修改
+- [修改] app/globals.css `.compare-slider-before` 的 `clip-path` 由 `inset(0 calc(100% - var(--slider-position)) 0 0)` 改为 `inset(0 0 0 var(--slider-position))`，原图层由分隔线左侧裁剪改为右侧裁剪，使从左向右滑动呈"原图 → 生成图"过渡 (关联方案ID: DESIGN-20260726-001)
+- [修改] components/image-comparison-slider.tsx 同步更新 Props 与裁剪方向相关注释，描述原图显示在分隔线右侧、从左向右滑动由原图过渡为生成图 (关联方案ID: DESIGN-20260726-001)
+
 ## v0.1.4 - 2026-07-25
 
 ### 新增
@@ -114,4 +120,4 @@
 - [文档] docs/DB_SCHEMA.md 数据库设计文档
 - [文档] docs/CHANGELOG.md 变更日志
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-07-26
