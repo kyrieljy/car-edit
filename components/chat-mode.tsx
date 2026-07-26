@@ -32,6 +32,16 @@ import type { AuthUser, ChatMessage, ChatSession, EntitlementStatus, GenerationP
 type Language = "en" | "zh"
 type MobileAccessKind = "login" | "config_quota" | "chat_quota" | null
 
+type ChatHistoryApi = {
+  pinned: ChatSession[]
+  recent: ChatSession[]
+  activeSessionId: string
+  onSelect: (id: string) => void
+  onNewChat: () => void
+  onPin: (session: ChatSession) => void
+  onDelete: (session: ChatSession) => void
+}
+
 type ChatModeProps = {
   language: Language
   authUser?: AuthUser | null
@@ -45,6 +55,7 @@ type ChatModeProps = {
   mobileSidebarOpen?: boolean
   setMobileSidebarOpen?: (open: boolean) => void
   hideMobileMenu?: boolean
+  onChatApiReady?: (api: ChatHistoryApi) => void
 }
 
 const fallbackPrompts = [
@@ -339,6 +350,7 @@ export function ChatMode({
   mobileSidebarOpen: controlledMobileSidebarOpen,
   setMobileSidebarOpen: setControlledMobileSidebarOpen,
   hideMobileMenu = false,
+  onChatApiReady,
 }: ChatModeProps) {
   const t = chatCopy[language]
   const vehicleInputRef = useRef<HTMLInputElement | null>(null)
@@ -744,6 +756,24 @@ export function ChatMode({
       setPendingPartColorPolicyChoice(null)
     }
   }
+
+  // expose chat history API to mobile parent when in mobile variant.
+  // Uses refs to avoid re-triggering the effect when session action
+  // callbacks are recreated each render.
+  const chatApiRef = useRef<ChatHistoryApi | null>(null)
+  chatApiRef.current = {
+    pinned,
+    recent,
+    activeSessionId,
+    onSelect: selectSession,
+    onNewChat: createSession,
+    onPin: togglePinSession,
+    onDelete: deleteSession,
+  }
+  useEffect(() => {
+    if (!mobileVariant || !onChatApiReady) return
+    onChatApiReady(chatApiRef.current as ChatHistoryApi)
+  }, [mobileVariant, onChatApiReady, pinned, recent, activeSessionId])
 
   const onVehicleFile = useCallback((file: File | undefined) => {
     if (!file) return

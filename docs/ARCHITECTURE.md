@@ -136,13 +136,14 @@ Next.js Route Handlers，作为系统的 HTTP 入口。负责处理外部请求�
 React 组件层，负责用户界面渲染与交互。采用单组件状态管理模式（useState），使用 framer-motion 实现动画效果，shadcn/ui 提供基础 UI 组件。
 
 **关键组件**：
-- `components/car-mod-studio.tsx` -- 核心工作室组件，应用主界面；包含 PC 端浮动垂直菜单栏（AppMenu 导航）与 ComingSoonPlaceholder 占位
-- `components/chat-mode.tsx` -- 对话模式组件
+- `components/car-mod-studio.tsx` -- 核心工作室组件，应用主界面；包含 PC 端浮动垂直菜单栏（AppMenu 导航）与 ComingSoonPlaceholder 占位；改图结果区仅保留对比滑块视图（原图/生成图页签已移除）
+- `components/chat-mode.tsx` -- 对话模式组件；移动端场景下通过 onChatApiReady 回调向父组件暴露会话数据与操作方法
 - `components/admin-console.tsx` -- 管理后台控制台
 - `components/workflow-designer.tsx` -- 工作流设计器
 - `components/auth-modal.tsx` -- 认证弹窗
 - `components/subscribe-modal.tsx` -- 订阅弹窗
-- `components/mobile/mobile-studio-app.tsx` -- 移动端适配组件；包含 MobileMenuDrawer 全屏菜单抽屉、chat 模式内嵌侧栏按钮、用户中心历史子页面
+- `components/theme-context.tsx` -- 全站主题 Context（ThemeProvider + useTheme），管理 dark/light 主题状态、localStorage 持久化、系统偏好监听、`<html data-theme>` 属性同步
+- `components/mobile/mobile-studio-app.tsx` -- 移动端适配组件；包含 MobileMenuDrawer 全屏菜单抽屉（四子菜单单列布局，配置模式下追加生成历史列表，对话模式下追加历史会话列表）、用户中心子页面（编辑资料/换绑手机号/修改密码/消息提醒）
 
 ### 层间通信方式
 
@@ -167,6 +168,16 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
 
 ## 技术决策记录（ADR）
+
+### ADR-0005：全站主题切换方案
+
+- **状态**：已采纳
+- **日期**：2026-07-26
+- **背景**：用户需要在暗色调与明亮色调之间切换全站主题。项目中存在未落地的 `theme-provider.tsx`（引用未安装的 `next-themes`），以及仅移动端生效且被强制写死为 dark 的 `mobileTheme` 局部状态
+- **决策**：采用原生 React Context + CSS 变量 + `data-theme` 属性的三层架构。新建 `components/theme-context.tsx` 提供 `ThemeProvider` 与 `useTheme` hook，通过 `<html data-theme="dark|light">` 属性驱动 CSS 变量切换。不引入 `next-themes` 依赖，与项目纯 CSS 技术栈保持一致
+- **理由**：零新依赖，与现有纯 CSS 变量体系无缝衔接；`data-theme` 属性选择器与移动端已有的 `[data-theme="light"]` 样式自然合并；防闪烁内联脚本确保首屏无 FOUC
+- **影响**：主题状态从 `car-mod-studio.tsx` 局部 state 提升为全局 Context，桌面端与移动端共享同一主题状态；`globals.css` 新增 `[data-theme="light"]` 桌面端变量覆盖集；`app/layout.tsx` 需用 `ThemeProvider` 包裹 `children`。DESIGN-20260726-003 在此基础上重构 PC 端亮色色彩体系：亮色变量取值调整为 #f7f7f7 底 + #ffffff 卡面的纯净白系；新增 `--input-bg` 语义变量统一控件半透明背景；修复 `.app-shell` 硬编码黑底不响应主题的核心问题（新增亮色覆盖 + 弱化金色装饰）；将 PC 端 30 余处硬编码深色背景替换为 CSS 变量或新增亮色覆盖规则（覆盖 Chat 容器、管理后台、工作流设计器、图片容器、控件输入框、`.chat-bg`/`.result-window` 渐变等区域）。DESIGN-20260726-004 补全亮色主题遗漏区域：模式切换页签（`.trae-mode-switch`/`.mode-pill`）变量替换 + 亮色 pill 反转覆盖；配件下拉（`.parts-dropdown-inner`）变量替换；对话模式约 60 处硬编码按 9 个子区域分类替换为 CSS 变量或新增 `[data-theme="light"]` 覆盖（覆盖侧边栏、历史列表、空状态粒子、对话气泡、composer、prompt 下拉等）；订阅/支付弹窗（pricing-template 系列）约 15 处新增亮色覆盖；context-choice-actions 选中态亮色反转覆盖。DESIGN-20260726-005 继续完善主题切换体验：配置模式空状态（`.result-empty`）亮色下背景统一为 var(--bg)、图标线条与文字改为 var(--text) 黑色、图标外框黑色半透明背景改为透明；PC 端明暗切换按钮（`.theme-toggle`）加入通用按钮选择器组获得完整盒模型，新增 `.studio-header-actions .theme-toggle` 72px 宽度约束与中英文按钮完全对齐，亮色下新增 color 覆盖确保 ::after 文字可见；手机端 `MobileFloatingTopBar` 新增明暗切换按钮（复用 useTheme/toggleTheme，Moon/Sun 图标），补全 `.mobile-floating-theme` 在 transition/detached/light+detached 三个规则组中的遗漏。DESIGN-20260726-006 补全弹窗亮色适配：个人中心弹窗（`.account-panel*` 系列）新增约 30 处 `[data-theme="light"]` 亮色覆盖（遮罩/主容器/头部/按钮/用户信息区/额度卡片/Tab 导航/表单/头像选择器/消息提示/空状态），背景统一为 var(--surface)/var(--input-bg)，文字统一为 var(--text)/var(--muted)；会员弹窗（`.pricing-template*` 系列）补充容器层亮色覆盖 4 处（`.pricing-backdrop` 遮罩、`.subscribe-modal.pricing-template` 主容器、`.pricing-template-head h2`/`small` 标题文字）。DESIGN-20260726-007 移动端生成历史迁移至左上角菜单：个人信息页面移除"生成历史"入口，`MobileMenuDrawer` 配置模式下新增生成历史列表区块（复用 `MobileHistorySheet`），统一两种模式下"先看四子菜单、再看对应历史"的心智模型；`MobileProfilePage` 不再包含历史子页面
+- **关联方案ID**：DESIGN-20260726-002、DESIGN-20260726-003、DESIGN-20260726-004、DESIGN-20260726-005、DESIGN-20260726-006、DESIGN-20260726-007
 
 ### ADR-0004：暗黑奢华 UI 设计风格
 
@@ -240,4 +251,5 @@ flowchart LR
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-07-26
+> 关联方案ID：DESIGN-20260726-006、DESIGN-20260726-007

@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Clock,
   CreditCard,
   ImageIcon,
   KeyRound,
@@ -23,6 +24,7 @@ import {
   LogOut,
   MailOpen,
   Menu,
+  Moon,
   Palette,
   Pencil,
   Plus,
@@ -30,6 +32,8 @@ import {
   Save,
   SlidersHorizontal,
   Sparkles,
+  Star,
+  Sun,
   Upload,
   UserRound,
   WalletCards,
@@ -40,13 +44,13 @@ import {
   PencilRuler,
   Video,
   Zap,
-  History,
 } from "lucide-react"
 import { AccountAvatar } from "@/components/account-avatar"
 import { AuthModal } from "@/components/auth-modal"
 import { ChatMode } from "@/components/chat-mode"
 import { ImageComparisonSlider } from "@/components/image-comparison-slider"
 import { SubscribeModal } from "@/components/subscribe-modal"
+import { useTheme } from "@/components/theme-context"
 import { ACCOUNT_MESSAGES_REFRESH_EVENT } from "@/lib/account-events"
 import {
   changeAccountPassword,
@@ -65,6 +69,7 @@ import type {
   AccountMessage,
   AuthUser,
   CatalogResponse,
+  ChatSession,
   EntitlementStatus,
   GenerationJob,
   GenerationProgressEvent,
@@ -81,7 +86,15 @@ type Language = "en" | "zh"
 type AppMode = "config" | "chat"
 type AppMenu = "edit" | "generate" | "video" | "effect"
 type ViewMode = "generated" | "original" | "compare"
-type MobileTheme = "dark" | "light"
+type ChatHistoryApi = {
+  pinned: ChatSession[]
+  recent: ChatSession[]
+  activeSessionId: string
+  onSelect: (id: string) => void
+  onNewChat: () => void
+  onPin: (session: ChatSession) => void
+  onDelete: (session: ChatSession) => void
+}
 type MobileSheet = "parts" | "paint" | "stance" | "details" | "history" | null
 type MobileAccessKind = "login" | "config_quota" | "chat_quota" | null
 
@@ -140,8 +153,6 @@ type MobileStudioAppProps = {
   t: MobileCopy
   appMode: AppMode
   setAppMode: (mode: AppMode) => void
-  mobileTheme: MobileTheme
-  toggleMobileTheme: () => void
   toggleLanguage: () => void
   catalog: CatalogResponse
   categories: MobileCategory[]
@@ -537,7 +548,6 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
     t,
     appMode,
     setAppMode,
-    mobileTheme,
     toggleLanguage,
     authUser,
     authOpen,
@@ -550,13 +560,14 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
     onBillingChanged,
     logout,
   } = props
+  const { theme, toggleTheme } = useTheme()
   const previousModeRef = useRef(appMode)
   const [visibleModes, setVisibleModes] = useState<AppMode[]>([appMode])
   const [modeTransitionDirection, setModeTransitionDirection] = useState<"forward" | "back">("forward")
   const [configHistoryOpen, setConfigHistoryOpen] = useState(false)
-  const [chatSidebarOpen, setChatSidebarOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false)
+  const [chatHistoryApi, setChatHistoryApi] = useState<ChatHistoryApi | null>(null)
   const [activeMenu, setActiveMenu] = useState<AppMenu>("edit")
   const [topbarDetached, setTopbarDetached] = useState(false)
   const [accessBannerShakeKey, setAccessBannerShakeKey] = useState(0)
@@ -598,7 +609,6 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
 
   useEffect(() => {
     if (appMode !== "config" || accessKind === "login") setConfigHistoryOpen(false)
-    if (appMode !== "chat") setChatSidebarOpen(false)
   }, [accessKind, appMode])
 
   useEffect(() => {
@@ -656,12 +666,12 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
     }
   }, [])
 
-  const mobileOverlayOpen = configHistoryOpen || profileOpen || authOpen || subscribeOpen || chatSidebarOpen || menuDrawerOpen
+  const mobileOverlayOpen = configHistoryOpen || profileOpen || authOpen || subscribeOpen || menuDrawerOpen
 
   return (
     <main
       className="mobile-studio-app"
-      data-theme={mobileTheme}
+      data-theme={theme}
       data-mode={appMode}
       data-access-banner={accessBannerVisible ? "visible" : "hidden"}
       data-topbar={topbarDetached ? "detached" : "top"}
@@ -672,6 +682,8 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
         language={language}
         onLanguage={toggleLanguage}
         onProfile={() => setProfileOpen(true)}
+        theme={theme}
+        onTheme={toggleTheme}
         onMenu={() => {
           if (accessKind === "login") {
             triggerAccessBanner()
@@ -717,7 +729,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
               {mode === "config" ? (
                 <MobileConfigMode {...frameProps} />
               ) : (
-                <MobileChatMode {...frameProps} mobileSidebarOpen={chatSidebarOpen} setMobileSidebarOpen={setChatSidebarOpen} />
+                <MobileChatMode {...frameProps} onChatApiReady={setChatHistoryApi} />
               )}
             </div>
           )
@@ -727,10 +739,18 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
         open={menuDrawerOpen}
         onClose={() => setMenuDrawerOpen(false)}
         language={language}
+        appMode={appMode}
+        chatHistoryApi={chatHistoryApi}
         onSelect={(menu) => {
           setMenuDrawerOpen(false)
           setActiveMenu(menu)
         }}
+        history={props.history}
+        job={props.job}
+        selectHistoryJob={props.selectHistoryJob}
+        deleteHistoryJob={props.deleteHistoryJob}
+        formatHistoryTitle={props.formatHistoryTitle}
+        t={props.t}
       />
       <MobileHistoryDrawer open={configHistoryOpen} onClose={() => setConfigHistoryOpen(false)} {...props} />
       <MobileProfilePage open={profileOpen} onClose={() => setProfileOpen(false)} {...props} />
@@ -738,14 +758,14 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
       <AuthModal
         open={authOpen}
         language={language}
-        mobileTheme={mobileTheme}
+        mobileTheme={theme}
         onClose={() => setAuthOpen(false)}
         onAuthed={onAuthed}
       />
       <SubscribeModal
         open={subscribeOpen}
         language={language}
-        mobileTheme={mobileTheme}
+        mobileTheme={theme}
         billing={billing}
         onClose={() => setSubscribeOpen(false)}
         onUpdated={onBillingUpdated}
@@ -917,17 +937,12 @@ function MobileConfigMode(props: MobileStudioAppProps) {
   const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
   const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGenerated = Boolean(generatedResultUrl)
-  const canUseGeneratedView = hasGenerated
-  const canUseCompareView = Boolean(vehiclePreview && hasGenerated)
-  const effectiveViewMode = vehiclePreview ? viewMode : "original"
-  const isCompareView = effectiveViewMode === "compare" && hasGenerated
-  const isGeneratedResultView = effectiveViewMode === "generated" && hasGenerated
-  const canToggleMediaChrome = isCompareView || isGeneratedResultView
-  const canUploadFromMedia = effectiveViewMode === "original"
+  const isCompareView = Boolean(vehiclePreview && hasGenerated)
+  const canToggleMediaChrome = isCompareView
+  const canUploadFromMedia = !hasGenerated
   const mediaCardClassName = [
     "mobile-media-card",
     isCompareView ? "is-compare" : "",
-    isGeneratedResultView ? "is-generated-result" : "",
     canToggleMediaChrome ? "can-toggle-chrome" : "",
     mediaChromeHidden ? "chrome-hidden" : "",
   ].filter(Boolean).join(" ")
@@ -1034,7 +1049,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
           }}
         >
           {vehiclePreview ? (
-            isCompareView ? (
+            hasGenerated ? (
               <ImageComparisonSlider
                 key={compareKey}
                 beforeSrc={safeVehiclePreview}
@@ -1044,7 +1059,10 @@ function MobileConfigMode(props: MobileStudioAppProps) {
                 autoPlay
               />
             ) : (
-              <img src={effectiveViewMode === "original" || !hasGenerated ? safeVehiclePreview : safeGeneratedResultUrl} alt="Vehicle preview" />
+              <span className="mobile-upload-empty">
+                <Sparkles size={30} />
+                <strong>生成后可查看对比效果</strong>
+              </span>
             )
           ) : (
             <span className="mobile-upload-empty">
@@ -1067,17 +1085,6 @@ function MobileConfigMode(props: MobileStudioAppProps) {
             disabled={isLoginBlocked || (!vehiclePreview && !vehicleNote)}
           />
         </label>
-        <div className="mobile-view-tabs" role="tablist" aria-hidden={canToggleMediaChrome && mediaChromeHidden}>
-          <button type="button" className={effectiveViewMode === "original" ? "active" : ""} onClick={() => runMobileAction(() => setViewMode("original"))}>
-            {t.original}
-          </button>
-          <button type="button" className={effectiveViewMode === "generated" ? "active" : ""} disabled={!canUseGeneratedView && !isLoginBlocked} onClick={() => runMobileAction(() => setViewMode("generated"))}>
-            {t.generated}
-          </button>
-          <button type="button" className={effectiveViewMode === "compare" ? "active" : ""} disabled={!canUseCompareView && !isLoginBlocked} onClick={() => runMobileAction(() => setViewMode("compare"))}>
-            {t.compare}
-          </button>
-        </div>
         {completedElapsed !== null && <span className="mobile-elapsed-badge">{`${t.elapsed} ${completedElapsed}${t.elapsedUnit}`}</span>}
         {isGenerating && (
           <div className="mobile-progress-layer">
@@ -1098,7 +1105,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
           <X size={15} />
           {language === "zh" ? "\u6e05\u7a7a" : "Clear"}
         </button>
-        <button type="button" className="mobile-action-save" disabled={!hasGenerated} onClick={() => runMobileAction(() => saveResult(isCompareView ? "compare" : "generated"))}>
+        <button type="button" className="mobile-action-save" disabled={!hasGenerated} onClick={() => runMobileAction(() => saveResult())}>
           <ArrowDownToLine size={15} />
           {language === "zh" ? "\u4fdd\u5b58" : "Save"}
         </button>
@@ -2357,14 +2364,32 @@ function MobileMenuDrawer({
   open,
   onClose,
   language,
+  appMode,
+  chatHistoryApi,
   onSelect,
+  history,
+  job,
+  selectHistoryJob,
+  deleteHistoryJob,
+  formatHistoryTitle,
+  t,
 }: {
   open: boolean
   onClose: () => void
   language: Language
+  appMode: AppMode
+  chatHistoryApi: ChatHistoryApi | null
   onSelect: (menu: AppMenu) => void
+  history: GenerationJob[]
+  job: GenerationJob | null
+  selectHistoryJob: (job: GenerationJob) => void
+  deleteHistoryJob: (job: GenerationJob) => void
+  formatHistoryTitle?: (job: GenerationJob) => string
+  t: MobileCopy
 }) {
   const isZh = language === "zh"
+  const showChatHistory = appMode === "chat" && chatHistoryApi
+  const showGenHistory = appMode === "config"
   const menuItems: { key: AppMenu; icon: ReactNode; label: string; desc: string }[] = [
     { key: "edit", icon: <PencilRuler size={28} />, label: isZh ? "改图" : "Edit", desc: isZh ? "AI 汽车改装效果预览" : "AI car modification preview" },
     { key: "generate", icon: <ImagePlus size={28} />, label: isZh ? "生图" : "Generate", desc: isZh ? "AI 图像生成" : "AI image generation" },
@@ -2415,10 +2440,170 @@ function MobileMenuDrawer({
                 </button>
               ))}
             </div>
+            {showChatHistory && (
+              <MobileMenuChatHistory
+                language={language}
+                api={chatHistoryApi}
+                onClose={onClose}
+              />
+            )}
+            {showGenHistory && (
+              <MobileMenuGenerationHistory
+                language={language}
+                t={t}
+                history={history}
+                job={job}
+                selectHistoryJob={selectHistoryJob}
+                deleteHistoryJob={deleteHistoryJob}
+                formatHistoryTitle={formatHistoryTitle}
+                onClose={onClose}
+              />
+            )}
           </motion.aside>
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+function MobileMenuChatHistory({
+  language,
+  api,
+  onClose,
+}: {
+  language: Language
+  api: ChatHistoryApi
+  onClose: () => void
+}) {
+  const isZh = language === "zh"
+  const [pinnedOpen, setPinnedOpen] = useState(true)
+  const [recentOpen, setRecentOpen] = useState(true)
+  const { pinned, recent, activeSessionId, onSelect, onNewChat, onPin, onDelete } = api
+
+  const handleSelect = (id: string) => {
+    onSelect(id)
+    onClose()
+  }
+
+  const handleNewChat = () => {
+    onNewChat()
+    onClose()
+  }
+
+  const emptyText = isZh ? "暂无对话。" : "No chats yet."
+  const deleteLabel = isZh ? "删除对话" : "Delete chat"
+
+  return (
+    <div className="mobile-menu-chat-history">
+      <div className="mobile-menu-chat-history-header">
+        <strong>{isZh ? "对话历史" : "CHAT HISTORY"}</strong>
+        <button type="button" className="mobile-menu-new-chat" onClick={handleNewChat}>
+          <Plus size={14} />
+          {isZh ? "新建对话" : "New Chat"}
+        </button>
+      </div>
+      <div className="chat-history-scroll">
+        <section className={pinnedOpen ? "history-section open" : "history-section"}>
+          <button className="history-section-title" onClick={() => setPinnedOpen((v) => !v)}>
+            <ChevronDown className={pinnedOpen ? "" : "closed"} size={14} />
+            <Star size={16} />
+            {isZh ? "置顶对话" : "PINNED"}
+          </button>
+          <div className="history-section-body" aria-hidden={!pinnedOpen}>
+            <div className="history-section-body-inner">
+              {pinned.length ? (
+                pinned.map((session) => (
+                  <div key={session.id} className={session.id === activeSessionId ? "chat-row active" : "chat-row"}>
+                    <button className="chat-row-main" type="button" onClick={() => handleSelect(session.id)}>
+                      <strong>{session.title}</strong>
+                      <span>{session.messageCount} messages</span>
+                    </button>
+                    <button className={session.pinned ? "chat-pin active" : "chat-pin"} type="button" onClick={() => onPin(session)} aria-label={session.pinned ? "Unpin chat" : "Pin chat"}>
+                      <Star size={14} />
+                    </button>
+                    <button className="chat-delete" type="button" onClick={() => onDelete(session)} aria-label={deleteLabel}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-history">{emptyText}</div>
+              )}
+            </div>
+          </div>
+        </section>
+        <section className={recentOpen ? "history-section open" : "history-section"}>
+          <button className="history-section-title" onClick={() => setRecentOpen((v) => !v)}>
+            <ChevronDown className={recentOpen ? "" : "closed"} size={14} />
+            <Clock size={16} />
+            {isZh ? "最近对话" : "RECENT"}
+          </button>
+          <div className="history-section-body" aria-hidden={!recentOpen}>
+            <div className="history-section-body-inner">
+              {recent.length ? (
+                recent.map((session) => (
+                  <div key={session.id} className={session.id === activeSessionId ? "chat-row active" : "chat-row"}>
+                    <button className="chat-row-main" type="button" onClick={() => handleSelect(session.id)}>
+                      <strong>{session.title}</strong>
+                      <span>{session.messageCount} messages</span>
+                    </button>
+                    <button className={session.pinned ? "chat-pin active" : "chat-pin"} type="button" onClick={() => onPin(session)} aria-label={session.pinned ? "Unpin chat" : "Pin chat"}>
+                      <Star size={14} />
+                    </button>
+                    <button className="chat-delete" type="button" onClick={() => onDelete(session)} aria-label={deleteLabel}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-history">{emptyText}</div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function MobileMenuGenerationHistory({
+  language,
+  t,
+  history,
+  job,
+  selectHistoryJob,
+  deleteHistoryJob,
+  formatHistoryTitle,
+  onClose,
+}: {
+  language: Language
+  t: MobileCopy
+  history: GenerationJob[]
+  job: GenerationJob | null
+  selectHistoryJob: (job: GenerationJob) => void
+  deleteHistoryJob: (job: GenerationJob) => void
+  formatHistoryTitle?: (job: GenerationJob) => string
+  onClose: () => void
+}) {
+  const isZh = language === "zh"
+  return (
+    <div className="mobile-menu-gen-history">
+      <div className="mobile-menu-gen-history-header">
+        <strong>{isZh ? "生成历史" : "GENERATION HISTORY"}</strong>
+      </div>
+      <div className="chat-history-scroll">
+        <MobileHistorySheet
+          t={t}
+          history={history}
+          job={job}
+          selectHistoryJob={selectHistoryJob}
+          deleteHistoryJob={deleteHistoryJob}
+          formatHistoryTitle={formatHistoryTitle}
+          setSheet={() => {}}
+          onClose={onClose}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -2518,7 +2703,7 @@ function cleanMobileHistoryTitle(value: unknown) {
   return text
 }
 
-type MobileProfileSection = "overview" | "history" | "profile" | "password" | "phone" | "messages"
+type MobileProfileSection = "overview" | "profile" | "password" | "phone" | "messages"
 type MobileProfileRouteDirection = "forward" | "back"
 
 const mobileProfileRouteVariants = {
@@ -2546,19 +2731,14 @@ function MobileProfilePage({
   onClose,
   language,
   t,
-  mobileTheme,
   authUser,
   billing,
   setAuthOpen,
   setSubscribeOpen,
   onAuthed,
   logout,
-  history,
-  job,
-  selectHistoryJob,
-  deleteHistoryJob,
-  formatHistoryTitle,
 }: MobileStudioAppProps & { open: boolean; onClose: () => void }) {
+  const { theme } = useTheme()
   const isZh = language === "zh"
   const [section, setSection] = useState<MobileProfileSection>("overview")
   const [profileRouteDirection, setProfileRouteDirection] = useState<MobileProfileRouteDirection>("forward")
@@ -2885,22 +3065,6 @@ function MobileProfilePage({
       return renderProfileEditorShell(renderMessages())
     }
 
-    if (section === "history") {
-      return renderProfileEditorShell(
-        <div className="mobile-profile-history-list">
-          <MobileHistorySheet
-            t={t}
-            history={history}
-            job={job}
-            selectHistoryJob={selectHistoryJob}
-            deleteHistoryJob={deleteHistoryJob}
-            formatHistoryTitle={formatHistoryTitle}
-            setSheet={() => {}}
-          />
-        </div>
-      )
-    }
-
     if (section === "profile") {
       return renderProfileEditorShell(
         <form className="mobile-profile-editor" onSubmit={(event) => {
@@ -2997,7 +3161,7 @@ function MobileProfilePage({
       {open && (
         <motion.section
           className="mobile-profile-page"
-          data-mobile-theme={mobileTheme}
+          data-mobile-theme={theme}
           data-has-messages={authUser ? "true" : "false"}
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -3058,14 +3222,6 @@ function MobileProfilePage({
               </button>
             ) : (
               <>
-                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("history")}>
-                  <span><History size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "生成历史" : "Generation history"}</strong>
-                    <small>{isZh ? "查看已生成的改装效果图" : "View generated modification images"}</small>
-                  </div>
-                  <ChevronRight size={19} />
-                </button>
                 <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("profile")}>
                   <span><Pencil size={19} /></span>
                   <div>
@@ -3126,13 +3282,13 @@ function LegacyMobileProfilePage({
   open,
   onClose,
   language,
-  mobileTheme,
   authUser,
   billing,
   setAuthOpen,
   setSubscribeOpen,
   logout,
 }: MobileStudioAppProps & { open: boolean; onClose: () => void }) {
+  const { theme } = useTheme()
   const [nickname, setNickname] = useState(authUser?.name || authUser?.username || "")
 
   useEffect(() => {
@@ -3159,7 +3315,7 @@ function LegacyMobileProfilePage({
       {open && (
         <motion.section
           className="mobile-profile-page"
-          data-mobile-theme={mobileTheme}
+          data-mobile-theme={theme}
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
@@ -3293,9 +3449,8 @@ function MobileChatMode({
   toggleLanguage,
   mobileAccessKind,
   onMobileAccessBlocked,
-  mobileSidebarOpen,
-  setMobileSidebarOpen,
-}: MobileStudioAppProps & { mobileSidebarOpen: boolean; setMobileSidebarOpen: (open: boolean) => void }) {
+  onChatApiReady,
+}: MobileStudioAppProps & { onChatApiReady?: (api: ChatHistoryApi) => void }) {
   return (
     <section className="mobile-screen mobile-chat-screen">
       <MobileScreenHead
@@ -3303,16 +3458,6 @@ function MobileChatMode({
         title={language === "zh" ? "对话模式" : "Chat mode"}
         language={language}
         onLanguage={toggleLanguage}
-        leftAction={
-          <button
-            type="button"
-            className="mobile-chat-sidebar-toggle"
-            onClick={() => setMobileSidebarOpen(true)}
-            aria-label={language === "zh" ? "会话历史" : "Chat history"}
-          >
-            <Menu size={18} />
-          </button>
-        }
       />
       <div className="mobile-shared-mode-spacer" aria-hidden="true" />
       <div className="mobile-chat-shell">
@@ -3323,9 +3468,8 @@ function MobileChatMode({
           mobileVariant
           mobileAccessKind={mobileAccessKind}
           onMobileAccessBlocked={onMobileAccessBlocked}
-          mobileSidebarOpen={mobileSidebarOpen}
-          setMobileSidebarOpen={setMobileSidebarOpen}
           hideMobileMenu
+          onChatApiReady={onChatApiReady}
           onAuthRequired={() => setAuthOpen(true)}
           onSubscribeRequired={(nextBilling) => {
             if (nextBilling) onBillingChanged(nextBilling)
@@ -3379,12 +3523,16 @@ function MobileFloatingTopBar({
   onLanguage,
   onMenu,
   onProfile,
+  theme,
+  onTheme,
 }: {
   authUser?: AuthUser | null
   language: Language
   onLanguage: () => void
   onMenu: () => void
   onProfile: () => void
+  theme: "dark" | "light"
+  onTheme: () => void
 }) {
   return (
     <header className="mobile-floating-topbar">
@@ -3397,6 +3545,15 @@ function MobileFloatingTopBar({
       <div className="mobile-floating-actions">
         <button type="button" className="mobile-floating-profile" onClick={onProfile} aria-label="Profile">
           <UserRound size={19} />
+        </button>
+        <button
+          type="button"
+          className="mobile-floating-theme"
+          data-theme={theme}
+          onClick={onTheme}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
         </button>
         <button
           type="button"

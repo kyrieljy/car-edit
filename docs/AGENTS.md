@@ -142,7 +142,7 @@ AI Agent 在 ModCar AI 项目中承担以下职责：
 
 | 类别 | 用途 | 示例变量 |
 |------|------|----------|
-| 颜色 | 文字、背景、边框、状态色 | `--bg`, `--panel`, `--surface`, `--line`, `--text`, `--muted`, `--accent`, `--blue`, `--green`, `--red`, `--yellow` |
+| 颜色 | 文字、背景、边框、状态色 | `--bg`, `--panel`, `--surface`, `--line`, `--text`, `--muted`, `--accent`, `--blue`, `--green`, `--red`, `--yellow`, `--input-bg`（控件半透明背景，暗色 rgba(0,0,0,0.4) / 亮色 rgba(0,0,0,0.04)） |
 | 阴影 | 卡片、弹窗 | `--shadow` |
 | 字体 | 标题、正文 | 主字体为等宽字体族（Courier New, JetBrains Mono），UI 字体为 Inter |
 
@@ -150,9 +150,9 @@ AI Agent 在 ModCar AI 项目中承担以下职责：
 
 禁止直接写死颜色值（如 `#1890ff`）、像素间距（如 `margin: 16px`）、字号（如 `font-size: 14px`），必须引用 CSS 变量。例外：`0` 和 `auto` 不受此限制。
 
-#### 暗色模式
+#### 主题模式
 
-项目当前为固定暗黑主题，无亮色/暗色切换需求。
+项目支持暗色（dark）与亮色（light）双主题切换。主题状态由 `components/theme-context.tsx` 的 `ThemeProvider` 全局管理，通过 `<html data-theme="dark|light">` 属性驱动 CSS 变量切换。`app/globals.css` 中 `:root` 定义暗色变量，`[data-theme="light"]` 定义亮色覆盖集。禁止硬编码颜色值，必须引用 CSS 变量以确保主题切换时自动响应。
 
 ### 页面布局模式
 
@@ -200,4 +200,4 @@ AI Agent 在 ModCar AI 项目中承担以下职责：
 
 ---
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-07-26

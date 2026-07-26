@@ -46,6 +46,7 @@ import { ChatMode } from "@/components/chat-mode"
 import { ImageComparisonSlider } from "@/components/image-comparison-slider"
 import { MobileLoadingScreen, MobileStudioApp } from "@/components/mobile/mobile-studio-app"
 import { SubscribeModal } from "@/components/subscribe-modal"
+import { useTheme } from "@/components/theme-context"
 import {
   changeAccountPassword,
   changeAccountPhone,
@@ -76,10 +77,8 @@ type Language = "en" | "zh"
 type AppMode = "config" | "chat"
 type AppMenu = "edit" | "generate" | "video" | "effect"
 type ViewMode = "generated" | "original" | "compare"
-type MobileTheme = "dark" | "light"
 type MobileControlSheet = "parts" | "paint" | "stance" | null
 const LANGUAGE_STORAGE_KEY = "car-mod-studio-language"
-const MOBILE_THEME_STORAGE_KEY = "car-mod-studio-mobile-theme"
 const HISTORY_VEHICLE_MODEL_STORAGE_KEY = "car-mod-studio-history-vehicle-models"
 
 
@@ -259,6 +258,7 @@ const copy = {
     original: "原图",
     generated: "生成图",
     compare: "对比",
+    compareWaiting: "生成后可查看对比效果。",
     ready: "等待生成",
     waiting: "上传车辆图片后生成改装效果。",
     noParts: "未选择配件",
@@ -344,6 +344,7 @@ const studioCopy: typeof copy = {
     original: "原图",
     generated: "生成图",
     compare: "对比",
+    compareWaiting: "生成后可查看对比效果。",
     ready: "等待生成",
     waiting: "上传车辆图片后生成改装效果。",
     noParts: "未选择配件",
@@ -654,6 +655,7 @@ const cleanStudioCopy = {
     original: "原图",
     generated: "生成图",
     compare: "对比",
+    compareWaiting: "Generate to view the before/after comparison.",
     ready: "准备生成",
     waiting: "请先上传车辆图片，然后生成效果。",
     noParts: "未选择配件",
@@ -727,7 +729,7 @@ export function CarModStudio() {
   const [language, setLanguage] = useState<Language>("zh")
   const [appMode, setAppMode] = useState<AppMode>("config")
   const [shellMode, setShellMode] = useState<AppMode>("config")
-  const [mobileTheme, setMobileTheme] = useState<MobileTheme>("dark")
+  const { theme, toggleTheme } = useTheme()
   const [mobileControlSheet, setMobileControlSheet] = useState<MobileControlSheet>(null)
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null)
   const [vehicleFile, setVehicleFile] = useState<File | null>(null)
@@ -824,12 +826,6 @@ export function CarModStudio() {
   }, [])
 
   useEffect(() => {
-    // Multi-theme source is retained, but this release keeps the public mobile UI on dark theme.
-    window.localStorage.setItem(MOBILE_THEME_STORAGE_KEY, "dark")
-    setMobileTheme("dark")
-  }, [])
-
-  useEffect(() => {
     if (appMode !== "config") setMobileControlSheet(null)
   }, [appMode])
 
@@ -837,14 +833,6 @@ export function CarModStudio() {
     setLanguage((current) => {
       const next: Language = current === "en" ? "zh" : "en"
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, next)
-      return next
-    })
-  }
-
-  const toggleMobileTheme = () => {
-    setMobileTheme((current) => {
-      const next: MobileTheme = current === "dark" ? "light" : "dark"
-      window.localStorage.setItem(MOBILE_THEME_STORAGE_KEY, next)
       return next
     })
   }
@@ -1089,7 +1077,7 @@ export function CarModStudio() {
     setVehicleRecognitionError("")
     setGenerationDurationSeconds(null)
     setJob(null)
-    setViewMode("original")
+    setViewMode("compare")
     setNotice("")
     void recognizeVehicle(file)
   }, [recognizeVehicle, t.invalidFile])
@@ -1274,7 +1262,7 @@ export function CarModStudio() {
     setGenerationDurationSeconds(null)
     setNotice("")
     setJob(null)
-    setViewMode("original")
+    setViewMode("compare")
     try {
       const formData = new FormData()
       formData.append("vehicleImage", vehicleFile)
@@ -1327,7 +1315,7 @@ export function CarModStudio() {
       setGenerationDurationSeconds(Math.max(1, Math.ceil((Date.now() - generationStartedAt) / 1000)))
       setJob(createdWithDisplayModel)
       setHistory((items) => [createdWithDisplayModel, ...items].slice(0, 8))
-      setViewMode("generated")
+      setViewMode("compare")
     } catch (error) {
       setNotice(error instanceof Error ? error.message : t.generationFailed)
     } finally {
@@ -1336,14 +1324,14 @@ export function CarModStudio() {
     }
   }
 
-  const saveResult = async (exportMode?: ViewMode) => {
+  const saveResult = async () => {
     if (!authUser) {
       setAuthOpen(true)
       return
     }
     if (!job) return
     try {
-      if ((exportMode === "compare" || exportMode === "generated") && job.resultImageUrl) {
+      if (job.resultImageUrl) {
         await downloadImageAsset(job.resultImageUrl, `ai-mod-result-${job.id}${imageExtensionFromUrl(job.resultImageUrl)}`)
       }
     } catch (error) {
@@ -1375,7 +1363,7 @@ export function CarModStudio() {
     setGenerationDurationSeconds(null)
     setSelectionOptions(historyJob.selectionOptions ?? {})
     setIsRecognizingVehicle(false)
-    setViewMode("generated")
+    setViewMode("compare")
     setNotice("")
   }
 
@@ -1397,7 +1385,7 @@ export function CarModStudio() {
     setGradientFromHex(defaultGradientFromHex)
     setGradientToHex(defaultGradientToHex)
     setStance(0)
-    setViewMode("original")
+    setViewMode("compare")
     setIsGenerating(false)
     setGenerationElapsedSeconds(0)
     setExpandedCategory("")
@@ -1424,7 +1412,7 @@ export function CarModStudio() {
     forgetHistoryVehicleModel(historyJob.id)
     if (job?.id === historyJob.id) {
       setJob(null)
-      setViewMode(vehiclePreview ? "original" : "generated")
+      setViewMode("compare")
     }
     setNotice("")
   }
@@ -1505,8 +1493,6 @@ export function CarModStudio() {
         t={t}
         appMode={appMode}
         setAppMode={setAppMode}
-        mobileTheme={mobileTheme}
-        toggleMobileTheme={toggleMobileTheme}
         toggleLanguage={toggleLanguage}
         catalog={catalog}
         categories={categories}
@@ -1616,7 +1602,7 @@ export function CarModStudio() {
     <main
       className={shellMode === "chat" ? "app-shell chat-active-shell" : "app-shell"}
       data-lang={language}
-      data-mobile-theme={mobileTheme}
+      data-mobile-theme={theme}
       data-mobile-sheet={mobileControlSheet ?? ""}
     >
       <div className={shellMode === "chat" ? "studio-card chat-card" : "studio-card"}>
@@ -1668,9 +1654,9 @@ export function CarModStudio() {
               <Languages size={15} />
               {language === "en" ? "EN" : "中"}
             </button>
-            <button className="mobile-theme-toggle" data-theme={mobileTheme} onClick={toggleMobileTheme} aria-label={mobileTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
-              {mobileTheme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
-              {mobileTheme === "dark" ? "\u6697" : "\u4eae"}
+            <button className="theme-toggle" data-theme={theme} onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
+              {theme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
+              {theme === "dark" ? "\u6697" : "\u4eae"}
             </button>
             {authUser ? (
               <>
@@ -2280,8 +2266,7 @@ export function CarModStudio() {
                 <ResultPanel
                   t={t}
                   language={language}
-                  viewMode={viewMode}
-                  setViewMode={setViewModeWithCompareReset}
+                  compareKey={compareKey}
                   vehiclePreview={vehiclePreview}
                   job={job}
                   isGenerating={isGenerating}
@@ -2301,7 +2286,6 @@ export function CarModStudio() {
                   historyTitleForItem={historyTitleForItem}
                   onHistorySelect={selectHistoryJob}
                   onHistoryDelete={deleteHistoryJob}
-                  compareKey={compareKey}
                 />
               </section>
 
@@ -2454,7 +2438,7 @@ export function CarModStudio() {
         <AuthModal
           open={authOpen}
           language={language}
-          mobileTheme={mobileTheme}
+          mobileTheme={theme}
           onClose={() => setAuthOpen(false)}
           onAuthed={({ user, billing: nextBilling }) => {
             setAuthUser(user)
@@ -2485,7 +2469,7 @@ export function CarModStudio() {
         <SubscribeModal
           open={subscribeOpen}
           language={language}
-          mobileTheme={mobileTheme}
+          mobileTheme={theme}
           billing={billing}
           onClose={() => setSubscribeOpen(false)}
           onUpdated={(nextBilling) => {
@@ -3714,8 +3698,6 @@ function ResultPanel({
 }: {
   t: StudioCopy
   language: Language
-  viewMode: ViewMode
-  setViewMode: (mode: ViewMode) => void
   compareKey: number
   vehiclePreview: string
   job: GenerationJob | null
@@ -3730,7 +3712,7 @@ function ResultPanel({
   selectedAssets: PartAsset[]
   generate: () => void
   canGenerate: boolean
-  saveResult: (exportMode?: ViewMode) => void
+  saveResult: () => void
   selectedPaintLabel: string
   history: GenerationJob[]
   historyTitleForItem: (job: GenerationJob) => string
@@ -3742,7 +3724,7 @@ function ResultPanel({
   const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
   const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGeneratedResult = Boolean(generatedResultUrl)
-  const showCompletedElapsed = hasGeneratedResult && completedElapsedSeconds !== null && !isGenerating && viewMode !== "original"
+  const showCompletedElapsed = hasGeneratedResult && completedElapsedSeconds !== null && !isGenerating
   const progressRetryText = generationProgress?.retryAttempt ? (language === "zh" ? ` · 第 ${generationProgress.retryAttempt} 次重试` : ` · retry ${generationProgress.retryAttempt}`) : ""
   const progressText = generationProgress?.message || t.running
 
@@ -3753,20 +3735,9 @@ function ResultPanel({
           <ImageIcon size={22} />
           {t.result}
         </h2>
-        <div className="view-switch">
-          <button className={viewMode === "original" ? "selected" : ""} onClick={() => setViewMode("original")}>
-            {t.original}
-          </button>
-          <button className={viewMode === "generated" ? "selected" : ""} onClick={() => setViewMode("generated")}>
-            {t.generated}
-          </button>
-          <button className={viewMode === "compare" ? "selected" : ""} onClick={() => setViewMode("compare")}>
-            {t.compare}
-          </button>
-        </div>
       </div>
 
-      <section className="result-window" style={{ "--paint": selectedPaint?.hex ?? "#050506" } as CSSProperties}>
+      <section className="result-window" style={{ "--paint": selectedPaint?.hex ?? "#1a1a1c" } as CSSProperties}>
         {isGenerating && (
           <div className="progress-overlay">
             <div className="provider-wait-indicator" aria-hidden="true">
@@ -3785,10 +3756,7 @@ function ResultPanel({
             <span>{t.waiting}</span>
           </div>
         )}
-        {viewMode === "original" && vehiclePreview && <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />}
-        {viewMode === "generated" &&
-          (hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : vehiclePreview ? <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} /> : null)}
-        {viewMode === "compare" && vehiclePreview && hasGeneratedResult && (
+        {vehiclePreview && hasGeneratedResult && (
           <ImageComparisonSlider
             key={compareKey}
             beforeSrc={safeVehiclePreview}
@@ -3798,8 +3766,12 @@ function ResultPanel({
             autoPlay
           />
         )}
-        {viewMode === "compare" && vehiclePreview && !hasGeneratedResult && (
-          <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />
+        {vehiclePreview && !hasGeneratedResult && (
+          <div className="result-empty">
+            <ImageIcon size={38} />
+            <p>{t.compare}</p>
+            <span>{t.compareWaiting}</span>
+          </div>
         )}
         {showCompletedElapsed && <span className="result-elapsed-badge">{`${t.elapsed} ${completedElapsedSeconds} ${t.elapsedUnit}`}</span>}
       </section>
@@ -3825,7 +3797,7 @@ function ResultPanel({
                 event.preventDefault()
                 return
               }
-              saveResult(viewMode === "compare" ? "compare" : "generated")
+              saveResult()
             }}
           >
             <ArrowDownToLine size={16} /> {t.saveExport}
