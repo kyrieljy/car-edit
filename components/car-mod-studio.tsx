@@ -34,10 +34,16 @@ import {
   UserRound,
   Wand2,
   X,
+  Film,
+  ImagePlus,
+  PencilRuler,
+  Video,
+  Zap,
 } from "lucide-react"
 import { AuthModal } from "@/components/auth-modal"
 import { AccountAvatar } from "@/components/account-avatar"
 import { ChatMode } from "@/components/chat-mode"
+import { ImageComparisonSlider } from "@/components/image-comparison-slider"
 import { MobileLoadingScreen, MobileStudioApp } from "@/components/mobile/mobile-studio-app"
 import { SubscribeModal } from "@/components/subscribe-modal"
 import {
@@ -50,7 +56,7 @@ import {
   type AccountPayload,
 } from "@/lib/account-client"
 import { readProgressResponse } from "@/lib/progress-client"
-import { canvasSafeImageUrl, downloadCompareImage, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
+import { canvasSafeImageUrl, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import type {
   AccountAvatarPreset,
   AuthUser,
@@ -68,6 +74,7 @@ import type {
 
 type Language = "en" | "zh"
 type AppMode = "config" | "chat"
+type AppMenu = "edit" | "generate" | "video" | "effect"
 type ViewMode = "generated" | "original" | "compare"
 type MobileTheme = "dark" | "light"
 type MobileControlSheet = "parts" | "paint" | "stance" | null
@@ -219,6 +226,9 @@ const copy = {
     saveFailed: "Save failed.",
     mockNote: "Mock provider keeps the prototype cost-free until API keys are configured.",
     loading: "Loading studio...",
+    dryRun: "Dry run",
+    dryRunHint: "No external AI call; returns JSON / prompt preview.",
+    dryRunCompleted: "Dry run completed.",
   },
   zh: {
     title: "ModCar AI",
@@ -673,6 +683,9 @@ const cleanStudioCopy = {
     quota: "额度",
     elapsed: "耗时",
     elapsedUnit: "秒",
+    dryRun: "Dry run",
+    dryRunHint: "不调用外部 AI，只返回 JSON / Prompt 预览。",
+    dryRunCompleted: "Dry run 已完成。",
   },
 }
 
@@ -745,6 +758,13 @@ export function CarModStudio() {
   const [activeGradientToHex, setActiveGradientToHex] = useState(defaultGradientToHex)
   const [stance, setStance] = useState(0)
   const [viewMode, setViewMode] = useState<ViewMode>("generated")
+  // Incremented each time the compare view is activated so that the slider
+  // re-mounts and replays its auto-play animation.
+  const [compareKey, setCompareKey] = useState(0)
+  const setViewModeWithCompareReset = useCallback((mode: ViewMode) => {
+    setViewMode(mode)
+    if (mode === "compare") setCompareKey((k) => k + 1)
+  }, [])
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0)
   const [generationDurationSeconds, setGenerationDurationSeconds] = useState<number | null>(null)
@@ -759,6 +779,8 @@ export function CarModStudio() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [viewportReady, setViewportReady] = useState(false)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [dryRun, setDryRun] = useState(false)
+  const [activeMenu, setActiveMenu] = useState<AppMenu>("edit")
 
   const t = cleanStudioCopy[language]
   const authUserId = authUser?.id ?? ""
@@ -1272,6 +1294,7 @@ export function CarModStudio() {
       formData.append("selectionOptions", JSON.stringify(selectionOptions))
       formData.append("responseLanguage", language)
       formData.append("streamProgress", "1")
+      formData.append("dryRun", dryRun ? "1" : "0")
       const response = await fetch("/api/generations", { method: "POST", body: formData })
       const result = await readProgressResponse(response, setGenerationProgress)
       if (!result.ok) {
@@ -1286,6 +1309,14 @@ export function CarModStudio() {
           return
         }
         throw new Error(body.error || t.generationFailed)
+      }
+      if (result.body?.dryRun === true) {
+        const preview = result.body.generationPreview
+        const providerLabel = preview?.providerLabel || preview?.provider || ""
+        const summary = String(preview?.promptSummary ?? "").slice(0, 120)
+        setNotice(`${t.dryRunCompleted} [${providerLabel}] ${summary}`)
+        setGenerationDurationSeconds(Math.max(1, Math.ceil((Date.now() - generationStartedAt) / 1000)))
+        return
       }
       const created = result.body as GenerationJob
       if (!isRenderableGeneration(created)) {
@@ -1312,10 +1343,7 @@ export function CarModStudio() {
     }
     if (!job) return
     try {
-      if (exportMode === "compare") {
-        if (!vehiclePreview || !job.resultImageUrl) throw new Error(t.saveFailed)
-        await downloadCompareImage(vehiclePreview, job.resultImageUrl, `ai-mod-compare-${job.id}.png`)
-      } else if (exportMode === "generated" && job.resultImageUrl) {
+      if ((exportMode === "compare" || exportMode === "generated") && job.resultImageUrl) {
         await downloadImageAsset(job.resultImageUrl, `ai-mod-result-${job.id}${imageExtensionFromUrl(job.resultImageUrl)}`)
       }
     } catch (error) {
@@ -1545,7 +1573,8 @@ export function CarModStudio() {
         stanceName={stanceName}
         stancePresets={stancePresets}
         viewMode={viewMode}
-        setViewMode={setViewMode}
+        setViewMode={setViewModeWithCompareReset}
+        compareKey={compareKey}
         job={job}
         history={history}
         syncHistory={refreshHistory}
@@ -1591,6 +1620,46 @@ export function CarModStudio() {
       data-mobile-sheet={mobileControlSheet ?? ""}
     >
       <div className={shellMode === "chat" ? "studio-card chat-card" : "studio-card"}>
+        {/* PC floating vertical menu */}
+        <nav className="app-floating-rail" aria-label="Main navigation">
+          <button
+            type="button"
+            className={activeMenu === "edit" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "改图" : "Edit"}
+            onClick={() => setActiveMenu("edit")}
+            aria-label={language === "zh" ? "改图" : "Edit"}
+          >
+            <PencilRuler size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "generate" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "生图" : "Generate"}
+            onClick={() => setActiveMenu("generate")}
+            aria-label={language === "zh" ? "生图" : "Generate"}
+          >
+            <ImagePlus size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "video" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "视频" : "Video"}
+            onClick={() => setActiveMenu("video")}
+            aria-label={language === "zh" ? "视频" : "Video"}
+          >
+            <Film size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "effect" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "特效" : "Effects"}
+            onClick={() => setActiveMenu("effect")}
+            aria-label={language === "zh" ? "特效" : "Effects"}
+          >
+            <Zap size={16} />
+          </button>
+        </nav>
+
         <header className="studio-header">
           <h1>{t.title}</h1>
           <ModeSwitch mode={appMode} setMode={setAppMode} labels={{ config: t.configMode, chat: t.chatMode }} />
@@ -1629,8 +1698,14 @@ export function CarModStudio() {
           </div>
         </header>
 
+        {activeMenu !== "edit" && (
+          <div className="app-coming-soon">
+            <p>{language === "zh" ? "即将上线" : "Coming Soon"}</p>
+          </div>
+        )}
+
         <AnimatePresence mode="wait" initial={false} onExitComplete={() => setShellMode(appMode)}>
-          {appMode === "config" ? (
+          {activeMenu !== "edit" ? null : appMode === "config" ? (
             <motion.div
               key="config"
               className="workspace-grid"
@@ -2179,6 +2254,15 @@ export function CarModStudio() {
                   </div>
                 </section>
 
+                <label className="chat-dry-run-toggle config-dry-run-toggle" title={t.dryRunHint}>
+                  <input
+                    type="checkbox"
+                    checked={dryRun}
+                    onChange={(event) => setDryRun(event.target.checked)}
+                  />
+                  {t.dryRun}
+                </label>
+
                 <button className="run-button" onClick={generate} disabled={!canGenerate}>
                   {isGenerating ? <CircleStop size={18} /> : <Wand2 size={18} />}
                   {isGenerating ? t.running : t.run}
@@ -2197,7 +2281,7 @@ export function CarModStudio() {
                   t={t}
                   language={language}
                   viewMode={viewMode}
-                  setViewMode={setViewMode}
+                  setViewMode={setViewModeWithCompareReset}
                   vehiclePreview={vehiclePreview}
                   job={job}
                   isGenerating={isGenerating}
@@ -2217,6 +2301,7 @@ export function CarModStudio() {
                   historyTitleForItem={historyTitleForItem}
                   onHistorySelect={selectHistoryJob}
                   onHistoryDelete={deleteHistoryJob}
+                  compareKey={compareKey}
                 />
               </section>
 
@@ -3625,11 +3710,13 @@ function ResultPanel({
   historyTitleForItem,
   onHistorySelect,
   onHistoryDelete,
+  compareKey,
 }: {
   t: StudioCopy
   language: Language
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
+  compareKey: number
   vehiclePreview: string
   job: GenerationJob | null
   isGenerating: boolean
@@ -3701,17 +3788,18 @@ function ResultPanel({
         {viewMode === "original" && vehiclePreview && <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />}
         {viewMode === "generated" &&
           (hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : vehiclePreview ? <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} /> : null)}
-        {viewMode === "compare" && vehiclePreview && (
-          <div className="compare-grid">
-            <div>
-              <span>Before</span>
-              <img src={safeVehiclePreview} alt="Before" />
-            </div>
-            <div>
-              <span>After</span>
-              {hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} />}
-            </div>
-          </div>
+        {viewMode === "compare" && vehiclePreview && hasGeneratedResult && (
+          <ImageComparisonSlider
+            key={compareKey}
+            beforeSrc={safeVehiclePreview}
+            afterSrc={safeGeneratedResultUrl}
+            altBefore="Original vehicle"
+            altAfter="Generated vehicle render"
+            autoPlay
+          />
+        )}
+        {viewMode === "compare" && vehiclePreview && !hasGeneratedResult && (
+          <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />
         )}
         {showCompletedElapsed && <span className="result-elapsed-badge">{`${t.elapsed} ${completedElapsedSeconds} ${t.elapsedUnit}`}</span>}
       </section>

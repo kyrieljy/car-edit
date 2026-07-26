@@ -2443,21 +2443,10 @@ a {
     cursor: default !important;
   }
 
-  .mobile-compare-grid {
-    min-height: 0 !important;
+  .mobile-media-upload .compare-slider {
+    min-height: inherit !important;
     height: 100% !important;
-    grid-template-columns: 1fr !important;
-    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
-    gap: 1px !important;
-    background: color-mix(in srgb, var(--m-border) 70%, transparent) !important;
-  }
-
-  .mobile-compare-grid img {
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    object-fit: contain !important;
-    background: #050607 !important;
+    border-radius: inherit !important;
   }
 }
 
@@ -2697,9 +2686,19 @@ a {
     color: var(--m-active-text) !important;
   }
 
-  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title {
+  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title > span,
+  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title > strong {
     opacity: 0;
     pointer-events: none;
+  }
+
+  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title > .mobile-chat-sidebar-toggle {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-chat-screen > .mobile-screen-head .mobile-mini-actions {
+    display: none !important;
   }
 
   .mobile-studio-app[data-mode="chat"] .mobile-shared-mode-bar {
@@ -5115,39 +5114,76 @@ a {
   }
 }
 
-.compare-grid {
+.compare-slider {
+  position: relative;
   width: 100%;
   height: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--line);
-}
-
-.compare-grid > div {
-  min-width: 0;
-  position: relative;
-  background: #050505;
-  display: grid;
-  place-items: center;
+  min-height: 402px;
   overflow: hidden;
+  border-radius: 8px;
+  background: var(--bg);
+  touch-action: none;
+  user-select: none;
+  cursor: ew-resize;
 }
 
-.compare-grid > div > span {
+.compare-slider-layer {
   position: absolute;
-  left: 14px;
-  top: 14px;
-  z-index: 2;
-  background: rgba(0, 0, 0, 0.72);
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.compare-grid img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.compare-slider-before {
+  clip-path: inset(0 calc(100% - var(--slider-position)) 0 0);
+  z-index: 2;
+}
+
+.compare-slider-after {
+  z-index: 1;
+}
+
+.compare-slider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--slider-position);
+  z-index: 3;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.compare-slider-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.compare-slider-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #1a1a1a;
+  box-shadow: var(--shadow);
+  transition: transform 180ms ease;
+}
+
+.compare-slider.is-dragging .compare-slider-grip {
+  transform: scale(1.12);
 }
 
 .result-actions,
@@ -6720,6 +6756,217 @@ a {
     overflow: visible;
   }
 }
+
+/* ===== Floating Vertical Menu (PC) ===== */
+  .app-floating-rail {
+    position: fixed;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    z-index: 900;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow);
+  }
+
+  @media (min-width: 761px) {
+    .app-floating-rail {
+      display: flex;
+    }
+  }
+
+  .app-rail-item {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .app-rail-item:hover {
+    color: var(--accent);
+    background: var(--surface-2);
+  }
+
+  .app-rail-item.active {
+    color: var(--yellow);
+  }
+
+  .app-rail-item::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--font-sans);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .app-rail-item:hover::after {
+    opacity: 1;
+  }
+
+  /* ===== Coming Soon Placeholder ===== */
+  .app-coming-soon {
+    display: flex;
+    place-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 50vh;
+  }
+
+  .app-coming-soon p {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    letter-spacing: 0.04em;
+  }
+
+  .mobile-coming-soon {
+    display: flex;
+    place-items: center;
+    justify-content: center;
+    min-height: 40vh;
+  }
+
+  .mobile-coming-soon p {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ===== Mobile Menu Drawer ===== */
+  .mobile-menu-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: var(--bg, #000000);
+    overflow-y: auto;
+  }
+
+  .mobile-menu-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .mobile-menu-drawer-head button {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: var(--surface-2);
+    color: var(--text);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .mobile-menu-drawer-head .mobile-floating-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mobile-menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 24px 20px;
+  }
+
+  .mobile-menu-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 16px;
+    border: 1px solid var(--line-soft);
+    background: var(--surface);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: center;
+  }
+
+  .mobile-menu-card:hover,
+  .mobile-menu-card:active {
+    border-color: var(--yellow);
+    background: var(--surface-2);
+  }
+
+  .mobile-menu-card-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--surface-2);
+    color: var(--yellow);
+  }
+
+  .mobile-menu-card strong {
+    font-size: 15px;
+    color: var(--text);
+  }
+
+  .mobile-menu-card small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ===== Mobile Chat Sidebar Toggle ===== */
+  .mobile-chat-sidebar-toggle {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--mobile-text, var(--text));
+    cursor: pointer;
+    border-radius: 8px;
+    margin-right: 6px;
+    transition: background 0.15s;
+  }
+
+  .mobile-chat-sidebar-toggle:active {
+    background: var(--mobile-soft, rgba(255, 255, 255, 0.08));
+  }
+
+  /* ===== Profile History Sub-page ===== */
+  .mobile-profile-history-list {
+    padding: 8px 0;
+  }
+
+  @media (max-width: 760px) {
+    .studio-card {
+      padding-left: 0;
+    }
+  }
 
 @media (max-width: 760px) {
   .app-shell {
@@ -8999,6 +9246,26 @@ a {
 
 .chat-dry-run-toggle input {
   accent-color: #70f0bd;
+}
+
+.config-dry-run-toggle {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.config-dry-run-toggle input {
+  accent-color: var(--green);
 }
 
 .chat-notice,
@@ -17615,14 +17882,6 @@ a {
     color: var(--m-cyan);
   }
 
-  .mobile-compare-grid {
-    width: 100%;
-    height: 100%;
-    min-height: inherit;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .mobile-recognition-badge {
     position: absolute;
     left: 12px;
@@ -20405,7 +20664,21 @@ a {
   }
 
   .mobile-chat-screen > .mobile-screen-head {
-    display: none !important;
+    position: absolute !important;
+    z-index: 76 !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 0 0 24px !important;
+    margin: 0 !important;
+    pointer-events: auto !important;
+  }
+
+  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title {
+    gap: 0 !important;
   }
 
   .mobile-history-overlay {
@@ -21157,6 +21430,7 @@ a {
     gap: 0 !important;
     display: flex !important;
     flex-direction: column !important;
+    position: relative !important;
   }
 
   .mobile-studio-app[data-mode="chat"] .mobile-chat-screen .mobile-shared-mode-spacer {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
 import { buildConfigStandardJson } from "@/lib/generation-core"
 import { checkAndConsumeEntitlement, createVehicleUpload, getCatalog, refundEntitlementUsage } from "@/lib/server/db"
-import { runGenerationWorkflow } from "@/lib/server/generation-engine"
+import { previewGenerationWorkflow, runGenerationWorkflow } from "@/lib/server/generation-engine"
 import { runMockGuardrail } from "@/lib/server/guardrail"
 import { writeVehicleUploadImage } from "@/lib/server/local-images"
 import { ndjsonProgressResponse, noopProgress, type ProgressEmitter, type ProgressLanguage } from "@/lib/server/progress-stream"
@@ -77,6 +77,39 @@ async function handleGenerationPost(formData: FormData, emitProgress: ProgressEm
     if (conflict) {
       return NextResponse.json({ error: `Category ${conflict} has conflicting selected assets.` }, { status: 409 })
     }
+
+    const dryRun = isDryRunRequest(formData)
+    if (dryRun) {
+      emitProgress({ step: "standard_json" })
+      const standardJson = buildConfigStandardJson({
+        sourceImageUrl: "dry-run",
+        selections,
+        assets: catalog.assets,
+        categories: catalog.categories,
+        selectionOptions,
+        paint: selectedPaint,
+        paintFinishEffect,
+        paintGradient: gradientPaint?.ok ? gradientPaint.gradient : undefined,
+        stance,
+        vehicleNote: "",
+        vehicleModel: "",
+      })
+      const preview = previewGenerationWorkflow({
+        userId: user.id,
+        mode: "config",
+        vehicleUploadId: "dry-run",
+        sourceImageUrl: "dry-run",
+        displayVehicleModel,
+        standardJson,
+        paintId: paintFinishEffect === "gradient" ? "gradient" : selectedPaint.id,
+        stance,
+        selections,
+        selectionOptions,
+      })
+      emitProgress({ step: "complete" })
+      return NextResponse.json({ dryRun: true, generationPreview: preview, standardJson }, { status: 200 })
+    }
+
     emitProgress({ step: "entitlement" })
     const entitlement = checkAndConsumeEntitlement(user.id, "config")
     if (!entitlement.allowed) {
@@ -346,4 +379,9 @@ async function saveUpload(file: File) {
 function clamp(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min
   return Math.max(min, Math.min(max, value))
+}
+
+function isDryRunRequest(formData: FormData) {
+  const value = String(formData.get("dryRun") || "")
+  return value === "1" || value === "true"
 }

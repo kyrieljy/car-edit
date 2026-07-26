@@ -35,10 +35,17 @@ import {
   WalletCards,
   Wand2,
   X,
+  Film,
+  ImagePlus,
+  PencilRuler,
+  Video,
+  Zap,
+  History,
 } from "lucide-react"
 import { AccountAvatar } from "@/components/account-avatar"
 import { AuthModal } from "@/components/auth-modal"
 import { ChatMode } from "@/components/chat-mode"
+import { ImageComparisonSlider } from "@/components/image-comparison-slider"
 import { SubscribeModal } from "@/components/subscribe-modal"
 import { ACCOUNT_MESSAGES_REFRESH_EVENT } from "@/lib/account-events"
 import {
@@ -72,6 +79,7 @@ import type {
 
 type Language = "en" | "zh"
 type AppMode = "config" | "chat"
+type AppMenu = "edit" | "generate" | "video" | "effect"
 type ViewMode = "generated" | "original" | "compare"
 type MobileTheme = "dark" | "light"
 type MobileSheet = "parts" | "paint" | "stance" | "details" | "history" | null
@@ -201,6 +209,7 @@ type MobileStudioAppProps = {
   stancePresets: readonly StancePreset[]
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
+  compareKey: number
   job: GenerationJob | null
   history: GenerationJob[]
   syncHistory: () => void
@@ -547,6 +556,8 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
   const [configHistoryOpen, setConfigHistoryOpen] = useState(false)
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [menuDrawerOpen, setMenuDrawerOpen] = useState(false)
+  const [activeMenu, setActiveMenu] = useState<AppMenu>("edit")
   const [topbarDetached, setTopbarDetached] = useState(false)
   const [accessBannerShakeKey, setAccessBannerShakeKey] = useState(0)
   const [accessBannerShaking, setAccessBannerShaking] = useState(false)
@@ -645,7 +656,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
     }
   }, [])
 
-  const mobileOverlayOpen = configHistoryOpen || profileOpen || authOpen || subscribeOpen || chatSidebarOpen
+  const mobileOverlayOpen = configHistoryOpen || profileOpen || authOpen || subscribeOpen || chatSidebarOpen || menuDrawerOpen
 
   return (
     <main
@@ -666,12 +677,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
             triggerAccessBanner()
             return
           }
-          if (appMode === "config") {
-            void props.syncHistory()
-            setConfigHistoryOpen(true)
-            return
-          }
-          setChatSidebarOpen(true)
+          setMenuDrawerOpen(true)
         }}
       />
       <div className="mobile-shared-mode-bar">
@@ -692,7 +698,12 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
         </AnimatePresence>
       </div>
       <section className={visibleModes.length > 1 ? "mobile-studio-phone is-transitioning" : "mobile-studio-phone"} data-transition-direction={modeTransitionDirection}>
-        {visibleModes.map((mode) => {
+        {activeMenu !== "edit" && (
+          <div className="mobile-coming-soon">
+            <p>{language === "zh" ? "即将上线" : "Coming Soon"}</p>
+          </div>
+        )}
+        {activeMenu === "edit" && visibleModes.map((mode) => {
           const frameProps: MobileStudioAppProps = {
             ...props,
             appMode: mode,
@@ -712,6 +723,15 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
           )
         })}
       </section>
+      <MobileMenuDrawer
+        open={menuDrawerOpen}
+        onClose={() => setMenuDrawerOpen(false)}
+        language={language}
+        onSelect={(menu) => {
+          setMenuDrawerOpen(false)
+          setActiveMenu(menu)
+        }}
+      />
       <MobileHistoryDrawer open={configHistoryOpen} onClose={() => setConfigHistoryOpen(false)} {...props} />
       <MobileProfilePage open={profileOpen} onClose={() => setProfileOpen(false)} {...props} />
 
@@ -868,6 +888,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
     stanceName,
     viewMode,
     setViewMode,
+    compareKey,
     job,
     isGenerating,
     generationElapsedSeconds,
@@ -1014,10 +1035,14 @@ function MobileConfigMode(props: MobileStudioAppProps) {
         >
           {vehiclePreview ? (
             isCompareView ? (
-              <div className="mobile-compare-grid">
-                <img src={safeVehiclePreview} alt="Original vehicle" />
-                <img src={safeGeneratedResultUrl} alt="Generated vehicle" />
-              </div>
+              <ImageComparisonSlider
+                key={compareKey}
+                beforeSrc={safeVehiclePreview}
+                afterSrc={safeGeneratedResultUrl}
+                altBefore="Original vehicle"
+                altAfter="Generated vehicle"
+                autoPlay
+              />
             ) : (
               <img src={effectiveViewMode === "original" || !hasGenerated ? safeVehiclePreview : safeGeneratedResultUrl} alt="Vehicle preview" />
             )
@@ -2328,6 +2353,75 @@ function MobileStanceSheet({ language, stance, setStance, stanceName, stancePres
   )
 }
 
+function MobileMenuDrawer({
+  open,
+  onClose,
+  language,
+  onSelect,
+}: {
+  open: boolean
+  onClose: () => void
+  language: Language
+  onSelect: (menu: AppMenu) => void
+}) {
+  const isZh = language === "zh"
+  const menuItems: { key: AppMenu; icon: ReactNode; label: string; desc: string }[] = [
+    { key: "edit", icon: <PencilRuler size={28} />, label: isZh ? "改图" : "Edit", desc: isZh ? "AI 汽车改装效果预览" : "AI car modification preview" },
+    { key: "generate", icon: <ImagePlus size={28} />, label: isZh ? "生图" : "Generate", desc: isZh ? "AI 图像生成" : "AI image generation" },
+    { key: "video", icon: <Film size={28} />, label: isZh ? "视频" : "Video", desc: isZh ? "AI 视频生成" : "AI video generation" },
+    { key: "effect", icon: <Zap size={28} />, label: isZh ? "特效" : "Effects", desc: isZh ? "AI 特效处理" : "AI effects" },
+  ]
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.button
+            key="mobile-menu-drawer-backdrop"
+            type="button"
+            className="mobile-history-overlay"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.aside
+            key="mobile-menu-drawer"
+            className="mobile-menu-drawer"
+            initial={{ x: "-105%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-105%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          >
+            <header className="mobile-menu-drawer-head">
+              <div>
+                <span className="mobile-floating-title">ModCar AI</span>
+              </div>
+              <button type="button" onClick={onClose} aria-label={isZh ? "关闭" : "Close"}>
+                <X size={18} />
+              </button>
+            </header>
+            <div className="mobile-menu-grid">
+              {menuItems.map((item) => (
+                <button
+                  type="button"
+                  key={item.key}
+                  className="mobile-menu-card"
+                  onClick={() => onSelect(item.key)}
+                >
+                  <span className="mobile-menu-card-icon">{item.icon}</span>
+                  <strong>{item.label}</strong>
+                  <small>{item.desc}</small>
+                </button>
+              ))}
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
 function MobileHistoryDrawer({ open, onClose, ...props }: MobileStudioAppProps & { open: boolean; onClose: () => void }) {
   const { t } = props
 
@@ -2377,7 +2471,7 @@ function MobileHistorySheet({
   formatHistoryTitle,
   setSheet,
   onClose,
-}: MobileStudioAppProps & { setSheet?: (sheet: MobileSheet) => void; onClose?: () => void }) {
+}: Pick<MobileStudioAppProps, "t" | "history" | "job" | "selectHistoryJob" | "deleteHistoryJob" | "formatHistoryTitle"> & { setSheet?: (sheet: MobileSheet) => void; onClose?: () => void }) {
   return (
     <section className="mobile-history-panel">
       {history.length ? (
@@ -2424,7 +2518,7 @@ function cleanMobileHistoryTitle(value: unknown) {
   return text
 }
 
-type MobileProfileSection = "overview" | "profile" | "password" | "phone" | "messages"
+type MobileProfileSection = "overview" | "history" | "profile" | "password" | "phone" | "messages"
 type MobileProfileRouteDirection = "forward" | "back"
 
 const mobileProfileRouteVariants = {
@@ -2451,6 +2545,7 @@ function MobileProfilePage({
   open,
   onClose,
   language,
+  t,
   mobileTheme,
   authUser,
   billing,
@@ -2458,6 +2553,11 @@ function MobileProfilePage({
   setSubscribeOpen,
   onAuthed,
   logout,
+  history,
+  job,
+  selectHistoryJob,
+  deleteHistoryJob,
+  formatHistoryTitle,
 }: MobileStudioAppProps & { open: boolean; onClose: () => void }) {
   const isZh = language === "zh"
   const [section, setSection] = useState<MobileProfileSection>("overview")
@@ -2785,6 +2885,22 @@ function MobileProfilePage({
       return renderProfileEditorShell(renderMessages())
     }
 
+    if (section === "history") {
+      return renderProfileEditorShell(
+        <div className="mobile-profile-history-list">
+          <MobileHistorySheet
+            t={t}
+            history={history}
+            job={job}
+            selectHistoryJob={selectHistoryJob}
+            deleteHistoryJob={deleteHistoryJob}
+            formatHistoryTitle={formatHistoryTitle}
+            setSheet={() => {}}
+          />
+        </div>
+      )
+    }
+
     if (section === "profile") {
       return renderProfileEditorShell(
         <form className="mobile-profile-editor" onSubmit={(event) => {
@@ -2942,6 +3058,14 @@ function MobileProfilePage({
               </button>
             ) : (
               <>
+                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("history")}>
+                  <span><History size={19} /></span>
+                  <div>
+                    <strong>{isZh ? "生成历史" : "Generation history"}</strong>
+                    <small>{isZh ? "查看已生成的改装效果图" : "View generated modification images"}</small>
+                  </div>
+                  <ChevronRight size={19} />
+                </button>
                 <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("profile")}>
                   <span><Pencil size={19} /></span>
                   <div>
@@ -3179,6 +3303,16 @@ function MobileChatMode({
         title={language === "zh" ? "对话模式" : "Chat mode"}
         language={language}
         onLanguage={toggleLanguage}
+        leftAction={
+          <button
+            type="button"
+            className="mobile-chat-sidebar-toggle"
+            onClick={() => setMobileSidebarOpen(true)}
+            aria-label={language === "zh" ? "会话历史" : "Chat history"}
+          >
+            <Menu size={18} />
+          </button>
+        }
       />
       <div className="mobile-shared-mode-spacer" aria-hidden="true" />
       <div className="mobile-chat-shell">
@@ -3282,17 +3416,20 @@ function MobileScreenHead({
   title,
   language,
   onLanguage,
+  leftAction,
   rightAction,
 }: {
   eyebrow: string
   title: string
   language: Language
   onLanguage: () => void
+  leftAction?: ReactNode
   rightAction?: ReactNode
 }) {
   return (
     <header className="mobile-screen-head">
       <div className="mobile-screen-title">
+        {leftAction}
         <span>{eyebrow}</span>
         <strong>{title}</strong>
       </div>

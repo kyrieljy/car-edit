@@ -1,0 +1,1611 @@
+# API 参考
+
+## 概述
+
+### Base URL
+
+```
+http://127.0.0.1:3000  （开发环境）
+```
+
+### 鉴权方式
+
+采用 Cookie-based Session 鉴权。
+
+| 属性 | 值 |
+|------|------|
+| Cookie 名称 | `car_mod_session` |
+| HttpOnly | 是 |
+| 有效期 | 30 天 |
+
+### 接口分类
+
+| 类别 | 说明 |
+|------|------|
+| 公开接口 | 无需认证即可访问 |
+| 需认证接口 | 需携带有效 Session Cookie |
+| 需管理员权限接口 | 除认证外，用户角色须为 `admin` |
+
+### 通用请求/响应头
+
+| 头部 | 值 | 说明 |
+|------|------|------|
+| Content-Type | `application/json` | JSON 请求/响应 |
+| Content-Type | `text/event-stream` | NDJSON 流响应 |
+| Content-Type | `multipart/form-data` | 文件上传请求 |
+
+### 通用错误码
+
+| 状态码 | 含义 | 说明 |
+|--------|------|------|
+| 400 | 请求参数错误 | 请求体字段缺失或格式不合法 |
+| 401 | 未认证 | 缺少有效 Session Cookie 或 Session 已过期 |
+| 402 | 额度不足 | 用户当前套餐的调用次数已耗尽 |
+| 403 | 权限不足 | 角色无权访问该资源 |
+| 405 | 方法不允许 | HTTP 方法不被该路由支持 |
+| 409 | 冲突 | 资源状态冲突（如手机号已注册） |
+| 500 | 服务器错误 | 服务端未预期异常 |
+| 502 | 上游服务错误 | 依赖的外部 AI 服务不可用或响应异常 |
+
+### 通用响应结构
+
+成功响应：
+
+```json
+{
+  "ok": true,
+  // ...其他业务字段
+}
+```
+
+失败响应：
+
+```json
+{
+  "error": "错误描述信息",
+  "code": "ERROR_CODE"
+}
+```
+
+### NDJSON 流响应格式
+
+流式接口（如 `/api/chat/messages`、`/api/generations`）在 `streamProgress=true` 时，以 NDJSON 格式返回进度和结果事件，每行一个 JSON 对象。
+
+进度事件：
+
+```json
+{"type": "progress", "step": "vehicle_recognition", "message": "识别车辆中...", "elapsedMs": 1200}
+```
+
+结果事件：
+
+```json
+{"type": "result", "status": 200, "ok": true, "body": { ... }}
+```
+
+---
+
+## 接口清单
+
+### 认证模块（Auth）
+
+#### 发送短信验证码
+
+- **路径**：`POST /api/auth/send-code`
+- **描述**：向指定手机号发送短信验证码，用于登录、注册、换绑手机号、管理员验证或密码重置。管理员发码（purpose=admin）需先验证密码。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | phone | string | 是* | 目标手机号（purpose 为 admin 或 change_phone 时非必填） |
+  | purpose | string | 否 | 用途，取值：`login`、`register`、`change_phone`、`admin`、`wechat`、`reset_password`，默认 `login` |
+  | identifier | string | 否 | 管理员发码时用于密码验证的用户标识（用户名/手机号/邮箱） |
+  | username | string | 否 | 管理员发码时用于密码验证的用户名（identifier 的别名） |
+  | password | string | 否 | 管理员发码时用于密码验证的密码 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "phone": "13800138000",
+    "purpose": "login"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true,
+    "expiresAt": "2026-07-25T10:30:00.000Z",
+    "devCode": "123456"
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | ok | boolean | 是否发送成功 |
+  | expiresAt | string | 验证码过期时间（ISO 8601） |
+  | devCode | string | 开发环境返回的验证码明文，仅非生产环境返回 |
+
+- **错误码**：
+
+  | 状态码 | code | 说明 |
+  |--------|------|------|
+  | 400 | `INVALID_PHONE` | 手机号格式不合法 |
+  | 409 | `PHONE_ALREADY_REGISTERED` | 注册时手机号已被使用 |
+  | 404 | `PHONE_NOT_REGISTERED` | 密码重置时手机号未注册 |
+  | 400 | `ADMIN_RESET_BLOCKED` | 管理员账号不允许通过此流程重置密码 |
+
+- **关联数据表**：`verification_codes`
+
+---
+
+#### 用户登录
+
+- **路径**：`POST /api/auth/login`
+- **描述**：支持密码登录和手机验证码登录两种模式。管理员使用密码登录时需额外提供手机验证码（adminCode）。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | mode | string | 否 | 登录模式，取值：`password`、`code`，默认 `password` |
+  | identifier | string | 否 | 用户标识（用户名/手机号/邮箱），password 模式使用 |
+  | username | string | 否 | 用户名，identifier 的别名 |
+  | phone | string | 否 | 手机号，password 模式可作为 identifier 使用，code 模式为必填 |
+  | password | string | 否 | 密码，password 模式必填 |
+  | code | string | 否 | 短信验证码，code 模式必填 |
+  | bindRequired | boolean | 否 | code 模式下是否要求绑定已有账号 |
+  | adminCode | string | 否 | 管理员二次验证的手机验证码 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "mode": "password",
+    "identifier": "admin",
+    "password": "mypassword",
+    "adminCode": "123456"
+  }
+  ```
+
+- **响应格式**：
+
+  登录成功：
+
+  ```json
+  {
+    "user": {
+      "id": "u_xxxxx",
+      "username": "admin",
+      "name": "管理员",
+      "email": "",
+      "phone": "138****8000",
+      "avatarId": "",
+      "avatarUrl": "",
+      "role": "admin",
+      "plan": "internal",
+      "status": "active",
+      "createdAt": 1700000000000,
+      "lastLoginAt": 1784980000000,
+      "updatedAt": 1784980000000
+    }
+  }
+  ```
+
+  需要绑定：
+
+  ```json
+  {
+    "requiresBinding": true,
+    "phone": "13800138000"
+  }
+  ```
+
+  管理员需要验证码：
+
+  ```json
+  {
+    "error": "管理员需要手机号验证码。",
+    "requireAdminCode": true,
+    "phone": "138 ****8000"
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | user | AuthUser | 登录成功时返回的用户对象 |
+  | requiresBinding | boolean | code 模式下需要绑定已有账号 |
+  | phone | string | 手机号（绑定或验证码场景） |
+  | requireAdminCode | boolean | 管理员需额外提供手机验证码 |
+
+- **错误码**：
+
+  | 状态码 | code | 说明 |
+  |--------|------|------|
+  | 401 | - | 用户名/密码错误或验证码无效 |
+  | 428 | - | 管理员登录缺少 adminCode |
+
+- **关联数据表**：`users`
+
+---
+
+#### 用户注册
+
+- **路径**：`POST /api/auth/register`
+- **描述**：通过手机号 + 验证码创建新用户账号。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | phone | string | 是 | 手机号 |
+  | username | string | 是 | 用户名 |
+  | password | string | 是 | 密码 |
+  | code | string | 是 | 短信验证码 |
+  | purpose | string | 是 | 验证码用途，须为 `register` |
+
+- **请求示例**：
+
+  ```json
+  {
+    "phone": "13800138000",
+    "username": "newuser",
+    "password": "mypassword123",
+    "code": "123456",
+    "purpose": "register"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": {
+      "id": "u_xxxxx",
+      "username": "newuser",
+      "name": "",
+      "email": "",
+      "phone": "13800138000",
+      "avatarId": "",
+      "avatarUrl": "",
+      "role": "user",
+      "plan": "free",
+      "status": "active",
+      "createdAt": 1784980000000,
+      "lastLoginAt": 0,
+      "updatedAt": 1784980000000
+    }
+  }
+  ```
+
+- **错误码**：400（参数缺失或验证码无效）、409（用户名或手机号已存在）
+
+- **关联数据表**：`users`
+
+---
+
+#### 退出登录
+
+- **路径**：`POST /api/auth/logout`
+- **描述**：销毁当前 Session，清除登录状态。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+---
+
+#### 获取当前用户信息
+
+- **路径**：`GET /api/auth/me`
+- **描述**：获取当前 Session 对应的用户信息及计费状态。无需认证，未登录时返回 `null`。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "user": {
+      "id": "u_xxxxx",
+      "username": "admin",
+      "name": "管理员",
+      "email": "",
+      "phone": "13800138000",
+      "avatarId": "",
+      "avatarUrl": "",
+      "role": "admin",
+      "plan": "internal",
+      "status": "active",
+      "createdAt": 1700000000000,
+      "lastLoginAt": 1784980000000,
+      "updatedAt": 1784980000000
+    },
+    "billing": {
+      "plan": { "id": "internal", "label": "Internal", ... },
+      "subscription": null,
+      "configUsed": 10,
+      "chatUsedToday": 3,
+      "configRemaining": "unlimited",
+      "chatRemainingToday": "unlimited",
+      "chatEnabled": true
+    }
+  }
+  ```
+
+  未登录时：
+
+  ```json
+  {
+    "user": null,
+    "billing": null
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | user | AuthUser or null | 当前用户信息，未登录时为 null |
+  | billing | EntitlementStatus or null | 当前计费状态，未登录时为 null |
+
+---
+
+#### 更新用户资料
+
+- **路径**：`PATCH /api/auth/me`
+- **描述**：更新当前用户的显示名称、邮箱或头像。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | name | string | 否 | 显示名称 |
+  | email | string | 否 | 邮箱地址 |
+  | avatarId | string | 否 | 头像预设 ID |
+
+- **请求示例**：
+
+  ```json
+  {
+    "name": "新名称",
+    "avatarId": "preset_001"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": { "...": "AuthUser 对象" },
+    "billing": { "...": "EntitlementStatus 对象" }
+  }
+  ```
+
+- **错误码**：400（更新失败）、401（未认证）
+
+- **关联数据表**：`users`
+
+---
+
+#### 修改密码
+
+- **路径**：`POST /api/auth/password`
+- **描述**：验证当前密码后修改为新密码。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | currentPassword | string | 是 | 当前密码 |
+  | nextPassword | string | 是 | 新密码 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "currentPassword": "oldpassword",
+    "nextPassword": "newpassword"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": { "...": "AuthUser 对象" },
+    "billing": { "...": "EntitlementStatus 对象" }
+  }
+  ```
+
+- **错误码**：400（当前密码错误）、401（未认证）
+
+- **关联数据表**：`users`
+
+---
+
+#### 换绑手机号
+
+- **路径**：`POST /api/auth/phone`
+- **描述**：通过手机验证码换绑当前用户的手机号。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | phone | string | 是 | 新手机号 |
+  | code | string | 是 | 短信验证码（须先调用 send-code，purpose=change_phone） |
+
+- **请求示例**：
+
+  ```json
+  {
+    "phone": "13900139000",
+    "code": "123456"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": { "...": "AuthUser 对象" },
+    "billing": { "...": "EntitlementStatus 对象" }
+  }
+  ```
+
+- **错误码**：400（验证码无效）、401（未认证）
+
+- **关联数据表**：`users`
+
+---
+
+#### 重置密码
+
+- **路径**：`POST /api/auth/reset-password`
+- **描述**：通过手机号 + 验证码直接重置密码（无需登录）。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | phone | string | 是 | 手机号 |
+  | code | string | 是 | 短信验证码（须先调用 send-code，purpose=reset_password） |
+  | password | string | 是 | 新密码 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "phone": "13800138000",
+    "code": "123456",
+    "password": "newpassword"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true,
+    "user": { "...": "AuthUser 对象" }
+  }
+  ```
+
+- **错误码**：400（验证码无效）、404（手机号未注册）、403（管理员账号不允许此方式重置）
+
+- **关联数据表**：`users`
+
+---
+
+#### 获取一键登录 Token
+
+- **路径**：`POST /api/auth/one-tap/token`
+- **描述**：获取一键登录的 accessToken 和 JWT Token。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "accessToken": "xxxxxxxx",
+    "jwtToken": "eyJhbGciOi..."
+  }
+  ```
+
+---
+
+#### 一键登录提交
+
+- **路径**：`POST /api/auth/one-tap`
+- **描述**：使用一键登录 Token 完成免密登录。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | spToken | string | 否 | 运营商一键登录 Token |
+  | token | string | 否 | JWT Token |
+  | phone | string | 否 | 手机号 |
+  | platform | string | 否 | 平台标识 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": { "...": "AuthUser 对象" },
+    "provider": "aliyun",
+    "requestId": "req_xxxxx"
+  }
+  ```
+
+---
+
+#### 微信 Mock 登录
+
+- **路径**：`POST /api/auth/wechat/mock`
+- **描述**：微信登录的 Mock 接口，仅用于测试环境。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | register | boolean | 否 | 是否注册新用户 |
+  | openId | string | 否 | 微信 OpenID |
+  | username | string | 否 | 用户名（注册时） |
+  | phone | string | 否 | 手机号 |
+  | password | string | 否 | 密码 |
+  | code | string | 否 | 短信验证码 |
+
+---
+
+### 计费模块（Billing）
+
+#### 获取会员套餐列表
+
+- **路径**：`GET /api/billing/plans`
+- **描述**：获取所有已激活的会员套餐。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "plans": [
+      {
+        "id": "free",
+        "label": "免费版",
+        "priceCents": 0,
+        "configLimit": 5,
+        "chatDailyLimit": 10,
+        "configUnlimited": false,
+        "chatUnlimited": false,
+        "chatEnabled": true,
+        "active": true,
+        "sortOrder": 0,
+        "updatedAt": 1700000000000
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | plans | MembershipPlan[] | 套餐列表 |
+
+---
+
+#### 获取当前计费状态
+
+- **路径**：`GET /api/billing/status`
+- **描述**：获取当前登录用户的计费状态和额度使用情况。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "billing": {
+      "plan": { "id": "pro", "label": "Pro", ... },
+      "subscription": {
+        "id": "sub_xxxxx",
+        "userId": "u_xxxxx",
+        "planId": "pro",
+        "status": "active",
+        "currentPeriodEnd": 1790000000000,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000
+      },
+      "configUsed": 5,
+      "chatUsedToday": 2,
+      "configRemaining": 45,
+      "chatRemainingToday": 48,
+      "chatEnabled": true
+    }
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | billing | EntitlementStatus | 计费状态对象 |
+
+- **错误码**：401（未认证）
+
+---
+
+#### 自助开通套餐
+
+- **路径**：`POST /api/billing/checkout`
+- **描述**：自助开通/续费套餐。当前已禁用，所有套餐由管理员分配。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "error": "订阅由管理员统一管理，不支持自助开通。",
+    "code": "SUBSCRIPTION_MANAGED_BY_ADMIN"
+  }
+  ```
+
+- **错误码**：403（`SUBSCRIPTION_MANAGED_BY_ADMIN`）
+
+---
+
+#### 模拟支付
+
+- **路径**：`POST /api/billing/mock-paid`
+- **描述**：模拟支付完成接口。当前已禁用。
+- **错误码**：403
+
+---
+
+### 聊天模块（Chat）
+
+#### 对话模式消息处理
+
+- **路径**：`POST /api/chat/messages`
+- **描述**：对话模式的核心接口，支持文本输入 + 车辆图片 + 配件图片。完整流程包含：图片校验、车辆识别、配件识别、意图解析、Prompt 构建、图片生成。支持 NDJSON 流式响应。
+- **请求参数**（FormData）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | sessionId | string | 否 | 对话会话 ID，为空时系统自动创建 |
+  | text | string | 否 | 用户输入的自然语言指令 |
+  | vehicleImage | File | 否 | 车辆图片文件 |
+  | partImages | File[] | 否 | 配件参考图片（支持多张） |
+  | responseLanguage | string | 否 | 响应语言 |
+  | streamProgress | boolean | 否 | 是否开启 NDJSON 流式进度，默认 `false` |
+  | contextMode | string | 否 | 上下文模式，取值：`latest`、`original` |
+  | contextConfirmed | boolean | 否 | 是否确认使用当前上下文 |
+  | partColorPolicyChoicesJson | string | 否 | 配件着色策略选择（JSON 字符串） |
+  | dryRun | boolean | 否 | 试运行模式，仅执行意图解析不实际生成 |
+
+- **请求示例**（curl）：
+
+  ```bash
+  curl -X POST http://127.0.0.1:3000/api/chat/messages \
+    -b "car_mod_session=xxx" \
+    -F "text=把这辆车的轮毂换成黑色的" \
+    -F "vehicleImage=@vehicle.jpg" \
+    -F "streamProgress=true"
+  ```
+
+- **响应格式**：
+
+  非流式（streamProgress=false）：
+
+  ```json
+  {
+    "message": { "...": "ChatMessage 对象" },
+    "standardJson": { "...": "GenerationStandardJson 对象" }
+  }
+  ```
+
+  流式（streamProgress=true，NDJSON）：
+
+  ```
+  {"type":"progress","step":"vehicle_recognition","message":"识别车辆中...","elapsedMs":1200}
+  {"type":"progress","step":"part_recognition","message":"识别配件中...","elapsedMs":2400}
+  {"type":"progress","step":"image_generation","message":"图片生成中...","elapsedMs":5000}
+  {"type":"result","status":200,"ok":true,"body":{"message":{"...":"..."}}}
+  ```
+
+- **错误码**：
+
+  | 状态码 | 说明 |
+  |--------|------|
+  | 400 | 参数缺失（如无车辆图片也无 sessionId） |
+  | 401 | 未认证 |
+  | 402 | 额度不足 |
+  | 502 | 上游 AI 服务异常 |
+
+- **关联数据表**：`chat_sessions`、`chat_messages`、`chat_attachments`、`generation_jobs`
+
+---
+
+#### 获取对话会话列表
+
+- **路径**：`GET /api/chat/sessions`
+- **描述**：获取当前用户的所有对话会话列表。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "sessions": [
+      {
+        "id": "session_xxxxx",
+        "userId": "u_xxxxx",
+        "title": "改装方案讨论",
+        "pinned": false,
+        "createdAt": 1784980000000,
+        "updatedAt": 1784981000000,
+        "messageCount": 5,
+        "preview": "你想把轮毂换成什么样式？"
+      }
+    ]
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`chat_sessions`
+
+---
+
+#### 创建对话会话
+
+- **路径**：`POST /api/chat/sessions`
+- **描述**：创建一个新的对话会话。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | title | string | 否 | 会话标题，默认 "New Chat" |
+
+- **请求示例**：
+
+  ```json
+  {
+    "title": "我的改装方案"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "id": "session_xxxxx",
+    "userId": "u_xxxxx",
+    "title": "我的改装方案",
+    "pinned": false,
+    "createdAt": 1784980000000,
+    "updatedAt": 1784980000000,
+    "messageCount": 0,
+    "preview": ""
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`chat_sessions`
+
+---
+
+#### 获取会话消息历史
+
+- **路径**：`GET /api/chat/sessions/[id]`
+- **描述**：获取指定会话的全部消息历史，包含附件信息。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 会话 ID（路径参数） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "messages": [
+      {
+        "id": "msg_xxxxx",
+        "sessionId": "session_xxxxx",
+        "role": "user",
+        "content": "把这辆车的轮毂换成黑色",
+        "resultImageUrl": "",
+        "guardrailStatus": "allowed",
+        "guardrailReason": "",
+        "contextMode": "latest",
+        "standardJson": null,
+        "createdAt": 1784980000000,
+        "attachments": []
+      }
+    ]
+  }
+  ```
+
+- **错误码**：401（未认证）、404（会话不存在）
+
+- **关联数据表**：`chat_messages`、`chat_attachments`
+
+---
+
+#### 更新会话
+
+- **路径**：`PATCH /api/chat/sessions/[id]`
+- **描述**：更新会话的置顶状态或标题。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 会话 ID（路径参数） |
+  | pinned | boolean | 否 | 是否置顶 |
+  | title | string | 否 | 新标题 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "pinned": true,
+    "title": "重要方案"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "id": "session_xxxxx",
+    "userId": "u_xxxxx",
+    "title": "重要方案",
+    "pinned": true,
+    "createdAt": 1784980000000,
+    "updatedAt": 1784982000000,
+    "messageCount": 8,
+    "preview": "最新消息预览"
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`chat_sessions`
+
+---
+
+#### 删除会话
+
+- **路径**：`DELETE /api/chat/sessions/[id]`
+- **描述**：删除指定会话及其所有消息。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 会话 ID（路径参数） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+- **错误码**：401（未认证）、404（会话不存在）
+
+- **关联数据表**：`chat_sessions`、`chat_messages`
+
+---
+
+#### 获取聊天推荐提示词
+
+- **路径**：`GET /api/chat/suggestions`
+- **描述**：获取系统推荐的聊天提示词列表，用于引导用户输入。公开接口。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "prompts": [
+      "把这辆车的轮毂换成黑色的锻造轮毂",
+      "给我的车贴一个哑光黑色的车膜",
+      "降低车身高度，改成低趴风格"
+    ]
+  }
+  ```
+
+---
+
+### 车库模块（Garage）
+
+#### 获取用户生成历史
+
+- **路径**：`GET /api/garage`
+- **描述**：获取当前用户已保存到车库的全部生成记录，并自动物化远程图片到本地存储。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "generations": [
+      {
+        "id": "gen_xxxxx",
+        "status": "succeeded",
+        "mode": "chat",
+        "userId": "u_xxxxx",
+        "provider": "fal-ai",
+        "vehicleUploadId": "upload_xxxxx",
+        "sourceImageUrl": "/uploads/vehicle-gen_xxxxx.jpg",
+        "displayVehicleModel": "Tesla Model 3",
+        "resultImageUrl": "/results/provider_xxx-gen_xxxxx.png",
+        "paintId": "p_xxxxx",
+        "stance": 0,
+        "selections": {},
+        "selectionOptions": {},
+        "standardJson": null,
+        "workflowId": "wf_xxxxx",
+        "promptVersion": "v1",
+        "promptSummary": "...",
+        "promptHidden": "...",
+        "resultCheck": null,
+        "retryCount": 0,
+        "failureReason": "",
+        "costCents": 10,
+        "badCaseTags": [],
+        "usageUnits": 1,
+        "createdAt": 1784980000000
+      }
+    ]
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 保存生成结果到车库
+
+- **路径**：`POST /api/garage`
+- **描述**：将一个生成结果关联保存到当前用户的车库中。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | generationId | string | 是 | 生成记录 ID |
+
+- **请求示例**：
+
+  ```json
+  {
+    "generationId": "gen_xxxxx"
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+- **错误码**：400（generationId 缺失）、401（未认证）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 删除生成记录
+
+- **路径**：`DELETE /api/garage/[id]`
+- **描述**：从车库中删除指定的生成记录。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 生成记录 ID（路径参数） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+- **错误码**：401（未认证）、404（记录不存在）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+### 生成模块（Generations）
+
+#### 配置模式图片生成
+
+- **路径**：`POST /api/generations`
+- **描述**：配置模式的核心接口，通过车辆图片 + 选配参数（车漆、姿态、配件等）直接进行图片生成。支持 NDJSON 流式响应。
+- **请求参数**（FormData）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | vehicleImage | File | 是 | 车辆原图 |
+  | paintId | string | 否 | 车漆 ID，留空则保持原车漆 |
+  | stance | number | 否 | 姿态调整值（-100 ~ 100） |
+  | selections | string | 否 | 配件选择映射（JSON 字符串），格式：`{"category_id": "asset_id", ...}` |
+  | selectionOptions | string | 否 | 配件选配选项（JSON 字符串），格式：`{"category_id": {"colorPolicy": "body_color"}, ...}` |
+  | vehicleNote | string | 否 | 车辆备注信息 |
+  | displayVehicleModel | string | 否 | 显示用车型名称 |
+  | paintFinishEffect | string | 否 | 车漆表面效果，取值：`gloss`、`metallic`、`matte`、`satin`、`pearl`、`chrome`、`gradient` |
+  | gradientPaintJson | string | 否 | 渐变车漆配置（JSON 字符串），格式：`{"fromHex": "#000000", "toHex": "#ffffff", "direction": "front_to_rear"}` |
+  | customPaintJson | string | 否 | 自定义车漆配置（JSON 字符串） |
+  | streamProgress | boolean | 否 | 是否开启 NDJSON 流式进度，默认 `false` |
+  | responseLanguage | string | 否 | 响应语言 |
+  | dryRun | string | 否 | 试运行模式，取值 `1` 或 `true` 开启。开启后不扣费、不调用生图 API，仅返回 prompt 预览 (已更新 2026-07-25) |
+
+- **请求示例**（curl）：
+
+  ```bash
+  curl -X POST http://127.0.0.1:3000/api/generations \
+    -b "car_mod_session=xxx" \
+    -F "vehicleImage=@vehicle.jpg" \
+    -F 'selections={"wheels": "asset_001", "spoiler": "asset_002"}' \
+    -F "stance=-30" \
+    -F "paintFinishEffect=matte" \
+    -F "streamProgress=true"
+  ```
+
+- **响应格式**：
+
+  非流式（201）：
+
+  ```json
+  {
+    "id": "gen_xxxxx",
+    "status": "succeeded",
+    "mode": "config",
+    "userId": "u_xxxxx",
+    "provider": "fal-ai",
+    "vehicleUploadId": "upload_xxxxx",
+    "sourceImageUrl": "/uploads/vehicle-gen_xxxxx.jpg",
+    "resultImageUrl": "/results/provider_xxx-gen_xxxxx.png",
+    "paintId": "p_xxxxx",
+    "stance": -30,
+    "selections": { "wheels": "asset_001" },
+    "selectionOptions": {},
+    "standardJson": { "...": "..." },
+    "workflowId": "wf_xxxxx",
+    "promptVersion": "v1",
+    "promptSummary": "...",
+    "promptHidden": "...",
+    "resultCheck": { "passed": true, "score": 85, "..." : "..." },
+    "retryCount": 0,
+    "failureReason": "",
+    "costCents": 10,
+    "badCaseTags": [],
+    "usageUnits": 1,
+    "createdAt": 1784980000000
+  }
+  ```
+
+  流式（NDJSON）：
+
+  ```
+  {"type":"progress","step":"upload_validation","message":"验证上传文件...","elapsedMs":100}
+  {"type":"progress","step":"guardrail","message":"安全检查中...","elapsedMs":500}
+  {"type":"progress","step":"vehicle_recognition","message":"识别车辆中...","elapsedMs":1200}
+  {"type":"progress","step":"prompt_build","message":"构建生成提示词...","elapsedMs":3000}
+  {"type":"progress","step":"image_generation","message":"图片生成中...","elapsedMs":5000}
+  {"type":"result","status":201,"ok":true,"body":{"id":"gen_xxxxx","...":"..."}}
+  ```
+
+  Dry run 响应（dryRun=1 时，200）：
+
+  ```json
+  {
+    "dryRun": true,
+    "generationPreview": {
+      "dryRun": true,
+      "workflowId": "wf_xxxxx",
+      "provider": "fal-ai",
+      "providerLabel": "fal.ai",
+      "sourceImageUrl": "dry-run",
+      "partImageUrls": [],
+      "promptVersion": "wf_xxxxx:v1",
+      "promptSummary": "...",
+      "promptHidden": "...",
+      "negativePrompt": "...",
+      "standardJson": { "...": "..." }
+    },
+    "standardJson": { "...": "..." }
+  }
+  ```
+
+- **错误码**：
+
+  | 状态码 | 说明 |
+  |--------|------|
+  | 400 | 缺少 vehicleImage 或参数格式错误 |
+  | 401 | 未认证 |
+  | 402 | 额度不足 |
+  | 502 | 上游 AI 服务异常 |
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+### 其他接口
+
+#### 获取完整目录数据
+
+- **路径**：`GET /api/catalog`
+- **描述**：获取系统完整的产品目录数据，包括配件分类、品牌、资产、车漆、AI 提供商配置、提示词模板和预设。公开接口。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "categories": [],
+    "brands": [],
+    "assets": [],
+    "paints": [],
+    "classicPaints": [],
+    "providers": [],
+    "promptTemplates": [],
+    "promptPreset": {
+      "id": "preset_xxxxx",
+      "title": "Default Preset",
+      "version": "v1",
+      "body": "...",
+      "negativePrompt": "...",
+      "active": true,
+      "createdAt": 1700000000000
+    }
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | categories | PartCategory[] | 配件分类列表 |
+  | brands | PartBrand[] | 品牌列表 |
+  | assets | PartAsset[] | 配件资产列表 |
+  | paints | PaintOption[] | 可选车漆列表 |
+  | classicPaints | BrandClassicPaint[] | 经典品牌车漆列表 |
+  | providers | ProviderConfig[] | AI 提供商配置列表 |
+  | promptTemplates | PromptTemplate[] | 提示词模板列表 |
+  | promptPreset | PromptPreset | 当前活跃的提示词预设 |
+
+---
+
+#### 车辆/配件识别
+
+- **路径**：`POST /api/vehicle-recognition`
+- **描述**：上传车辆图片和配件图片，调用 AI 进行识别，返回识别结果及安全检查结果。
+- **请求参数**（FormData）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | vehicleImage | File | 是 | 车辆图片文件 |
+  | partImages | File[] | 否 | 配件参考图片（支持多张） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "workflowId": "wf_xxxxx",
+    "vehicle": {
+      "model": "Tesla Model 3",
+      "view": "front_left",
+      "sourceImageUrl": "/uploads/vehicle-xxx.jpg",
+      "confidence": 0.95
+    },
+    "parts": [
+      {
+        "category": "wheels",
+        "categoryLabel": "轮毂",
+        "source": "uploaded_reference",
+        "assetId": "asset_001",
+        "brand": "BBS",
+        "model": "CH-R II",
+        "variant": "20inch",
+        "color": "silver",
+        "finish": "gloss",
+        "colorPolicy": "body_color",
+        "colorPolicyPrompt": "...",
+        "referenceImageUrl": "/uploads/part-xxx.jpg",
+        "instruction": "",
+        "optionSummary": ""
+      }
+    ],
+    "guardrail": {
+      "allowed": true,
+      "reason": "",
+      "detectedModel": "Tesla Model 3"
+    }
+  }
+  ```
+
+- **错误码**：400（缺少车辆图片）、401（未认证）、502（上游服务异常）
+
+---
+
+#### 图片下载
+
+- **路径**：`GET /api/download-image`
+- **描述**：代理下载外部图片并返回给客户端，设置 `Content-Disposition: attachment` 触发浏览器下载。
+- **请求参数**（Query）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | url | string | 是 | 目标图片 URL |
+  | filename | string | 否 | 下载时的文件名 |
+
+- **响应格式**：图片二进制流
+
+  响应头：
+
+  ```
+  Content-Disposition: attachment; filename="xxx.jpg"
+  Content-Type: image/jpeg
+  ```
+
+---
+
+#### 图片代理
+
+- **路径**：`GET /api/proxy-image`
+- **描述**：代理访问外部图片，解决前端跨域问题。
+- **请求参数**（Query）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | url | string | 是 | 目标图片 URL |
+
+- **响应格式**：图片二进制流
+
+- **说明**：仅允许代理 `fal.media` 和 `file.302.ai` 域名的图片，其他域名将返回 400 错误。
+
+---
+
+#### 获取头像预设列表
+
+- **路径**：`GET /api/account/avatar-presets`
+- **描述**：获取系统内置和自定义头像预设列表。公开接口。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "avatars": [
+      {
+        "id": "preset_001",
+        "label": "默认头像",
+        "imageUrl": "/uploads/preset_001.png",
+        "active": true,
+        "sortOrder": 0,
+        "builtIn": true,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000
+      }
+    ]
+  }
+  ```
+
+---
+
+#### 获取账户消息
+
+- **路径**：`GET /api/account/messages`
+- **描述**：获取当前用户的系统消息列表，包括支付、订阅、额度等通知。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "messages": [
+      {
+        "id": "msg_xxxxx",
+        "userId": "u_xxxxx",
+        "kind": "quota",
+        "title": "额度不足提醒",
+        "body": "您的今日对话次数已用完。",
+        "metadata": {},
+        "readAt": 0,
+        "createdAt": 1784980000000
+      }
+    ],
+    "unreadCount": 1
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | messages | AccountMessage[] | 消息列表 |
+  | unreadCount | number | 未读消息数 |
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`account_messages`
+
+---
+
+#### 标记消息已读
+
+- **路径**：`POST /api/account/messages/[id]/read`
+- **描述**：将指定消息标记为已读。
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 消息 ID（路径参数） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`account_messages`
+
+---
+
+#### 全部标记已读
+
+- **路径**：`POST /api/account/messages/read-all`
+- **描述**：将当前用户的所有消息标记为已读。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true
+  }
+  ```
+
+- **错误码**：401（未认证）
+
+- **关联数据表**：`account_messages`
+
+---
+
+### 管理模块（Admin）
+
+> 以下所有接口均需管理员权限（role=admin）。
+
+#### 管理后台摘要统计
+
+- **路径**：`GET /api/admin/summary`
+- **描述**：获取管理后台的完整摘要数据，包含用户统计、生成统计、系统配置、审计日志等全量数据。
+- **请求参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "stats": {
+      "users": 42,
+      "activeAssets": 150,
+      "generations": 1200,
+      "failedGenerations": 30,
+      "usageUnits": 3500,
+      "totalCostCents": 50000
+    },
+    "users": [
+      {
+        "id": "u_xxxxx",
+        "name": "用户A",
+        "username": "user_a",
+        "email": "",
+        "phone": "138****8000",
+        "role": "user",
+        "plan": "pro",
+        "status": "active",
+        "configUsed": 10,
+        "chatUsedToday": 3,
+        "configRemaining": 40,
+        "chatRemainingToday": 47,
+        "createdAt": 1700000000000,
+        "lastLoginAt": 1784980000000,
+        "updatedAt": 1784980000000
+      }
+    ],
+    "categories": [],
+    "brands": [],
+    "assets": [],
+    "providers": [],
+    "prompts": [],
+    "promptTemplates": [],
+    "avatarPresets": [],
+    "classicPaints": [],
+    "workflows": [],
+    "guardrailConfig": { "id": "default", "..." : "..." },
+    "chatSessions": [],
+    "plans": [],
+    "auditLogs": [],
+    "badCases": [],
+    "quotaAdjustments": [],
+    "providerCosts": [],
+    "generationFailures": [],
+    "behaviorEvents": [],
+    "smsRecords": [],
+    "userProfiles": [],
+    "generations": [],
+    "usage": []
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | stats | object | 汇总统计 |
+  | stats.users | number | 用户总数 |
+  | stats.activeAssets | number | 活跃配件资产数 |
+  | stats.generations | number | 生成总数 |
+  | stats.failedGenerations | number | 失败生成数 |
+  | stats.usageUnits | number | AI 调用总单位数 |
+  | stats.totalCostCents | number | 总成本（分） |
+  | users | array | 用户列表（含额度信息） |
+  | generations | array | 生成记录列表 |
+  | usage | array | 用量明细列表 |
+  | categories | PartCategory[] | 配件分类 |
+  | brands | PartBrand[] | 品牌 |
+  | assets | PartAsset[] | 配件资产 |
+  | providers | ProviderConfig[] | AI 提供商 |
+  | plans | MembershipPlan[] | 套餐 |
+  | workflows | WorkflowConfig[] | 工作流配置 |
+  | guardrailConfig | GuardrailConfig | 安全配置 |
+  | auditLogs | AuditLog[] | 审计日志 |
+  | quotaAdjustments | AdminQuotaAdjustment[] | 额度调整记录 |
+  | providerCosts | AdminProviderCostStat[] | 提供商成本统计 |
+  | generationFailures | AdminGenerationFailure[] | 生成失败记录 |
+  | smsRecords | AdminSmsRecord[] | 短信发送记录 |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+#### 配件资产管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/assets` | 创建配件资产 |
+| `PATCH` | `/api/admin/assets` | 批量排序配件资产 |
+| `PATCH` | `/api/admin/assets/[id]` | 更新指定配件资产 |
+| `DELETE` | `/api/admin/assets/[id]` | 删除指定配件资产 |
+
+---
+
+#### 品牌管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/brands` | 创建品牌 |
+| `PATCH` | `/api/admin/brands` | 批量排序品牌 |
+| `PATCH` | `/api/admin/brands/[id]` | 更新指定品牌 |
+| `DELETE` | `/api/admin/brands/[id]` | 删除指定品牌 |
+
+---
+
+#### 分类管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/categories` | 创建配件分类 |
+| `PATCH` | `/api/admin/categories` | 批量排序分类 |
+| `PATCH` | `/api/admin/categories/[id]` | 更新指定分类 |
+| `DELETE` | `/api/admin/categories/[id]` | 删除指定分类 |
+
+---
+
+#### 头像预设管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/avatar-presets` | 列出所有头像预设 |
+| `POST` | `/api/admin/avatar-presets` | 创建头像预设 |
+| `PATCH` | `/api/admin/avatar-presets/[id]` | 更新头像预设 |
+| `DELETE` | `/api/admin/avatar-presets/[id]` | 删除头像预设 |
+
+---
+
+#### 经典车漆管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/classic-paints` | 列出所有经典车漆 |
+| `POST` | `/api/admin/classic-paints` | 创建经典车漆 |
+| `PATCH` | `/api/admin/classic-paints/[id]` | 更新经典车漆 |
+| `DELETE` | `/api/admin/classic-paints/[id]` | 删除经典车漆 |
+
+---
+
+#### 安全配置管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/guardrail` | 获取安全检查配置 |
+| `POST` | `/api/admin/guardrail` | 更新安全检查配置（SOP、关键词、推荐提示词等） |
+
+---
+
+#### 套餐管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/plans` | 更新/创建会员套餐 |
+
+---
+
+#### AI 提供商配置管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/provider-configs` | 更新 AI 提供商配置（API Key、模型、启用状态等） |
+
+---
+
+#### 额度调整
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/quota-adjustments` | 调整指定用户的额度（配置模式或对话模式） |
+
+---
+
+#### 图片上传
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/uploads` | 上传配件图片到素材库 |
+
+---
+
+#### 用户管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `PATCH` | `/api/admin/users/[id]` | 管理指定用户（修改角色、套餐、状态等） |
+
+---
+
+#### 工作流配置管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/workflows` | 列出所有工作流配置 |
+| `PUT` | `/api/admin/workflows` | 更新工作流配置 |
+
+---
+
+#### 提示词模板管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/prompt-templates` | 查询提示词模板，支持按 `scope` 参数过滤 |
+| `POST` | `/api/admin/prompt-templates` | 405 - 只读，通过 Git Seed 管理 |
+| `PATCH` | `/api/admin/prompt-templates` | 405 - 只读，通过 Git Seed 管理 |
+| `PATCH` | `/api/admin/prompt-templates/[id]` | 405 - 只读，通过 Git Seed 管理 |
+| `DELETE` | `/api/admin/prompt-templates/[id]` | 405 - 只读，通过 Git Seed 管理 |
+
+---
+
+#### 提示词预设管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/admin/prompt-presets` | 405 - 只读，通过 Git Seed 管理 |
+
+---
+
+> 最后更新时间：2026-07-25
+> 关联方案ID：DESIGN-20260725-001
