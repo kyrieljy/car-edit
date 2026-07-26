@@ -692,23 +692,27 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
           setMenuDrawerOpen(true)
         }}
       />
-      <div className="mobile-shared-mode-bar">
-        <MobileModeSwitch mode={appMode} setMode={setAppMode} labels={{ config: t.configMode, chat: t.chatMode }} />
-      </div>
-      <div className="mobile-access-banner-layer" aria-live="polite">
-        <AnimatePresence initial={false}>
-          {accessKind && (
-            <MobileAccessBanner
-              key="mobile-access-banner"
-              kind={accessKind}
-              language={language}
-              billing={billing}
-              shaking={accessBannerShaking && accessBannerShakeKind === accessKind}
-              onClick={openAccessDestination}
-            />
-          )}
-        </AnimatePresence>
-      </div>
+      {activeMenu === "edit" && (
+        <div className="mobile-shared-mode-bar">
+          <MobileModeSwitch mode={appMode} setMode={setAppMode} labels={{ config: t.configMode, chat: t.chatMode }} />
+        </div>
+      )}
+      {activeMenu === "edit" && (
+        <div className="mobile-access-banner-layer" aria-live="polite">
+          <AnimatePresence initial={false}>
+            {accessKind && (
+              <MobileAccessBanner
+                key="mobile-access-banner"
+                kind={accessKind}
+                language={language}
+                billing={billing}
+                shaking={accessBannerShaking && accessBannerShakeKind === accessKind}
+                onClick={openAccessDestination}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+      )}
       <section className={visibleModes.length > 1 ? "mobile-studio-phone is-transitioning" : "mobile-studio-phone"} data-transition-direction={modeTransitionDirection}>
         {activeMenu !== "edit" && (
           <div className="mobile-coming-soon">

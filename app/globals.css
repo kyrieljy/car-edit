@@ -7100,7 +7100,7 @@ a {
     display: flex;
     place-items: center;
     justify-content: center;
-    min-height: 40vh;
+    min-height: 60vh;
   }
 
   .mobile-coming-soon p {
