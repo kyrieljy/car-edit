@@ -45,6 +45,9 @@ type ChatModeProps = {
   mobileSidebarOpen?: boolean
   setMobileSidebarOpen?: (open: boolean) => void
   hideMobileMenu?: boolean
+  onSessionsChange?: (sessions: ChatSession[], activeSessionId: string) => void
+  pendingSessionId?: string | null
+  onPendingSessionConsumed?: () => void
 }
 
 const fallbackPrompts = [
@@ -339,6 +342,9 @@ export function ChatMode({
   mobileSidebarOpen: controlledMobileSidebarOpen,
   setMobileSidebarOpen: setControlledMobileSidebarOpen,
   hideMobileMenu = false,
+  onSessionsChange,
+  pendingSessionId,
+  onPendingSessionConsumed,
 }: ChatModeProps) {
   const t = chatCopy[language]
   const vehicleInputRef = useRef<HTMLInputElement | null>(null)
@@ -352,6 +358,7 @@ export function ChatMode({
   const sessionLoadSeqRef = useRef(0)
   const historyBottomScrollTimersRef = useRef<number[]>([])
   const pendingHistoryBottomScrollRef = useRef<{ sessionId: string; loadSeq: number } | null>(null)
+  const selectSessionRef = useRef<(id: string) => void>(() => {})
   const chatCacheKey = `${mobileVariant ? "mobile" : "desktop"}:${authUser?.id ?? "guest"}`
   const cachedChatState = chatModeCache.get(chatCacheKey)
   const [hydratedChatCacheKey, setHydratedChatCacheKey] = useState(chatCacheKey)
@@ -703,6 +710,21 @@ export function ChatMode({
 
     void loadSelectedSession()
   }
+  selectSessionRef.current = selectSession
+
+  // Report session list to parent (mobile menu drawer) when data changes.
+  useEffect(() => {
+    if (mobileVariant && onSessionsChange) {
+      onSessionsChange(sessions, activeSessionId)
+    }
+  }, [mobileVariant, onSessionsChange, sessions, activeSessionId])
+
+  // Consume a pending session selection from the mobile menu drawer.
+  useEffect(() => {
+    if (!pendingSessionId) return
+    selectSessionRef.current(pendingSessionId)
+    onPendingSessionConsumed?.()
+  }, [pendingSessionId, onPendingSessionConsumed])
 
   const togglePinSession = async (session: ChatSession) => {
     if (mobileLoginBlocked) {

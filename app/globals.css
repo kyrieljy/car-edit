@@ -2448,6 +2448,10 @@ a {
     height: 100% !important;
     border-radius: inherit !important;
   }
+
+  .mobile-media-upload .compare-slider-layer {
+    object-fit: cover;
+  }
 }
 
 /* Mobile sheet density and color editor fixes. */
@@ -2690,11 +2694,6 @@ a {
   .mobile-chat-screen > .mobile-screen-head .mobile-screen-title > strong {
     opacity: 0;
     pointer-events: none;
-  }
-
-  .mobile-chat-screen > .mobile-screen-head .mobile-screen-title > .mobile-chat-sidebar-toggle {
-    opacity: 1;
-    pointer-events: auto;
   }
 
   .mobile-chat-screen > .mobile-screen-head .mobile-mini-actions {
@@ -6896,23 +6895,23 @@ a {
 
   .mobile-menu-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    padding: 24px 20px;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 20px 20px;
   }
 
   .mobile-menu-card {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 10px;
-    padding: 24px 16px;
+    gap: 14px;
+    padding: 14px 16px;
     border: 1px solid var(--line-soft);
     background: var(--surface);
-    border-radius: 20px;
+    border-radius: 16px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
-    text-align: center;
+    text-align: left;
   }
 
   .mobile-menu-card:hover,
@@ -6924,40 +6923,197 @@ a {
   .mobile-menu-card-icon {
     display: grid;
     place-items: center;
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
     background: var(--surface-2);
     color: var(--yellow);
   }
 
   .mobile-menu-card strong {
-    font-size: 15px;
+    font-size: 14px;
     color: var(--text);
   }
 
   .mobile-menu-card small {
     font-size: 12px;
     color: var(--muted);
+    margin-top: 2px;
   }
 
-  /* ===== Mobile Chat Sidebar Toggle ===== */
-  .mobile-chat-sidebar-toggle {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border: none;
+  /* ===== Mobile Menu Chat List ===== */
+  .mobile-menu-chat-list {
+    padding: 0 20px 24px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .mobile-menu-chat-section {
+    margin-bottom: 16px;
+  }
+
+  .mobile-menu-chat-section-title {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0 4px;
+    margin-bottom: 8px;
+  }
+
+  .mobile-menu-chat-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
     background: transparent;
-    color: var(--mobile-text, var(--text));
+    color: var(--text);
     cursor: pointer;
-    border-radius: 8px;
-    margin-right: 6px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .mobile-menu-chat-item:hover {
+    background: var(--surface);
+  }
+
+  .mobile-menu-chat-item.active {
+    background: var(--surface-2);
+    border-color: var(--yellow);
+  }
+
+  .mobile-menu-chat-item strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-menu-chat-item small {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+
+  .mobile-menu-chat-empty {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 32px 0;
+  }
+
+  /* ===== Mobile Menu Generation History List ===== */
+  .mobile-menu-history-list {
+    padding: 4px 20px 24px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .mobile-menu-history-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-menu-history-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 4px 4px;
+  }
+
+  .mobile-menu-history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
     transition: background 0.15s;
   }
 
-  .mobile-chat-sidebar-toggle:active {
-    background: var(--mobile-soft, rgba(255, 255, 255, 0.08));
+  .mobile-menu-history-item:hover {
+    background: var(--surface);
+  }
+
+  .mobile-menu-history-item.active {
+    background: color-mix(in srgb, var(--yellow) 14%, transparent);
+  }
+
+  .mobile-menu-history-item img {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .mobile-menu-history-item > div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-menu-history-item strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-menu-history-item small {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-menu-history-delete {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    color: var(--muted);
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mobile-menu-history-delete:hover {
+    background: color-mix(in srgb, var(--muted) 15%, transparent);
+    color: var(--text);
+  }
+
+  .mobile-menu-history-empty {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 32px 0;
   }
 
   /* ===== Profile History Sub-page ===== */

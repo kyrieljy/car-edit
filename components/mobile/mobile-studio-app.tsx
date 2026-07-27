@@ -65,6 +65,7 @@ import type {
   AccountMessage,
   AuthUser,
   CatalogResponse,
+  ChatSession,
   EntitlementStatus,
   GenerationJob,
   GenerationProgressEvent,
@@ -558,6 +559,13 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false)
   const [activeMenu, setActiveMenu] = useState<AppMenu>("edit")
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [chatActiveSessionId, setChatActiveSessionId] = useState("")
+  const [pendingChatSessionId, setPendingChatSessionId] = useState<string | null>(null)
+  const handleSelectChatSession = useCallback((id: string) => {
+    setPendingChatSessionId(id)
+    setMenuDrawerOpen(false)
+  }, [])
   const [topbarDetached, setTopbarDetached] = useState(false)
   const [accessBannerShakeKey, setAccessBannerShakeKey] = useState(0)
   const [accessBannerShaking, setAccessBannerShaking] = useState(false)
@@ -717,7 +725,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
               {mode === "config" ? (
                 <MobileConfigMode {...frameProps} />
               ) : (
-                <MobileChatMode {...frameProps} mobileSidebarOpen={chatSidebarOpen} setMobileSidebarOpen={setChatSidebarOpen} />
+                <MobileChatMode {...frameProps} mobileSidebarOpen={chatSidebarOpen} setMobileSidebarOpen={setChatSidebarOpen} onSessionsChange={(sessions, activeSessionId) => { setChatSessions(sessions); setChatActiveSessionId(activeSessionId) }} pendingSessionId={pendingChatSessionId} onPendingSessionConsumed={() => setPendingChatSessionId(null)} />
               )}
             </div>
           )
@@ -727,6 +735,15 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
         open={menuDrawerOpen}
         onClose={() => setMenuDrawerOpen(false)}
         language={language}
+        appMode={appMode}
+        chatSessions={chatSessions}
+        chatActiveSessionId={chatActiveSessionId}
+        onSelectChatSession={handleSelectChatSession}
+        generationHistory={props.history}
+        generationJob={props.job}
+        onSelectGenerationHistory={props.selectHistoryJob}
+        onDeleteGenerationHistory={props.deleteHistoryJob}
+        formatHistoryTitle={props.formatHistoryTitle}
         onSelect={(menu) => {
           setMenuDrawerOpen(false)
           setActiveMenu(menu)
@@ -917,17 +934,10 @@ function MobileConfigMode(props: MobileStudioAppProps) {
   const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
   const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGenerated = Boolean(generatedResultUrl)
-  const canUseGeneratedView = hasGenerated
-  const canUseCompareView = Boolean(vehiclePreview && hasGenerated)
-  const effectiveViewMode = vehiclePreview ? viewMode : "original"
-  const isCompareView = effectiveViewMode === "compare" && hasGenerated
-  const isGeneratedResultView = effectiveViewMode === "generated" && hasGenerated
-  const canToggleMediaChrome = isCompareView || isGeneratedResultView
-  const canUploadFromMedia = effectiveViewMode === "original"
+  const canToggleMediaChrome = hasGenerated
   const mediaCardClassName = [
     "mobile-media-card",
-    isCompareView ? "is-compare" : "",
-    isGeneratedResultView ? "is-generated-result" : "",
+    hasGenerated ? "is-compare" : "",
     canToggleMediaChrome ? "can-toggle-chrome" : "",
     mediaChromeHidden ? "chrome-hidden" : "",
   ].filter(Boolean).join(" ")
@@ -1007,8 +1017,8 @@ function MobileConfigMode(props: MobileStudioAppProps) {
       <section className={mediaCardClassName}>
         <button
           type="button"
-          className={`${vehiclePreview ? "mobile-media-upload has-image" : "mobile-media-upload"}${canUploadFromMedia ? "" : " view-only"}${canToggleMediaChrome ? " can-toggle-chrome" : ""}`}
-          disabled={!vehiclePreview && !canUploadFromMedia}
+          className={`${vehiclePreview ? "mobile-media-upload has-image" : "mobile-media-upload"}${canToggleMediaChrome ? " can-toggle-chrome" : ""}${!vehiclePreview ? "" : " view-only"}`}
+          disabled={!vehiclePreview}
           aria-label={canToggleMediaChrome ? (mediaChromeHidden ? (language === "zh" ? "\u663e\u793a\u56fe\u7247\u63a7\u4ef6" : "Show image controls") : (language === "zh" ? "\u9690\u85cf\u56fe\u7247\u63a7\u4ef6" : "Hide image controls")) : undefined}
           onClick={() => {
             if (isLoginBlocked) {
@@ -1019,7 +1029,6 @@ function MobileConfigMode(props: MobileStudioAppProps) {
               setMediaChromeHidden((hidden) => !hidden)
               return
             }
-            if (!canUploadFromMedia) return
             inputRef.current?.click()
           }}
           onDragOver={(event) => event.preventDefault()}
@@ -1034,7 +1043,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
           }}
         >
           {vehiclePreview ? (
-            isCompareView ? (
+            hasGenerated ? (
               <ImageComparisonSlider
                 key={compareKey}
                 beforeSrc={safeVehiclePreview}
@@ -1044,7 +1053,10 @@ function MobileConfigMode(props: MobileStudioAppProps) {
                 autoPlay
               />
             ) : (
-              <img src={effectiveViewMode === "original" || !hasGenerated ? safeVehiclePreview : safeGeneratedResultUrl} alt="Vehicle preview" />
+              <span className="mobile-upload-empty">
+                <Sparkles size={30} />
+                <strong>{language === "zh" ? "\u70b9\u51fb\u751f\u6210\u67e5\u770b\u5bf9\u6bd4\u6548\u679c" : "Generate to compare"}</strong>
+              </span>
             )
           ) : (
             <span className="mobile-upload-empty">
@@ -1067,17 +1079,6 @@ function MobileConfigMode(props: MobileStudioAppProps) {
             disabled={isLoginBlocked || (!vehiclePreview && !vehicleNote)}
           />
         </label>
-        <div className="mobile-view-tabs" role="tablist" aria-hidden={canToggleMediaChrome && mediaChromeHidden}>
-          <button type="button" className={effectiveViewMode === "original" ? "active" : ""} onClick={() => runMobileAction(() => setViewMode("original"))}>
-            {t.original}
-          </button>
-          <button type="button" className={effectiveViewMode === "generated" ? "active" : ""} disabled={!canUseGeneratedView && !isLoginBlocked} onClick={() => runMobileAction(() => setViewMode("generated"))}>
-            {t.generated}
-          </button>
-          <button type="button" className={effectiveViewMode === "compare" ? "active" : ""} disabled={!canUseCompareView && !isLoginBlocked} onClick={() => runMobileAction(() => setViewMode("compare"))}>
-            {t.compare}
-          </button>
-        </div>
         {completedElapsed !== null && <span className="mobile-elapsed-badge">{`${t.elapsed} ${completedElapsed}${t.elapsedUnit}`}</span>}
         {isGenerating && (
           <div className="mobile-progress-layer">
@@ -1098,7 +1099,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
           <X size={15} />
           {language === "zh" ? "\u6e05\u7a7a" : "Clear"}
         </button>
-        <button type="button" className="mobile-action-save" disabled={!hasGenerated} onClick={() => runMobileAction(() => saveResult(isCompareView ? "compare" : "generated"))}>
+        <button type="button" className="mobile-action-save" disabled={!hasGenerated} onClick={() => runMobileAction(() => saveResult("compare"))}>
           <ArrowDownToLine size={15} />
           {language === "zh" ? "\u4fdd\u5b58" : "Save"}
         </button>
@@ -2357,20 +2358,42 @@ function MobileMenuDrawer({
   open,
   onClose,
   language,
+  appMode,
+  chatSessions,
+  chatActiveSessionId,
+  onSelectChatSession,
+  generationHistory,
+  generationJob,
+  onSelectGenerationHistory,
+  onDeleteGenerationHistory,
+  formatHistoryTitle,
   onSelect,
 }: {
   open: boolean
   onClose: () => void
   language: Language
+  appMode: AppMode
+  chatSessions: ChatSession[]
+  chatActiveSessionId: string
+  onSelectChatSession: (id: string) => void
+  generationHistory: GenerationJob[]
+  generationJob: GenerationJob | null
+  onSelectGenerationHistory: (job: GenerationJob) => void
+  onDeleteGenerationHistory: (job: GenerationJob) => void
+  formatHistoryTitle?: (job: GenerationJob) => string
   onSelect: (menu: AppMenu) => void
 }) {
   const isZh = language === "zh"
   const menuItems: { key: AppMenu; icon: ReactNode; label: string; desc: string }[] = [
-    { key: "edit", icon: <PencilRuler size={28} />, label: isZh ? "改图" : "Edit", desc: isZh ? "AI 汽车改装效果预览" : "AI car modification preview" },
-    { key: "generate", icon: <ImagePlus size={28} />, label: isZh ? "生图" : "Generate", desc: isZh ? "AI 图像生成" : "AI image generation" },
-    { key: "video", icon: <Film size={28} />, label: isZh ? "视频" : "Video", desc: isZh ? "AI 视频生成" : "AI video generation" },
-    { key: "effect", icon: <Zap size={28} />, label: isZh ? "特效" : "Effects", desc: isZh ? "AI 特效处理" : "AI effects" },
+    { key: "edit", icon: <PencilRuler size={22} />, label: isZh ? "改图" : "Edit", desc: isZh ? "AI 汽车改装效果预览" : "AI car modification preview" },
+    { key: "generate", icon: <ImagePlus size={22} />, label: isZh ? "生图" : "Generate", desc: isZh ? "AI 图像生成" : "AI image generation" },
+    { key: "video", icon: <Film size={22} />, label: isZh ? "视频" : "Video", desc: isZh ? "AI 视频生成" : "AI video generation" },
+    { key: "effect", icon: <Zap size={22} />, label: isZh ? "特效" : "Effects", desc: isZh ? "AI 特效处理" : "AI effects" },
   ]
+  const pinned = chatSessions.filter((s) => s.pinned)
+  const recent = chatSessions.filter((s) => !s.pinned)
+  const showChatList = appMode === "chat"
+  const showGenerationHistory = appMode === "config"
 
   return (
     <AnimatePresence>
@@ -2415,6 +2438,81 @@ function MobileMenuDrawer({
                 </button>
               ))}
             </div>
+            {showChatList && (
+              <div className="mobile-menu-chat-list">
+                {pinned.length > 0 && (
+                  <div className="mobile-menu-chat-section">
+                    <span className="mobile-menu-chat-section-title">{isZh ? "置顶会话" : "Pinned"}</span>
+                    {pinned.map((session) => (
+                      <button
+                        type="button"
+                        key={session.id}
+                        className={`mobile-menu-chat-item${session.id === chatActiveSessionId ? " active" : ""}`}
+                        onClick={() => onSelectChatSession(session.id)}
+                      >
+                        <strong>{session.title}</strong>
+                        <small>{session.preview}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="mobile-menu-chat-section">
+                  <span className="mobile-menu-chat-section-title">{isZh ? "最近会话" : "Recent"}</span>
+                  {recent.length > 0 ? recent.map((session) => (
+                    <button
+                      type="button"
+                      key={session.id}
+                      className={`mobile-menu-chat-item${session.id === chatActiveSessionId ? " active" : ""}`}
+                      onClick={() => onSelectChatSession(session.id)}
+                    >
+                      <strong>{session.title}</strong>
+                      <small>{session.preview}</small>
+                    </button>
+                  )) : (
+                    <p className="mobile-menu-chat-empty">{isZh ? "暂无历史会话" : "No chat history"}</p>
+                  )}
+                </div>
+              </div>
+            )}
+            {showGenerationHistory && (
+              <div className="mobile-menu-history-list">
+                <div className="mobile-menu-history-section">
+                  <span className="mobile-menu-history-section-title">{isZh ? "生成历史" : "Generation history"}</span>
+                  {generationHistory.length > 0 ? (
+                    generationHistory.map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className={`mobile-menu-history-item${item.id === generationJob?.id ? " active" : ""}`}
+                        onClick={() => {
+                          onSelectGenerationHistory(item)
+                          onClose()
+                        }}
+                      >
+                        <img src={canvasSafeImageUrl(item.resultImageUrl || item.sourceImageUrl)} alt={item.id} />
+                        <div>
+                          <strong>{formatHistoryTitle?.(item) || mobileHistoryTitle(item)}</strong>
+                          <small>{new Date(item.createdAt).toLocaleString()}</small>
+                        </div>
+                        <span
+                          className="mobile-menu-history-delete"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void onDeleteGenerationHistory(item)
+                          }}
+                          role="button"
+                          aria-label="Delete"
+                        >
+                          <X size={13} />
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="mobile-menu-history-empty">{isZh ? "暂无生成记录" : "No generation history"}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.aside>
         </>
       )}
@@ -3058,14 +3156,6 @@ function MobileProfilePage({
               </button>
             ) : (
               <>
-                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("history")}>
-                  <span><History size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "生成历史" : "Generation history"}</strong>
-                    <small>{isZh ? "查看已生成的改装效果图" : "View generated modification images"}</small>
-                  </div>
-                  <ChevronRight size={19} />
-                </button>
                 <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("profile")}>
                   <span><Pencil size={19} /></span>
                   <div>
@@ -3295,6 +3385,9 @@ function MobileChatMode({
   onMobileAccessBlocked,
   mobileSidebarOpen,
   setMobileSidebarOpen,
+  onSessionsChange,
+  pendingSessionId,
+  onPendingSessionConsumed,
 }: MobileStudioAppProps & { mobileSidebarOpen: boolean; setMobileSidebarOpen: (open: boolean) => void }) {
   return (
     <section className="mobile-screen mobile-chat-screen">
@@ -3303,16 +3396,6 @@ function MobileChatMode({
         title={language === "zh" ? "对话模式" : "Chat mode"}
         language={language}
         onLanguage={toggleLanguage}
-        leftAction={
-          <button
-            type="button"
-            className="mobile-chat-sidebar-toggle"
-            onClick={() => setMobileSidebarOpen(true)}
-            aria-label={language === "zh" ? "会话历史" : "Chat history"}
-          >
-            <Menu size={18} />
-          </button>
-        }
       />
       <div className="mobile-shared-mode-spacer" aria-hidden="true" />
       <div className="mobile-chat-shell">
@@ -3326,6 +3409,9 @@ function MobileChatMode({
           mobileSidebarOpen={mobileSidebarOpen}
           setMobileSidebarOpen={setMobileSidebarOpen}
           hideMobileMenu
+          onSessionsChange={onSessionsChange}
+          pendingSessionId={pendingSessionId}
+          onPendingSessionConsumed={onPendingSessionConsumed}
           onAuthRequired={() => setAuthOpen(true)}
           onSubscribeRequired={(nextBilling) => {
             if (nextBilling) onBillingChanged(nextBilling)

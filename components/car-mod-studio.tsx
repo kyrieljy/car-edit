@@ -757,9 +757,9 @@ export function CarModStudio() {
   const [activeGradientFromHex, setActiveGradientFromHex] = useState(defaultGradientFromHex)
   const [activeGradientToHex, setActiveGradientToHex] = useState(defaultGradientToHex)
   const [stance, setStance] = useState(0)
-  const [viewMode, setViewMode] = useState<ViewMode>("generated")
-  // Incremented each time the compare view is activated so that the slider
-  // re-mounts and replays its auto-play animation.
+  const [viewMode, setViewMode] = useState<ViewMode>("compare")
+  // Incremented each time a new generation succeeds so that the comparison
+  // slider re-mounts and replays its auto-play animation.
   const [compareKey, setCompareKey] = useState(0)
   const setViewModeWithCompareReset = useCallback((mode: ViewMode) => {
     setViewMode(mode)
@@ -770,6 +770,11 @@ export function CarModStudio() {
   const [generationDurationSeconds, setGenerationDurationSeconds] = useState<number | null>(null)
   const [generationProgress, setGenerationProgress] = useState<GenerationProgressEvent | null>(null)
   const [job, setJob] = useState<GenerationJob | null>(null)
+  // Auto-increment compareKey when a generation completes so the slider
+  // re-mounts with a fresh auto-play animation.
+  useEffect(() => {
+    if (job?.status === "succeeded") setCompareKey((k) => k + 1)
+  }, [job?.status])
   const [history, setHistory] = useState<GenerationJob[]>([])
   const [notice, setNotice] = useState("")
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
@@ -3742,7 +3747,7 @@ function ResultPanel({
   const safeVehiclePreview = canvasSafeImageUrl(vehiclePreview)
   const safeGeneratedResultUrl = canvasSafeImageUrl(generatedResultUrl)
   const hasGeneratedResult = Boolean(generatedResultUrl)
-  const showCompletedElapsed = hasGeneratedResult && completedElapsedSeconds !== null && !isGenerating && viewMode !== "original"
+  const showCompletedElapsed = hasGeneratedResult && completedElapsedSeconds !== null && !isGenerating
   const progressRetryText = generationProgress?.retryAttempt ? (language === "zh" ? ` · 第 ${generationProgress.retryAttempt} 次重试` : ` · retry ${generationProgress.retryAttempt}`) : ""
   const progressText = generationProgress?.message || t.running
 
@@ -3753,17 +3758,6 @@ function ResultPanel({
           <ImageIcon size={22} />
           {t.result}
         </h2>
-        <div className="view-switch">
-          <button className={viewMode === "original" ? "selected" : ""} onClick={() => setViewMode("original")}>
-            {t.original}
-          </button>
-          <button className={viewMode === "generated" ? "selected" : ""} onClick={() => setViewMode("generated")}>
-            {t.generated}
-          </button>
-          <button className={viewMode === "compare" ? "selected" : ""} onClick={() => setViewMode("compare")}>
-            {t.compare}
-          </button>
-        </div>
       </div>
 
       <section className="result-window" style={{ "--paint": selectedPaint?.hex ?? "#050506" } as CSSProperties}>
@@ -3785,10 +3779,7 @@ function ResultPanel({
             <span>{t.waiting}</span>
           </div>
         )}
-        {viewMode === "original" && vehiclePreview && <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />}
-        {viewMode === "generated" &&
-          (hasGeneratedResult ? <img className="main-image fixed-result-image" src={safeGeneratedResultUrl} alt="Generated vehicle render" /> : vehiclePreview ? <GeneratedPreview src={vehiclePreview} paintBackground={paintPreviewBackground} stance={stance} selectedAssets={selectedAssets} /> : null)}
-        {viewMode === "compare" && vehiclePreview && hasGeneratedResult && (
+        {vehiclePreview && hasGeneratedResult && (
           <ImageComparisonSlider
             key={compareKey}
             beforeSrc={safeVehiclePreview}
@@ -3798,8 +3789,12 @@ function ResultPanel({
             autoPlay
           />
         )}
-        {viewMode === "compare" && vehiclePreview && !hasGeneratedResult && (
-          <img className="main-image" src={safeVehiclePreview} alt="Original vehicle" />
+        {vehiclePreview && !hasGeneratedResult && (
+          <div className="result-empty">
+            <Sparkles size={38} />
+            <p>{language === "zh" ? "点击生成查看对比效果" : "Generate to see comparison"}</p>
+            <span>{t.waiting}</span>
+          </div>
         )}
         {showCompletedElapsed && <span className="result-elapsed-badge">{`${t.elapsed} ${completedElapsedSeconds} ${t.elapsedUnit}`}</span>}
       </section>
@@ -3825,7 +3820,7 @@ function ResultPanel({
                 event.preventDefault()
                 return
               }
-              saveResult(viewMode === "compare" ? "compare" : "generated")
+              saveResult("compare")
             }}
           >
             <ArrowDownToLine size={16} /> {t.saveExport}
