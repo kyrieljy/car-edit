@@ -2,6 +2,29 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-07-27
+
+### 修改
+- [修改] `components/car-mod-studio.tsx` PC 端浮动菜单新增折叠/展开功能：菜单紧贴窗口左侧（left: 4px），底部追加"<"折叠按钮，点击后隐藏菜单仅保留">"展开按钮 (关联方案ID: DESIGN-20260727-002)
+- [修改] `app/globals.css` `.app-floating-rail` left 由 12px 调整为 4px；新增 `.app-floating-rail-collapsed` 折叠态容器样式及 `.app-rail-collapse` 折叠按钮分隔线样式 (关联方案ID: DESIGN-20260727-002)
+- [修改] `components/car-mod-studio.tsx` `components/mobile/mobile-studio-app.tsx` 移除改图界面"原图/生成图/对比"三页签切换栏，仅保留对比视图；有生成结果时显示对比滑块，有原图无生成时显示空状态占位 (关联方案ID: DESIGN-20260727-001)
+- [修改] `components/car-mod-studio.tsx` 新增生成完成时自动递增 compareKey 触发对比滑块重播动画 (关联方案ID: DESIGN-20260727-001)
+- [修改] `components/mobile/mobile-studio-app.tsx` 移除对话模式 MobileScreenHead 左侧历史侧栏按钮，会话列表嵌入左上角菜单抽屉 (关联方案ID: DESIGN-20260727-001)
+- [修改] `components/mobile/mobile-studio-app.tsx` `components/chat-mode.tsx` 菜单抽屉布局由 2×2 改为单列，对话模式下在子菜单下方直接嵌入聊天会话列表 (关联方案ID: DESIGN-20260727-001)
+- [修改] `app/globals.css` 移动端对比滑块图层使用 object-fit: cover 确保两图尺寸完全一致 (关联方案ID: DESIGN-20260727-001)
+- [修复] `components/chat-mode.tsx` 使用 ref 持有 selectSession 引用消除 useEffect 依赖警告，修复 ESLint react-hooks/exhaustive-deps (关联方案ID: DESIGN-20260727-001)
+- [清理] `app/globals.css` 移除不再使用的 .mobile-chat-sidebar-toggle 相关样式 (关联方案ID: DESIGN-20260727-001)
+- [修复] `components/car-mod-studio.tsx` 将 job 状态监听 useEffect 移至 job 变量声明之后，修复 "ReferenceError: Cannot access 'job' before initialization" 启动崩溃 (关联方案ID: DESIGN-20260727-001)
+- [修改] `components/mobile/mobile-studio-app.tsx` 配置模式下左上角菜单抽屉新增生成历史列表，点击历史记录切换到对应生成结果 (关联方案ID: DESIGN-20260727-001)
+- [修改] `components/mobile/mobile-studio-app.tsx` 移除用户中心"生成历史"子页面入口，历史记录统一通过左上角菜单抽屉访问 (关联方案ID: DESIGN-20260727-001)
+- [修改] `app/globals.css` 新增 .mobile-menu-history-list / .mobile-menu-history-item 等生成历史列表样式 (关联方案ID: DESIGN-20260727-001)
+
+### 文档
+- [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260727-001)
+
+> 最后更新时间：2026-07-27
+> 关联方案ID：DESIGN-20260727-002
+
 ## v0.1.5 - 2026-07-26
 
 ### 修改

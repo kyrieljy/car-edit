@@ -6763,7 +6763,7 @@ a {
   .app-floating-rail {
     position: fixed;
     top: 50%;
-    left: 12px;
+    left: 4px;
     transform: translateY(-50%);
     z-index: 900;
     display: none;
@@ -6778,6 +6778,28 @@ a {
 
   @media (min-width: 761px) {
     .app-floating-rail {
+      display: flex;
+    }
+  }
+
+  .app-floating-rail-collapsed {
+    position: fixed;
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+    z-index: 900;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow);
+  }
+
+  @media (min-width: 761px) {
+    .app-floating-rail-collapsed {
       display: flex;
     }
   }
@@ -6803,6 +6825,13 @@ a {
 
   .app-rail-item.active {
     color: var(--yellow);
+  }
+
+  .app-rail-collapse {
+    border-top: 1px solid var(--line-soft);
+    border-radius: 0 0 8px 8px;
+    margin-top: 2px;
+    padding-top: 2px;
   }
 
   .app-rail-item::after {
