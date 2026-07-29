@@ -2571,6 +2571,7 @@ function DesktopAccountPanel({
   const [orders, setOrders] = useState<PaymentOrder[]>([])
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [ordersError, setOrdersError] = useState("")
+  const [ordersLoaded, setOrdersLoaded] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -2708,16 +2709,17 @@ function DesktopAccountPanel({
       setOrdersError(orderError instanceof Error ? orderError.message : copy.ordersError)
     } finally {
       setOrdersLoading(false)
+      setOrdersLoaded(true)
     }
   }, [authUser, copy.ordersError])
 
   useEffect(() => {
     if (!open || !authUser) return undefined
     if (mode !== "orders") return undefined
-    if (orders.length || ordersLoading) return undefined
+    if (ordersLoaded || ordersLoading) return undefined
     void loadOrders()
     return undefined
-  }, [authUser, mode, open, orders.length, ordersLoading, loadOrders])
+  }, [authUser, mode, open, ordersLoaded, ordersLoading, loadOrders])
 
   const orderStatusLabel = (status: PaymentOrder["status"]) => {
     const map: Record<PaymentOrder["status"], string> = isZh

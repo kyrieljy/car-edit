@@ -63,6 +63,7 @@
   | status | TEXT | 是 | `'active'` | 账户状态 |
   | created_at | TEXT | 是 | - | 创建时间（ISO 8601） |
   | updated_at | TEXT | 是 | - | 最后更新时间（ISO 8601） |
+  | tags_json | TEXT | 是 | `'[]'` | 手动用户标签（JSON 数组字符串），如 `["vip", "beta-tester"]`（DESIGN-20260729-002 新增） |
 
 - **索引**：
 
@@ -836,4 +837,4 @@
 ---
 
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001
+> 关联方案ID：DESIGN-20260729-002

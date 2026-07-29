@@ -242,6 +242,9 @@ type MobileStudioAppProps = {
   logout: () => void
   mobileAccessKind?: MobileAccessKind
   onMobileAccessBlocked?: () => void
+  onSessionsChange?: (sessions: ChatSession[], activeSessionId: string) => void
+  pendingSessionId?: string | null
+  onPendingSessionConsumed?: () => void
 }
 
 const paintEffects: PaintFinishEffect[] = ["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"]
@@ -728,7 +731,7 @@ export function MobileStudioApp(props: MobileStudioAppProps) {
               {mode === "config" ? (
                 <MobileConfigMode {...frameProps} />
               ) : (
-                <MobileChatMode {...frameProps} mobileSidebarOpen={chatSidebarOpen} setMobileSidebarOpen={setChatSidebarOpen} onSessionsChange={(sessions, activeSessionId) => { setChatSessions(sessions); setChatActiveSessionId(activeSessionId) }} pendingSessionId={pendingChatSessionId} onPendingSessionConsumed={() => setPendingChatSessionId(null)} />
+                <MobileChatMode {...frameProps} mobileSidebarOpen={chatSidebarOpen} setMobileSidebarOpen={setChatSidebarOpen} onSessionsChange={(sessions: ChatSession[], activeSessionId: string) => { setChatSessions(sessions); setChatActiveSessionId(activeSessionId) }} pendingSessionId={pendingChatSessionId} onPendingSessionConsumed={() => setPendingChatSessionId(null)} />
               )}
             </div>
           )
@@ -1041,7 +1044,6 @@ function MobileConfigMode(props: MobileStudioAppProps) {
               blockMobileAccess()
               return
             }
-            if (!canUploadFromMedia) return
             onFile(event.dataTransfer.files[0])
           }}
         >

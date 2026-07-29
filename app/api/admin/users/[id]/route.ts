@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireAdminUser } from "@/lib/server/auth"
-import { getBillingStatus, updateAdminUser } from "@/lib/server/db"
+import { getBillingStatus, getUserDetail, updateAdminUser } from "@/lib/server/db"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
+  try {
+    requireAdminUser()
+    const detail = getUserDetail(params.id)
+    if (!detail) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+    return NextResponse.json(detail)
+  } catch (error) {
+    return authErrorResponse(error)
+  }
+}
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {

@@ -710,3 +710,165 @@ export type AdminSummary = {
     createdAt: number
   }>
 }
+
+// ---------------------------------------------------------------------------
+// Analytics types (DESIGN-20260729-002)
+// ---------------------------------------------------------------------------
+
+export type AnalyticsGranularity = "hour" | "day" | "week" | "month"
+
+export type AnalyticsTimeseriesPoint = {
+  date: string
+  count: number
+  group?: string
+}
+
+export type AnalyticsTrendResponse = {
+  points: AnalyticsTimeseriesPoint[]
+  previousPeriodCount: number
+  currentPeriodCount: number
+  changeRate: number | null
+}
+
+export type GenerationRecordItem = {
+  id: string
+  userId: string
+  username: string
+  mode: string
+  status: string
+  provider: string
+  displayVehicleModel: string
+  costCents: number
+  durationMs: number | null
+  createdAt: number
+  completedAt: number | null
+  failureReason: string
+}
+
+export type GenerationListStats = {
+  totalCount: number
+  successRate: number
+  avgDurationMs: number | null
+  avgCostCents: number
+}
+
+export type GenerationListResponse = {
+  items: GenerationRecordItem[]
+  total: number
+  page: number
+  pageSize: number
+  stats: GenerationListStats
+}
+
+export type GenerationProgressStepInfo = {
+  step: string
+  label: string
+  status: string
+  timestamp: number | null
+  durationMs: number | null
+}
+
+export type GenerationDetailResponse = {
+  id: string
+  userId: string
+  username: string
+  mode: string
+  status: string
+  provider: string
+  displayVehicleModel: string
+  standardJson: unknown
+  promptSummary: string
+  promptHidden: string
+  sourceImageUrl: string
+  resultImageUrl: string
+  resultCheck: unknown
+  vehicleInfo: unknown
+  progressSteps: GenerationProgressStepInfo[]
+  retryCount: number
+  failureReason: string
+  costCents: number
+  usageUnits: number
+  createdAt: number
+  completedAt: number | null
+  retryParentId: string | null
+  retryChildren: GenerationRecordItem[]
+}
+
+export type ActivitySeriesPoint = {
+  date: string
+  dau: number
+  wau?: number
+  mau?: number
+}
+
+export type ActivityResponse = {
+  series: ActivitySeriesPoint[]
+  currentDau: number
+  currentWau: number
+  currentMau: number
+}
+
+export type RetentionCohortPoint = {
+  cohortDate: string
+  registerCount: number
+  retention: Record<string, number>
+}
+
+export type RetentionResponse = {
+  cohorts: RetentionCohortPoint[]
+  periods: number[]
+}
+
+export type ActiveUserItem = {
+  userId: string
+  username: string
+  plan: string
+  lastActiveAt: number
+  todayGenerations: number
+}
+
+export type UserAutoTags = {
+  plan: string
+  activity: string
+  payment: string
+  value: string
+}
+
+export type UserTagInfo = {
+  auto: UserAutoTags
+  manual: string[]
+}
+
+export type UsageTimelineEntry = {
+  id: string
+  type: "consumption" | "adjustment"
+  amount: number
+  description: string
+  createdAt: number
+}
+
+export type UserDetailResponse = {
+  user: {
+    id: string
+    username: string
+    name: string
+    phone: string
+    email: string
+    role: string
+    plan: string
+    status: string
+    createdAt: number
+    lastLoginAt: number
+  }
+  billing: EntitlementStatus
+  tags: UserTagInfo
+  usageTimeline: UsageTimelineEntry[]
+  generations: GenerationRecordItem[]
+  generationTotal: number
+  preferences: {
+    topVehicles: Array<{ label: string; count: number }>
+    topPartCategories: Array<{ label: string; count: number }>
+    topPaints: Array<{ label: string; count: number }>
+  }
+  auditLogs: AuditLog[]
+}

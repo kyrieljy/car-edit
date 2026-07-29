@@ -65,4 +65,17 @@
 
 ---
 
-> 最后更新时间：2026-07-28
+## Q：PC端个人中心"我的订单"一直显示"正在加载"
+**现象**：用户在 PC 端打开个人中心，点击"我的订单"后，页面持续显示"正在加载订单..."，即使后端已正常返回空订单列表也不会切换到"暂无订单记录"提示。
+
+**根因**：`components/car-mod-studio.tsx` 中 `loadOrders` 的 `useEffect` 使用 `orders.length` 作为防重复加载条件。当 API 返回空数组时，`orders.length` 始终为 0（falsy），每次 `loadOrders` 完成后 `ordersLoading` 从 `true` 变回 `false`，依赖项变化会再次触发 `useEffect`，形成无限循环。`ordersLoading` 在循环中几乎一直为 `true`，导致渲染分支永远停留在"正在加载"状态。
+
+**解决方案**：
+1. 新增 `ordersLoaded` 状态标志，在 `loadOrders` 的 `finally` 块中设置为 `true`。
+2. 将 `useEffect` 的防重复条件从 `orders.length || ordersLoading` 改为 `ordersLoaded || ordersLoading`，确保无论订单是否为空都只加载一次。
+
+**关联方案ID**：无
+
+---
+
+> 最后更新时间：2026-07-29

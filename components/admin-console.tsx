@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import {
   Activity,
   BadgeCheck,
+  BarChart3,
   ChevronsUpDown,
   Database,
   Eye,
@@ -19,11 +20,16 @@ import {
   ServerCog,
   ShieldCheck,
   Trash2,
+  TrendingUp,
   UploadCloud,
   Users,
   X,
 } from "lucide-react"
 import { WorkflowDesigner } from "@/components/workflow-designer"
+import GenerationRecords from "@/components/admin/generation-records"
+import GenerationDetail from "@/components/admin/generation-detail"
+import UserAnalytics from "@/components/admin/user-analytics"
+import UserDetail from "@/components/admin/user-detail"
 import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
@@ -48,7 +54,8 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users"
+type AdminView = { type: "tab"; tab: AdminTab } | { type: "generation-detail"; jobId: string } | { type: "user-detail"; userId: string }
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
 
@@ -75,6 +82,8 @@ const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon
   { id: "plans", label: "会员配置", sub: "套餐 / 额度 / 价格", icon: <BadgeCheck size={20} /> },
   { id: "usage", label: "用量统计", sub: "API / 成本 / 记录", icon: <Eye size={20} /> },
   { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
+  { id: "analytics-generations", label: "生成记录", sub: "筛选 / 趋势 / 详情", icon: <BarChart3 size={20} /> },
+  { id: "analytics-users", label: "用户分析", sub: "注册 / 活跃 / 留存", icon: <TrendingUp size={20} /> },
   { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
   { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
   { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
@@ -93,6 +102,8 @@ function adminTabTitle(tab: AdminTab) {
     plans: "会员配置",
     usage: "用量统计",
     badcases: "失败样本记录",
+    "analytics-generations": "生成记录分析",
+    "analytics-users": "用户分析",
     users: "用户管理",
     profiles: "用户画像",
     orders: "订单管理",
@@ -103,12 +114,30 @@ function adminTabTitle(tab: AdminTab) {
 export function AdminConsole() {
   const [admin, setAdmin] = useState<AuthUser | null>(null)
   const [summary, setSummary] = useState<AdminSummary | null>(null)
-  const [tab, setTab] = useState<AdminTab>("dashboard")
+  const [view, setView] = useState<AdminView>({ type: "tab", tab: "dashboard" })
   const [identifier, setIdentifier] = useState("admin")
   const [password, setPassword] = useState("")
   const [adminCode, setAdminCode] = useState("")
   const [notice, setNotice] = useState("")
   const [toast, setToast] = useState<AdminToast>(null)
+
+  const tab = view.type === "tab" ? view.tab : null
+
+  const openTab = useCallback((t: AdminTab) => {
+    setView({ type: "tab", tab: t })
+  }, [])
+
+  const openGenerationDetail = useCallback((jobId: string) => {
+    setView({ type: "generation-detail", jobId })
+  }, [])
+
+  const openUserDetail = useCallback((userId: string) => {
+    setView({ type: "user-detail", userId })
+  }, [])
+
+  const goBack = useCallback(() => {
+    setView({ type: "tab", tab: "dashboard" })
+  }, [])
 
   const notify = useCallback<NotifyAdmin>((type, message) => {
     setToast({ type, message })
@@ -237,7 +266,7 @@ export function AdminConsole() {
         <ClinicalBrand />
         <nav>
           {generationNavItems.map((item) => (
-            <button key={item.id} className={tab === item.id ? "selected" : ""} onClick={() => setTab(item.id)}>
+            <button key={item.id} className={tab === item.id ? "selected" : ""} onClick={() => openTab(item.id)}>
               <span className="nav-glyph">{item.icon}</span>
               <span className="nav-copy">
                 <strong>{item.label}</strong>
@@ -262,7 +291,13 @@ export function AdminConsole() {
           <div className="clinical-breadcrumb">
             <span>AI CONSOLE</span>
             <span>/</span>
-            <strong>{adminTabTitle(tab)}</strong>
+            <strong>
+              {view.type === "generation-detail"
+                ? "生成详情"
+                : view.type === "user-detail"
+                  ? "用户详情"
+                  : adminTabTitle(tab ?? "dashboard")}
+            </strong>
           </div>
           <div className="clinical-userbar">
             <span className="live-dot" />
@@ -284,36 +319,66 @@ export function AdminConsole() {
         </header>
 
         <div className="admin-content">
-          <section className="clinical-title">
-            <span className="clinical-label">后台模块</span>
-            <h1>{adminTabTitle(tab)}</h1>
-          </section>
+          {view.type === "generation-detail" ? (
+            <>
+              <section className="clinical-title">
+                <span className="clinical-label">生成任务</span>
+                <h1>生成详情</h1>
+              </section>
+              <GenerationDetail jobId={view.jobId} onBack={goBack} />
+            </>
+          ) : view.type === "user-detail" ? (
+            <>
+              <section className="clinical-title">
+                <span className="clinical-label">用户管理</span>
+                <h1>用户详情</h1>
+              </section>
+              <UserDetail
+                userId={view.userId}
+                onBack={goBack}
+                onOpenGenerationDetail={openGenerationDetail}
+              />
+            </>
+          ) : (
+            <>
+              <section className="clinical-title">
+                <span className="clinical-label">后台模块</span>
+                <h1>{adminTabTitle(tab ?? "dashboard")}</h1>
+              </section>
 
-          {tab === "dashboard" && <DashboardPanel summary={summary} />}
-          {tab === "assets" && (
-            <>
-              <AssetManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />
-              <ClassicPaintManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+              {tab === "dashboard" && <DashboardPanel summary={summary} />}
+              {tab === "assets" && (
+                <>
+                  <AssetManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+                  <ClassicPaintManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />
+                </>
+              )}
+              {tab === "avatars" && <AvatarPresetManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "guardrail" && <GuardrailManager summary={summary} onChanged={() => void loadSummary()} />}
+              {tab === "plans" && <PlanManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "usage" && <UsageOpsTable summary={summary} />}
+              {tab === "badcases" && <BadCaseOpsTable summary={summary} />}
+              {tab === "analytics-generations" && (
+                <GenerationRecords onOpenDetail={openGenerationDetail} />
+              )}
+              {tab === "analytics-users" && (
+                <UserAnalytics onOpenUserDetail={openUserDetail} />
+              )}
+              {tab === "users" && (
+                <>
+                  <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} onOpenUserDetail={openUserDetail} />
+                  <SmsRecordsTable summary={summary} />
+                </>
+              )}
+              {tab === "profiles" && <UserProfilesOpsTable summary={summary} />}
+              {tab === "orders" && <AdminOrdersTable />}
+              {tab === "audit" && <AuditOpsTable summary={summary} />}
+              {notice && <div className="notice admin-notice">{notice}</div>}
             </>
           )}
-          {tab === "avatars" && <AvatarPresetManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-          {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-          {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-          {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-          {tab === "guardrail" && <GuardrailManager summary={summary} onChanged={() => void loadSummary()} />}
-          {tab === "plans" && <PlanManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-          {tab === "usage" && <UsageOpsTable summary={summary} />}
-          {tab === "badcases" && <BadCaseOpsTable summary={summary} />}
-          {tab === "users" && (
-            <>
-              <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} />
-              <SmsRecordsTable summary={summary} />
-            </>
-          )}
-          {tab === "profiles" && <UserProfilesOpsTable summary={summary} />}
-          {tab === "orders" && <AdminOrdersTable />}
-          {tab === "audit" && <AuditOpsTable summary={summary} />}
-          {notice && <div className="notice admin-notice">{notice}</div>}
         </div>
         {toast && <AdminToastOverlayV2 toast={toast} onClose={() => setToast(null)} />}
       </section>
@@ -3430,7 +3495,7 @@ const defaultQuotaDraft: QuotaDraft = {
   saving: false,
 }
 
-function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+function UsersOpsTable({ summary, onChanged, notify, onOpenUserDetail }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin; onOpenUserDetail?: (userId: string) => void }) {
   const [drafts, setDrafts] = useState<Record<string, QuotaDraft>>({})
   const [userDrafts, setUserDrafts] = useState<Record<string, UserEditDraft>>({})
   const [query, setQuery] = useState("")
@@ -3575,6 +3640,11 @@ function UsersOpsTable({ summary, onChanged, notify }: { summary: AdminSummary; 
                   <td className="admin-user-identity-cell">
                     <strong>{user.name || user.username || user.id}</strong>
                     <small className="admin-cell-sub">{user.phone || user.email || user.id}</small>
+                    {onOpenUserDetail && (
+                      <button type="button" className="admin-user-detail-link" onClick={() => onOpenUserDetail(user.id)}>
+                        查看详情
+                      </button>
+                    )}
                   </td>
                   <td className="admin-user-account-cell">{user.username}</td>
                   <td className="admin-user-role-cell">
@@ -4003,22 +4073,6 @@ function AuditTable({ summary }: { summary: AdminSummary }) {
       </table>
     </section>
   )
-}
-
-function tabTitle(tab: Exclude<AdminTab, "workflows" | "badcases" | "profiles">) {
-  return {
-    dashboard: "数据看板",
-    assets: "资源库管理",
-    avatars: "头像预设",
-    providers: "模型 API 配置",
-    prompts: "提示词管理",
-    guardrail: "风控 SOP 配置",
-    plans: "会员配置",
-    usage: "用量统计",
-    users: "用户管理",
-    orders: "订单管理",
-    audit: "安全审计",
-  }[tab]
 }
 
 function orderStatusBadge(status: AdminPaymentOrder["status"]) {

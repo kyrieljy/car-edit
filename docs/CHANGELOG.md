@@ -4,6 +4,40 @@
 
 ## 2026-07-29
 
+### 运营分析平台（阶段一至三）— 时序聚合基础设施、生成记录分析、用户洞察 (DESIGN-20260729-002)
+
+#### 新增
+- [新增] `lib/server/analytics-queries.ts` 时序聚合查询模块，支持按小时/天/周/月分桶的时间序列查询
+- [新增] `lib/server/export-service.ts` 通用 CSV 导出服务
+- [新增] `app/api/admin/generation-records/route.ts` 生成记录分页筛选 API
+- [新增] `app/api/admin/generation-records/[id]/route.ts` 生成记录详情 API
+- [新增] `app/api/admin/generation-records/[id]/retry/route.ts` 生成记录重试 API
+- [新增] `app/api/admin/generation-records/export/route.ts` 生成记录导出 API
+- [新增] `app/api/admin/analytics/generation-trend/route.ts` 生成量趋势 API
+- [新增] `app/api/admin/analytics/user-registration-trend/route.ts` 用户注册趋势 API
+- [新增] `app/api/admin/analytics/user-activity/route.ts` 用户活跃度 API
+- [新增] `app/api/admin/analytics/user-retention/route.ts` 用户留存率 API
+- [新增] `app/api/admin/users/active/route.ts` 活跃用户列表 API
+- [新增] `app/api/admin/users/[id]/route.ts` 用户详情 API
+- [新增] `app/api/admin/users/[id]/tags/route.ts` 用户标签更新 API
+- [新增] `app/api/admin/users/export/route.ts` 用户导出 API
+- [新增] `components/admin/analytics-charts.tsx` 管理后台图表组件
+- [新增] `components/admin/generation-records.tsx` 生成记录列表组件
+- [新增] `components/admin/generation-detail.tsx` 生成记录详情组件
+- [新增] `components/admin/user-analytics.tsx` 用户分析组件
+- [新增] `components/admin/user-detail.tsx` 用户详情组件
+- [新增] Recharts 图表库依赖
+
+#### 修改
+- [修改] `components/admin-console.tsx` 集成"生成记录"和"用户分析"两个新 Tab，支持详情视图切换逻辑
+- [修改] `app/globals.css` 新增运营分析页面 CSS 样式
+- [修改] `lib/server/db.ts` users 表新增 `tags_json` 字段存储手动标签
+
+#### 影响范围
+- 管理后台新增"生成记录"和"用户分析"两个 Tab，支持详情视图切换
+
+---
+
 ### 新增
 - [新增] `app/api/billing/orders/route.ts` 用户查询自己的支付订单列表 API (关联方案ID: DESIGN-20260729-001)
 - [新增] `app/api/admin/orders/route.ts` 管理员查询所有订单 API，支持按时间范围、用户（模糊匹配）、套餐筛选 (关联方案ID: DESIGN-20260729-001)

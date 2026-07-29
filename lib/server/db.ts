@@ -90,7 +90,7 @@ const systemWorkflowIds = new Set(workflowSeed.map((item) => item.id))
 let db: DatabaseSync | null = null
 let seeded = false
 
-function database() {
+export function database() {
   if (!db) {
     mkdirSync(path.dirname(DB_PATH), { recursive: true })
     db = new DatabaseSync(DB_PATH)
@@ -119,6 +119,7 @@ function initSchema(conn: DatabaseSync) {
       status TEXT NOT NULL DEFAULT 'active',
       last_login_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL DEFAULT 0,
+      tags_json TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL
     );
 
@@ -498,6 +499,9 @@ function migrateSchema(conn: DatabaseSync) {
   if (!userColumns.some((column) => column.name === "updated_at")) {
     conn.exec("ALTER TABLE users ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0")
   }
+  if (!userColumns.some((column) => column.name === "tags_json")) {
+    conn.exec("ALTER TABLE users ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+  }
   const verificationColumns = conn.prepare("PRAGMA table_info(verification_codes)").all() as Array<{ name: string }>
   const verificationColumnDefaults: Array<[string, string]> = [
     ["code_hash", "TEXT NOT NULL DEFAULT ''"],
@@ -668,6 +672,9 @@ function migrateSchema(conn: DatabaseSync) {
     ["failure_reason", "TEXT NOT NULL DEFAULT ''"],
     ["cost_cents", "INTEGER NOT NULL DEFAULT 0"],
     ["bad_case_tags_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["progress_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["vehicle_info", "TEXT NOT NULL DEFAULT '{}'"],
+    ["completed_at", "INTEGER NOT NULL DEFAULT 0"],
   ]
   generationColumnDefaults.forEach(([name, definition]) => {
     if (!generationColumns.some((column) => column.name === name)) {
@@ -3530,7 +3537,7 @@ export function updateChatAttachmentImageUrl(input: {
     .run(input.url, input.fileName || "", input.mime || "", input.size ?? null, input.attachmentId, input.userId)
 }
 
-type Row = Record<string, unknown>
+export type Row = Record<string, unknown>
 
 function seedCategory(category: PartCategory, row?: Row): PartCategory {
   return {
@@ -4265,7 +4272,7 @@ function mapChatAttachment(row: Row): ChatAttachment {
   }
 }
 
-function safeJson<T>(value: string, fallback: T): T {
+export function safeJson<T>(value: string, fallback: T): T {
   try {
     return JSON.parse(value) as T
   } catch {
@@ -4400,7 +4407,7 @@ function auditLogs(): AuditLog[] {
   }))
 }
 
-function writeAudit(userId: string, action: string, metadata: Record<string, unknown>) {
+export function writeAudit(userId: string, action: string, metadata: Record<string, unknown>) {
   database()
     .prepare("INSERT INTO audit_logs (id, user_id, action, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
     .run(`audit_${crypto.randomUUID().slice(0, 8)}`, userId, action, JSON.stringify(metadata), nowMs())
@@ -4468,6 +4475,521 @@ function incrementUsage(userId: string, mode: "config" | "chat", dateKey: string
     .run(id, userId, mode, dateKey, now)
 }
 
+// ===========================================================================
+// Analytics: Generation records (DESIGN-20260729-002)
+// ===========================================================================
+
+export type GenerationListFilter = {
+  page: number
+  pageSize: number
+  startDate?: string
+  endDate?: string
+  mode?: string
+  status?: string
+  providerId?: string
+  userQuery?: string
+  partCategory?: string
+  sortBy: "created_at" | "cost_credits" | "duration"
+  sortOrder: "asc" | "desc"
+}
+
+function parseDateToMs(dateStr: string | undefined, endOfDay: boolean): number | undefined {
+  if (!dateStr) return undefined
+  const suffix = endOfDay ? "T23:59:59.999" : "T00:00:00"
+  const ms = new Date(dateStr + suffix).getTime()
+  return Number.isFinite(ms) ? ms : undefined
+}
+
+/**
+ * Query generation jobs with filtering, sorting, pagination, and aggregate stats.
+ */
+export function getGenerationList(filter: GenerationListFilter): {
+  items: Array<{
+    id: string
+    userId: string
+    username: string
+    mode: string
+    status: string
+    provider: string
+    displayVehicleModel: string
+    costCents: number
+    durationMs: number | null
+    createdAt: number
+    completedAt: number | null
+    failureReason: string
+  }>
+  total: number
+  page: number
+  pageSize: number
+  stats: { totalCount: number; successRate: number; avgDurationMs: number | null; avgCostCents: number }
+} {
+  const conditions: string[] = []
+  const params: Array<string | number> = []
+
+  const startMs = parseDateToMs(filter.startDate, false)
+  if (startMs !== undefined) {
+    conditions.push("g.created_at >= ?")
+    params.push(startMs)
+  }
+  const endMs = parseDateToMs(filter.endDate, true)
+  if (endMs !== undefined) {
+    conditions.push("g.created_at <= ?")
+    params.push(endMs)
+  }
+  if (filter.mode && filter.mode !== "all") {
+    conditions.push("g.mode = ?")
+    params.push(filter.mode)
+  }
+  if (filter.status && filter.status !== "all") {
+    conditions.push("g.status = ?")
+    params.push(filter.status)
+  }
+  if (filter.providerId && filter.providerId !== "all") {
+    conditions.push("g.provider = ?")
+    params.push(filter.providerId)
+  }
+  if (filter.userQuery) {
+    const query = `%${filter.userQuery}%`
+    conditions.push("(u.username LIKE ? OR u.phone LIKE ?)")
+    params.push(query, query)
+  }
+  if (filter.partCategory && filter.partCategory !== "all") {
+    conditions.push("g.standard_json LIKE ?")
+    params.push(`%${filter.partCategory}%`)
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
+
+  // Sort mapping
+  let orderColumn = "g.created_at"
+  if (filter.sortBy === "cost_credits") orderColumn = "g.cost_cents"
+  if (filter.sortBy === "duration") orderColumn = "duration_ms"
+  const orderDirection = filter.sortOrder === "asc" ? "ASC" : "DESC"
+
+  // Duration expression
+  const durationExpr = "CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END"
+
+  // Count total
+  const countSql = `SELECT COUNT(*) AS value FROM generation_jobs g LEFT JOIN users u ON u.id = g.user_id ${whereClause}`
+  const countRow = database().prepare(countSql).get(...params) as Row
+  const total = Number(countRow?.value ?? 0)
+
+  // Aggregate stats (same filter, no pagination)
+  const statsSql = `SELECT
+    COUNT(*) AS total_count,
+    SUM(CASE WHEN g.status = 'succeeded' THEN 1 ELSE 0 END) AS success_count,
+    AVG(CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END) AS avg_duration,
+    AVG(g.cost_cents) AS avg_cost
+  FROM generation_jobs g LEFT JOIN users u ON u.id = g.user_id ${whereClause}`
+  const statsRow = database().prepare(statsSql).get(...params) as Row
+  const totalCount = Number(statsRow?.total_count ?? 0)
+  const successCount = Number(statsRow?.success_count ?? 0)
+  const avgDuration = statsRow?.avg_duration !== null && statsRow?.avg_duration !== undefined ? Number(statsRow.avg_duration) : null
+  const avgCost = Number(statsRow?.avg_cost ?? 0)
+
+  // Query page items
+  const offset = (filter.page - 1) * filter.pageSize
+  const itemsSql = `SELECT
+    g.id AS id, g.user_id AS user_id, u.username AS username,
+    g.mode AS mode, g.status AS status, g.provider AS provider,
+    g.display_vehicle_model AS display_vehicle_model,
+    g.cost_cents AS cost_cents,
+    ${durationExpr} AS duration_ms,
+    g.created_at AS created_at, g.failure_reason AS failure_reason
+  FROM generation_jobs g
+  LEFT JOIN users u ON u.id = g.user_id
+  ${whereClause}
+  ORDER BY ${orderColumn} ${orderDirection}
+  LIMIT ? OFFSET ?`
+
+  const rows = database().prepare(itemsSql).all(...params, filter.pageSize, offset) as Row[]
+  const items = rows.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id ?? ""),
+    username: String(row.username ?? ""),
+    mode: String(row.mode ?? "config"),
+    status: String(row.status ?? ""),
+    provider: String(row.provider ?? ""),
+    displayVehicleModel: String(row.display_vehicle_model ?? ""),
+    costCents: Number(row.cost_cents ?? 0),
+    durationMs: row.duration_ms !== null && row.duration_ms !== undefined ? Number(row.duration_ms) : null,
+    createdAt: Number(row.created_at ?? 0),
+    completedAt: null,
+    failureReason: String(row.failure_reason ?? ""),
+  }))
+
+  return {
+    items,
+    total,
+    page: filter.page,
+    pageSize: filter.pageSize,
+    stats: {
+      totalCount,
+      successRate: totalCount > 0 ? (successCount / totalCount) * 100 : 0,
+      avgDurationMs: avgDuration,
+      avgCostCents: avgCost,
+    },
+  }
+}
+
+/**
+ * Get a single generation job with full detail, including parsed progress steps.
+ */
+export function getGenerationDetail(jobId: string): {
+  id: string
+  userId: string
+  username: string
+  mode: string
+  status: string
+  provider: string
+  displayVehicleModel: string
+  standardJson: unknown
+  promptSummary: string
+  promptHidden: string
+  sourceImageUrl: string
+  resultImageUrl: string
+  resultCheck: unknown
+  vehicleInfo: unknown
+  progressSteps: Array<{ step: string; label: string; status: string; timestamp: number | null; durationMs: number | null }>
+  retryCount: number
+  failureReason: string
+  costCents: number
+  usageUnits: number
+  createdAt: number
+  completedAt: number | null
+  retryParentId: string | null
+  retryChildren: Array<{ id: string; userId: string; username: string; mode: string; status: string; provider: string; displayVehicleModel: string; costCents: number; durationMs: number | null; createdAt: number; completedAt: number | null; failureReason: string }>
+} | null {
+  const row = database().prepare(`
+    SELECT g.*, u.username AS username, vu.url AS source_image_url
+    FROM generation_jobs g
+    LEFT JOIN users u ON u.id = g.user_id
+    LEFT JOIN vehicle_uploads vu ON vu.id = g.vehicle_upload_id
+    WHERE g.id = ?
+  `).get(jobId) as Row | undefined
+
+  if (!row) return null
+
+  // Parse progress_json
+  const progressRaw = String(row.progress_json || "[]")
+  let progressSteps: Array<{ step: string; label: string; status: string; timestamp: number | null; durationMs: number | null }> = []
+  try {
+    const parsed = JSON.parse(progressRaw) as Array<Record<string, unknown>>
+    let prevTimestamp: number | null = null
+    progressSteps = parsed.map((step) => {
+      const ts = step.timestamp !== undefined && step.timestamp !== null ? Number(step.timestamp) : null
+      const duration = ts !== null && prevTimestamp !== null ? ts - prevTimestamp : null
+      prevTimestamp = ts
+      return {
+        step: String(step.step ?? step.key ?? ""),
+        label: String(step.label ?? step.step ?? step.key ?? ""),
+        status: String(step.status ?? ""),
+        timestamp: ts,
+        durationMs: duration,
+      }
+    })
+  } catch {
+    // progress_json is not valid JSON — leave empty
+  }
+
+  // Parse JSON fields
+  const standardJson = safeJson<unknown>(String(row.standard_json || "{}"), {})
+  const resultCheck = safeJson<unknown>(String(row.result_check_json || "{}"), {})
+  const vehicleInfo = safeJson<unknown>(String(row.vehicle_info || "{}"), {})
+
+  const createdAt = Number(row.created_at ?? 0)
+  const completedAt = row.completed_at !== undefined && row.completed_at !== null && Number(row.completed_at) > 0 ? Number(row.completed_at) : null
+
+  // Find retry children (jobs with retry_count > 0 that were created after this job by same user with same mode)
+  // Since there's no direct parent_id, we use retry_count and timing as a heuristic
+  const retryChildrenRows = database().prepare(`
+    SELECT g.id AS id, g.user_id AS user_id, u.username AS username,
+      g.mode AS mode, g.status AS status, g.provider AS provider,
+      g.display_vehicle_model AS display_vehicle_model,
+      g.cost_cents AS cost_cents,
+      CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END AS duration_ms,
+      g.created_at AS created_at, g.failure_reason AS failure_reason
+    FROM generation_jobs g
+    LEFT JOIN users u ON u.id = g.user_id
+    WHERE g.user_id = ? AND g.retry_count > 0 AND g.created_at > ?
+    ORDER BY g.created_at ASC
+    LIMIT 10
+  `).all(String(row.user_id ?? ""), createdAt) as Row[]
+  const retryChildren = retryChildrenRows.map((r) => ({
+    id: String(r.id),
+    userId: String(r.user_id ?? ""),
+    username: String(r.username ?? ""),
+    mode: String(r.mode ?? "config"),
+    status: String(r.status ?? ""),
+    provider: String(r.provider ?? ""),
+    displayVehicleModel: String(r.display_vehicle_model ?? ""),
+    costCents: Number(r.cost_cents ?? 0),
+    durationMs: r.duration_ms !== null && r.duration_ms !== undefined ? Number(r.duration_ms) : null,
+    createdAt: Number(r.created_at ?? 0),
+    completedAt: null,
+    failureReason: String(r.failure_reason ?? ""),
+  }))
+
+  return {
+    id: String(row.id),
+    userId: String(row.user_id ?? ""),
+    username: String(row.username ?? ""),
+    mode: String(row.mode ?? "config"),
+    status: String(row.status ?? ""),
+    provider: String(row.provider ?? ""),
+    displayVehicleModel: String(row.display_vehicle_model ?? ""),
+    standardJson,
+    promptSummary: String(row.prompt_summary ?? ""),
+    promptHidden: String(row.prompt_hidden ?? ""),
+    sourceImageUrl: String(row.source_image_url ?? ""),
+    resultImageUrl: String(row.result_image_url ?? ""),
+    resultCheck,
+    vehicleInfo,
+    progressSteps,
+    retryCount: Number(row.retry_count ?? 0),
+    failureReason: String(row.failure_reason ?? ""),
+    costCents: Number(row.cost_cents ?? 0),
+    usageUnits: Number(row.usage_units ?? 0),
+    createdAt,
+    completedAt,
+    retryParentId: null,
+    retryChildren,
+  }
+}
+
+// ===========================================================================
+// Analytics: User detail & tags (DESIGN-20260729-002)
+// ===========================================================================
+
+/**
+ * Get aggregated user detail data.
+ */
+export function getUserDetail(userId: string): {
+  user: {
+    id: string
+    username: string
+    name: string
+    phone: string
+    email: string
+    role: string
+    plan: string
+    status: string
+    createdAt: number
+    lastLoginAt: number
+  }
+  billing: ReturnType<typeof getBillingStatus>
+  tags: { auto: { plan: string; activity: string; payment: string; value: string }; manual: string[] }
+  usageTimeline: Array<{ id: string; type: "consumption" | "adjustment"; amount: number; description: string; createdAt: number }>
+  generations: Array<{ id: string; userId: string; username: string; mode: string; status: string; provider: string; displayVehicleModel: string; costCents: number; durationMs: number | null; createdAt: number; completedAt: number | null; failureReason: string }>
+  generationTotal: number
+  preferences: {
+    topVehicles: Array<{ label: string; count: number }>
+    topPartCategories: Array<{ label: string; count: number }>
+    topPaints: Array<{ label: string; count: number }>
+  }
+  auditLogs: AuditLog[]
+} | null {
+  const userRow = database().prepare("SELECT * FROM users WHERE id = ?").get(userId) as Row | undefined
+  if (!userRow) return null
+
+  const billing = getBillingStatus(userId)
+
+  // Auto tags
+  const plan = String(userRow.plan ?? "free")
+  const thirtyDaysAgo = nowMs() - 30 * 24 * 60 * 60 * 1000
+  const genCountRow = database().prepare("SELECT COUNT(*) AS value FROM generation_jobs WHERE user_id = ? AND created_at >= ?").get(userId, thirtyDaysAgo) as Row
+  const monthlyGenCount = Number(genCountRow?.value ?? 0)
+  const activityTag = monthlyGenCount > 50 ? "high" : monthlyGenCount > 10 ? "medium" : monthlyGenCount > 0 ? "low" : "churned"
+
+  const subRow = database().prepare("SELECT status FROM subscriptions WHERE user_id = ? AND status = 'active' LIMIT 1").get(userId) as Row | undefined
+  const paymentTag = subRow ? "paid" : "unpaid"
+
+  // Value tag: based on total cost ranking
+  const allCostsRows = database().prepare(`
+    SELECT user_id, SUM(cost_cents) AS total_cost
+    FROM generation_jobs
+    GROUP BY user_id
+    ORDER BY total_cost DESC
+  `).all() as Row[]
+  const userCount = allCostsRows.length
+  const userRank = allCostsRows.findIndex((r) => String(r.user_id) === userId)
+  let valueTag = "low"
+  if (userRank >= 0 && userCount > 0) {
+    const percentile = (userRank / userCount) * 100
+    valueTag = percentile < 10 ? "high" : percentile < 40 ? "medium" : "low"
+  }
+
+  // Manual tags
+  const manualTags = safeJson<string[]>(String(userRow.tags_json ?? "[]"), [])
+
+  // Usage timeline: merge usage_ledger + quota_adjustments
+  const usageRows = database().prepare(`
+    SELECT id, 'consumption' AS type, cost_cents AS amount, provider AS description, created_at
+    FROM usage_ledger
+    WHERE user_id = ?
+    UNION ALL
+    SELECT id, 'adjustment' AS type, delta AS amount, reason AS description, created_at
+    FROM quota_adjustments
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).all(userId, userId) as Row[]
+  const usageTimeline = usageRows.map((r) => ({
+    id: String(r.id),
+    type: String(r.type) as "consumption" | "adjustment",
+    amount: Number(r.amount ?? 0),
+    description: String(r.description ?? ""),
+    createdAt: Number(r.created_at ?? 0),
+  }))
+
+  // User generations (recent 50)
+  const genRows = database().prepare(`
+    SELECT g.id AS id, g.user_id AS user_id, u.username AS username,
+      g.mode AS mode, g.status AS status, g.provider AS provider,
+      g.display_vehicle_model AS display_vehicle_model,
+      g.cost_cents AS cost_cents,
+      CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END AS duration_ms,
+      g.created_at AS created_at, g.failure_reason AS failure_reason
+    FROM generation_jobs g
+    LEFT JOIN users u ON u.id = g.user_id
+    WHERE g.user_id = ?
+    ORDER BY g.created_at DESC
+    LIMIT 50
+  `).all(userId) as Row[]
+  const generations = genRows.map((r) => ({
+    id: String(r.id),
+    userId: String(r.user_id ?? ""),
+    username: String(r.username ?? ""),
+    mode: String(r.mode ?? "config"),
+    status: String(r.status ?? ""),
+    provider: String(r.provider ?? ""),
+    displayVehicleModel: String(r.display_vehicle_model ?? ""),
+    costCents: Number(r.cost_cents ?? 0),
+    durationMs: r.duration_ms !== null && r.duration_ms !== undefined ? Number(r.duration_ms) : null,
+    createdAt: Number(r.created_at ?? 0),
+    completedAt: null,
+    failureReason: String(r.failure_reason ?? ""),
+  }))
+
+  const genTotalRow = database().prepare("SELECT COUNT(*) AS value FROM generation_jobs WHERE user_id = ?").get(userId) as Row
+  const generationTotal = Number(genTotalRow?.value ?? 0)
+
+  // Preferences from userProfile data — aggregate from standard_json
+  const prefRows = database().prepare(`
+    SELECT standard_json FROM generation_jobs
+    WHERE user_id = ? AND standard_json != '{}'
+    ORDER BY created_at DESC LIMIT 200
+  `).all(userId) as Row[]
+
+  const vehicleCounts = new Map<string, number>()
+  const categoryCounts = new Map<string, number>()
+  const paintCounts = new Map<string, number>()
+
+  for (const prefRow of prefRows) {
+    const std = safeJson<{ vehicle?: { model?: string }; parts?: Array<{ category?: string }>; paint?: { name?: string } }>(String(prefRow.standard_json ?? "{}"), {})
+    if (std?.vehicle?.model) {
+      const model = String(std.vehicle.model)
+      vehicleCounts.set(model, (vehicleCounts.get(model) ?? 0) + 1)
+    }
+    if (std?.parts && Array.isArray(std.parts)) {
+      for (const part of std.parts) {
+        if (part?.category) {
+          const cat = String(part.category)
+          categoryCounts.set(cat, (categoryCounts.get(cat) ?? 0) + 1)
+        }
+      }
+    }
+    if (std?.paint?.name) {
+      const paint = String(std.paint.name)
+      paintCounts.set(paint, (paintCounts.get(paint) ?? 0) + 1)
+    }
+  }
+
+  const topByCount = (map: Map<string, number>, limit: number) =>
+    Array.from(map.entries()).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, limit)
+
+  // Audit logs
+  const auditRows = database().prepare(`
+    SELECT * FROM audit_logs
+    WHERE user_id = ? OR metadata LIKE ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).all(userId, `%"${userId}"%`) as Row[]
+  const auditLogs = auditRows.map((r) => ({
+    id: String(r.id),
+    actorId: String(r.user_id ?? ""),
+    action: String(r.action ?? ""),
+    metadata: safeJson<unknown>(String(r.metadata ?? "{}"), {}),
+    createdAt: Number(r.created_at ?? 0),
+  })) as unknown as AuditLog[]
+
+  return {
+    user: {
+      id: String(userRow.id),
+      username: String(userRow.username ?? ""),
+      name: String(userRow.name ?? ""),
+      phone: String(userRow.phone ?? ""),
+      email: String(userRow.email ?? ""),
+      role: String(userRow.role ?? "user"),
+      plan,
+      status: String(userRow.status ?? "active"),
+      createdAt: Number(userRow.created_at ?? 0),
+      lastLoginAt: Number(userRow.last_login_at ?? 0),
+    },
+    billing,
+    tags: {
+      auto: { plan, activity: activityTag, payment: paymentTag, value: valueTag },
+      manual: manualTags,
+    },
+    usageTimeline,
+    generations,
+    generationTotal,
+    preferences: {
+      topVehicles: topByCount(vehicleCounts, 5),
+      topPartCategories: topByCount(categoryCounts, 5),
+      topPaints: topByCount(paintCounts, 5),
+    },
+    auditLogs,
+  }
+}
+
+/**
+ * Update a user's manual tags.
+ */
+export function updateUserTags(adminId: string, userId: string, tags: string[]): void {
+  const user = getUserById(userId)
+  if (!user) throw new Error("User not found.")
+  const cleanTags = tags.map((t) => String(t).trim()).filter(Boolean)
+  database().prepare("UPDATE users SET tags_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(cleanTags), nowMs(), userId)
+  writeAudit(adminId, "user.tags.update", { userId, tags: cleanTags })
+}
+
+/**
+ * Get all users with tags for export.
+ */
+export function getUsersForExport(): Array<{
+  id: string
+  username: string
+  phone: string
+  plan: string
+  role: string
+  createdAt: number
+  lastLoginAt: number
+  tags: string[]
+}> {
+  const rows = database().prepare("SELECT * FROM users ORDER BY created_at DESC").all() as Row[]
+  return rows.map((row) => ({
+    id: String(row.id),
+    username: String(row.username ?? ""),
+    phone: String(row.phone ?? ""),
+    plan: String(row.plan ?? "free"),
+    role: String(row.role ?? "user"),
+    createdAt: Number(row.created_at ?? 0),
+    lastLoginAt: Number(row.last_login_at ?? 0),
+    tags: safeJson<string[]>(String(row.tags_json ?? "[]"), []),
+  }))
+}
+
 function decrementUsage(userId: string, mode: "config" | "chat", dateKey: string) {
   const now = nowMs()
   database()
@@ -4512,7 +5034,7 @@ function slug(value: string) {
     .slice(0, 40) || `brand-${crypto.randomUUID().slice(0, 6)}`
 }
 
-function nowMs() {
+export function nowMs() {
   return Date.now()
 }
 

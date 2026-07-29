@@ -38,4 +38,21 @@
 
 ---
 
-> 最后更新时间：2026-07-25
+## Q：访问特定页面（如 /admin）返回 404 或 500
+**现象**：开发服务器运行中，访问某些页面（如 `http://localhost:3000/admin`）返回 404 或 500 错误，但其他页面正常。服务端日志可能提示 `Cannot find module '.next-build\server\pages\_document.js'` 或 `.next-build/server/app/<page>/page.js` 缺失。
+
+**根因**：`.next-build` 构建缓存损坏（NTFS 目录条目不一致），导致 Next.js 未能正确编译特定路由的服务端产物。项目已将构建输出目录配置为 `.next-build`（见 `next.config.mjs` 中的 `distDir`），但缓存仍可能因异常中断、文件系统问题或切换分支而损坏。
+
+**解决方案**：
+1. 停止开发服务器。
+2. 删除构建缓存目录：
+   ```powershell
+   # Windows PowerShell
+   Remove-Item -Recurse -Force .next-build
+   ```
+3. 重新启动开发服务器：`npm run dev`
+4. 刷新浏览器页面验证修复结果。
+
+---
+
+> 最后更新时间：2026-07-29

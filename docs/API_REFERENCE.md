@@ -1703,5 +1703,603 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
+#### 生成记录分页列表
+
+- **路径**：`GET /api/admin/generations`
+- **描述**：分页查询生成记录列表，支持 6 维筛选（时间范围、生成模式、状态、AI 提供商、用户查询、配件分类）、3 维排序（创建时间/成本/耗时），并返回聚合统计信息。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | page | number | 否 | 页码，从 1 开始，默认 1 |
+  | pageSize | number | 否 | 每页条数，默认 20 |
+  | startDate | string | 否 | 起始日期（格式 `YYYY-MM-DD`） |
+  | endDate | string | 否 | 截止日期（格式 `YYYY-MM-DD`） |
+  | mode | string | 否 | 生成模式（`chat` / `config`） |
+  | status | string | 否 | 生成状态（`succeeded` / `failed` / `pending`） |
+  | providerId | string | 否 | AI 提供商 ID |
+  | userQuery | string | 否 | 用户名或手机号模糊匹配 |
+  | partCategory | string | 否 | 配件分类 ID 筛选 |
+  | sortBy | string | 否 | 排序字段（`created_at` / `cost` / `duration`），默认 `created_at` |
+  | sortOrder | string | 否 | 排序方向（`asc` / `desc`），默认 `desc` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "items": [
+      {
+        "id": "gen_xxxxx",
+        "status": "succeeded",
+        "mode": "chat",
+        "userId": "u_xxxxx",
+        "username": "user_a",
+        "phone": "138****8000",
+        "provider": "fal-ai",
+        "providerLabel": "fal.ai",
+        "displayVehicleModel": "Tesla Model 3",
+        "resultImageUrl": "/results/provider_xxx-gen_xxxxx.png",
+        "promptSummary": "...",
+        "costCents": 10,
+        "durationMs": 5200,
+        "retryCount": 0,
+        "failureReason": "",
+        "createdAt": 1784980000000
+      }
+    ],
+    "total": 1200,
+    "page": 1,
+    "pageSize": 20,
+    "stats": {
+      "totalCount": 1200,
+      "successRate": 0.95,
+      "avgDurationMs": 4800,
+      "avgCostCents": 12
+    }
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | items | GenerationRecordItem[] | 当前页的生成记录列表 |
+  | total | number | 符合筛选条件的总记录数 |
+  | page | number | 当前页码 |
+  | pageSize | number | 每页条数 |
+  | stats | GenerationListStats | 聚合统计信息 |
+  | stats.totalCount | number | 总记录数 |
+  | stats.successRate | number | 成功率（0~1） |
+  | stats.avgDurationMs | number | 平均耗时（毫秒） |
+  | stats.avgCostCents | number | 平均成本（分） |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 生成记录详情
+
+- **路径**：`GET /api/admin/generations/[id]`
+- **描述**：获取指定生成记录的完整详情，包括解析后的进度时间线（progressJson）、标准化 JSON、车辆信息、结果校验以及重试子记录。
+- **路径参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 生成记录 ID |
+
+- **响应格式**：
+
+  ```json
+  {
+    "id": "gen_xxxxx",
+    "status": "succeeded",
+    "mode": "chat",
+    "userId": "u_xxxxx",
+    "username": "user_a",
+    "phone": "138****8000",
+    "provider": "fal-ai",
+    "providerLabel": "fal.ai",
+    "vehicleUploadId": "upload_xxxxx",
+    "sourceImageUrl": "/uploads/vehicle-gen_xxxxx.jpg",
+    "displayVehicleModel": "Tesla Model 3",
+    "resultImageUrl": "/results/provider_xxx-gen_xxxxx.png",
+    "paintId": "p_xxxxx",
+    "stance": 0,
+    "selections": {},
+    "selectionOptions": {},
+    "standardJson": { "...": "..." },
+    "vehicleInfo": {
+      "model": "Tesla Model 3",
+      "view": "front_left",
+      "confidence": 0.95
+    },
+    "progressSteps": [
+      { "step": "vehicle_recognition", "message": "识别车辆中...", "elapsedMs": 1200, "completedAt": "2026-07-29T10:00:01.200Z" },
+      { "step": "part_recognition", "message": "识别配件中...", "elapsedMs": 2400, "completedAt": "2026-07-29T10:00:02.400Z" },
+      { "step": "image_generation", "message": "图片生成中...", "elapsedMs": 5200, "completedAt": "2026-07-29T10:00:05.200Z" }
+    ],
+    "resultCheck": { "passed": true, "score": 85, "...": "..." },
+    "retryCount": 0,
+    "failureReason": "",
+    "costCents": 10,
+    "badCaseTags": [],
+    "usageUnits": 1,
+    "createdAt": 1784980000000,
+    "retryChildren": [
+      {
+        "id": "gen_yyyyy",
+        "status": "succeeded",
+        "retryCount": 1,
+        "createdAt": 1784980100000
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | progressSteps | ProgressStep[] | 解析 progressJson 后的时间线步骤列表 |
+  | vehicleInfo | object | 车辆识别信息 |
+  | resultCheck | object or null | 结果校验结果 |
+  | retryChildren | GenerationRecordItem[] | 该记录的所有重试子记录 |
+
+- **错误码**：401（未认证）、403（非管理员）、404（记录不存在）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 重试生成任务
+
+- **路径**：`POST /api/admin/generations/[id]/retry`
+- **描述**：使用原始任务参数快速重试一个生成任务。创建新的生成任务并将 `retryCount` 递增，同时写入审计日志。
+- **路径参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 原始生成记录 ID |
+
+- **请求参数**：无（自动从原记录提取任务参数）
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true,
+    "jobId": "gen_yyyyy"
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | ok | boolean | 是否发起成功 |
+  | jobId | string | 新创建的生成任务 ID |
+
+- **错误码**：401（未认证）、403（非管理员）、404（原始记录不存在）
+
+- **关联数据表**：`generation_jobs`、`audit_logs`
+
+---
+
+#### 生成记录 CSV 导出
+
+- **路径**：`GET /api/admin/generations/export`
+- **描述**：将生成记录以 CSV 格式导出，支持与列表接口相同的筛选条件。返回 `text/csv` 格式，带 BOM 头以兼容 Excel 中文显示。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | startDate | string | 否 | 起始日期（格式 `YYYY-MM-DD`） |
+  | endDate | string | 否 | 截止日期（格式 `YYYY-MM-DD`） |
+  | mode | string | 否 | 生成模式（`chat` / `config`） |
+  | status | string | 否 | 生成状态 |
+  | providerId | string | 否 | AI 提供商 ID |
+  | userQuery | string | 否 | 用户名或手机号模糊匹配 |
+  | partCategory | string | 否 | 配件分类 ID 筛选 |
+
+- **响应格式**：
+
+  ```
+  Content-Type: text/csv; charset=utf-8
+  Content-Disposition: attachment; filename="generations_2026-07-29.csv"
+  ```
+
+- **错误码**：401（未认证）、403（非管理员）
+
+- **关联数据表**：`generation_jobs`
+
+---
+
+### 数据分析模块（Analytics）
+
+> 以下所有接口均需管理员权限（role=admin）。
+
+#### 生成数量趋势
+
+- **路径**：`GET /api/admin/analytics/generations/trend`
+- **描述**：查询生成数量的时间序列趋势数据，支持按小时/天/周/月粒度聚合，并可按生成模式分组。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | granularity | string | 否 | 聚合粒度（`hour` / `day` / `week` / `month`），默认 `day` |
+  | days | number | 否 | 查询天数窗口，默认 30 |
+  | mode | string | 否 | 生成模式过滤（`chat` / `config`），为空则返回全部模式汇总 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      {
+        "date": "2026-07-29",
+        "count": 42,
+        "mode": "chat"
+      },
+      {
+        "date": "2026-07-29",
+        "count": 18,
+        "mode": "config"
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | AnalyticsTimeseriesPoint[] | 时间序列数据点数组 |
+  | points[].date | string | 时间维度标签（根据 granularity 不同格式不同） |
+  | points[].count | number | 该时间点的生成数量 |
+  | points[].mode | string | 生成模式（当未指定 mode 参数时按模式分组返回） |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+#### 用户注册趋势
+
+- **路径**：`GET /api/admin/analytics/users/registration-trend`
+- **描述**：查询用户注册数量的时间序列趋势数据，包含上一周期对比数据（上期数量、变化率）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | granularity | string | 否 | 聚合粒度（`hour` / `day` / `week` / `month`），默认 `day` |
+  | days | number | 否 | 查询天数窗口，默认 30 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-28", "count": 5 },
+      { "date": "2026-07-29", "count": 8 }
+    ],
+    "previousPeriodCount": 96,
+    "currentPeriodCount": 120,
+    "changeRate": 0.25
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | object[] | 时间序列数据点数组 |
+  | points[].date | string | 时间维度标签 |
+  | points[].count | number | 该时间点的注册数量 |
+  | previousPeriodCount | number | 上一个等长周期的总注册数 |
+  | currentPeriodCount | number | 当前周期的总注册数 |
+  | changeRate | number | 环比变化率（正值为增长，负值为下降） |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+#### 用户活跃度（DAU/WAU/MAU）
+
+- **路径**：`GET /api/admin/analytics/users/activity`
+- **描述**：查询 DAU（日活）、WAU（周活）、MAU（月活）时间序列数据。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | granularity | string | 否 | 聚合粒度（`hour` / `day` / `week` / `month`），默认 `day` |
+  | days | number | 否 | 查询天数窗口，默认 30 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "series": [
+      { "date": "2026-07-29", "dau": 15, "wau": 42, "mau": 68 }
+    ],
+    "currentDau": 15,
+    "currentWau": 42,
+    "currentMau": 68
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | series | object[] | 时间序列数据数组 |
+  | series[].date | string | 时间维度标签 |
+  | series[].dau | number | 日活跃用户数 |
+  | series[].wau | number | 周活跃用户数（截至该日） |
+  | series[].mau | number | 月活跃用户数（截至该日） |
+  | currentDau | number | 最新 DAU |
+  | currentWau | number | 最新 WAU |
+  | currentMau | number | 最新 MAU |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+#### 用户留存率
+
+- **路径**：`GET /api/admin/analytics/users/retention`
+- **描述**：查询用户留存率的群组（Cohort）数据，按注册日期分组并计算指定周期的留存率。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 30 |
+  | periods | string | 否 | 留存周期列表（逗号分隔），如 `1,7,30`，默认 `1,7,30` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "cohorts": [
+      {
+        "cohortDate": "2026-07-01",
+        "registerCount": 50,
+        "retention": {
+          "1": 0.6,
+          "7": 0.3,
+          "30": 0.1
+        }
+      },
+      {
+        "cohortDate": "2026-07-15",
+        "registerCount": 40,
+        "retention": {
+          "1": 0.55,
+          "7": 0.25
+        }
+      }
+    ],
+    "periods": ["1", "7", "30"]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | cohorts | object[] | 群组数据数组 |
+  | cohorts[].cohortDate | string | 群组注册日期 |
+  | cohorts[].registerCount | number | 该群组的注册用户数 |
+  | cohorts[].retention | object | 各周期的留存率映射，键为天数，值为留存率（0~1） |
+  | periods | string[] | 当前查询的留存周期列表 |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+#### 活跃用户列表
+
+- **路径**：`GET /api/admin/analytics/users/active-list`
+- **描述**：查询指定日期的活跃用户列表。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | date | string | 否 | 查询日期（格式 `YYYY-MM-DD`），默认当天 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "items": [
+      {
+        "userId": "u_xxxxx",
+        "username": "user_a",
+        "name": "用户A",
+        "phone": "138****8000",
+        "plan": "pro",
+        "lastActiveAt": "2026-07-29T10:30:00.000Z"
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | items | ActiveUserItem[] | 活跃用户列表 |
+  | items[].userId | string | 用户 ID |
+  | items[].username | string | 用户名 |
+  | items[].name | string | 显示名称 |
+  | items[].phone | string | 手机号（脱敏） |
+  | items[].plan | string | 当前套餐 ID |
+  | items[].lastActiveAt | string | 最后活跃时间（ISO 8601） |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+---
+
+### 用户管理模块（Admin Users）
+
+> 以下所有接口均需管理员权限（role=admin）。GET 和 PATCH `/api/admin/users/[id]` 共存于同一资源路径。
+
+#### 用户详情（聚合数据）
+
+- **路径**：`GET /api/admin/users/[id]`
+- **描述**：获取指定用户的聚合详情数据，包含用户基本信息、计费信息、标签（自动标签 + 手动标签）、使用时间线、生成记录概览、偏好设置及审计日志。与现有 `PATCH /api/admin/users/[id]` 共存。
+- **路径参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 用户 ID |
+
+- **响应格式**：
+
+  ```json
+  {
+    "user": {
+      "id": "u_xxxxx",
+      "username": "user_a",
+      "name": "用户A",
+      "email": "user@example.com",
+      "phone": "13800138000",
+      "role": "user",
+      "plan": "pro",
+      "status": "active",
+      "createdAt": 1700000000000,
+      "lastLoginAt": 1784980000000,
+      "updatedAt": 1784980000000
+    },
+    "billing": {
+      "plan": { "id": "pro", "label": "Pro", "...": "..." },
+      "configUsed": 10,
+      "chatUsedToday": 3,
+      "configRemaining": 40,
+      "chatRemainingToday": 47,
+      "chatEnabled": true
+    },
+    "tags": {
+      "auto": ["high_value"],
+      "manual": ["vip"]
+    },
+    "usageTimeline": [
+      { "date": "2026-07-28", "configCount": 2, "chatCount": 5 }
+    ],
+    "generations": [
+      { "id": "gen_xxxxx", "status": "succeeded", "createdAt": 1784980000000 }
+    ],
+    "generationTotal": 120,
+    "preferences": {
+      "language": "zh-CN",
+      "responseLanguage": "zh-CN"
+    },
+    "auditLogs": [
+      {
+        "id": "log_xxxxx",
+        "action": "user.update",
+        "details": { "...": "..." },
+        "createdAt": 1784980000000
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | user | object | 用户基本信息 |
+  | billing | object | 计费与额度信息 |
+  | tags | object | 用户标签（auto: 系统自动标记，manual: 管理员手动标记） |
+  | tags.auto | string[] | 自动标签列表 |
+  | tags.manual | string[] | 手动标签列表 |
+  | usageTimeline | object[] | 近期使用时间线 |
+  | generations | object[] | 最近生成记录（概览） |
+  | generationTotal | number | 生成总数 |
+  | preferences | object | 用户偏好设置 |
+  | auditLogs | object[] | 该用户的审计日志 |
+
+- **错误码**：401（未认证）、403（非管理员）、404（用户不存在）
+
+- **关联数据表**：`users`、`generation_jobs`、`audit_logs`
+
+---
+
+#### 更新用户手动标签
+
+- **路径**：`PATCH /api/admin/users/[id]/tags`
+- **描述**：更新指定用户的手动标签，覆盖写入并记录审计日志。
+- **路径参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 用户 ID |
+
+- **请求参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | tags | string[] | 是 | 手动标签列表，传入新数组将覆盖原有标签 |
+
+- **请求示例**：
+
+  ```json
+  {
+    "tags": ["vip", "high_value"]
+  }
+  ```
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true,
+    "tags": ["vip", "high_value"]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | ok | boolean | 是否更新成功 |
+  | tags | string[] | 更新后的手动标签列表 |
+
+- **错误码**：401（未认证）、403（非管理员）、404（用户不存在）
+
+- **关联数据表**：`users`、`audit_logs`
+
+---
+
+#### 用户列表 CSV 导出
+
+- **路径**：`GET /api/admin/users/export`
+- **描述**：将用户列表以 CSV 格式导出。返回 `text/csv` 格式，带 BOM 头以兼容 Excel 中文显示。
+- **查询参数**：无
+- **响应格式**：
+
+  ```
+  Content-Type: text/csv; charset=utf-8
+  Content-Disposition: attachment; filename="users_2026-07-29.csv"
+  ```
+
+  CSV 列定义：
+
+  | 列名 | 描述 |
+  |------|------|
+  | Username | 用户名 |
+  | Phone | 手机号 |
+  | Plan | 当前套餐 |
+  | Role | 用户角色 |
+  | Registered At | 注册时间 |
+  | Last Login | 最后登录时间 |
+  | Tags | 用户标签（逗号分隔） |
+
+- **错误码**：401（未认证）、403（非管理员）
+
+- **关联数据表**：`users`
+
+---
+
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002

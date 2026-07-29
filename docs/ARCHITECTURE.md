@@ -165,8 +165,18 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
 | 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护 | `lib/server/local-images.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
+| 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
 
 ## 技术决策记录（ADR）
+
+### ADR-0005：Recharts 图表库选型
+
+- **状态**：已采纳
+- **日期**：2026-07-29
+- **背景**：运营分析平台需要折线图、柱状图、饼图等可视化图表，现有管理后台仅使用原生 HTML 表格
+- **决策**：引入 Recharts 作为图表库
+- **理由**：1) Recharts 基于 React 组件式 API，与项目技术栈一致 2) 支持 ResponsiveContainer 自适应宽度 3) 社区活跃，文档完善 4) 包体积合理，支持按需引入 5) 与暗黑主题兼容，可通过 contentStyle/wrapperStyle 自定义样式
+- **影响**：新增 recharts 依赖，图表样式通过 CSS 变量适配暗黑主题
 
 ### ADR-0004：暗黑奢华 UI 设计风格
 
@@ -241,4 +251,4 @@ flowchart LR
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002
