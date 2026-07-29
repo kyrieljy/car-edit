@@ -78,4 +78,21 @@
 
 ---
 
+## Q：管理员后台"用户详情"页面抛出"Objects are not valid as a React child"异常
+**现象**：在管理员后台依次进入"用户管理 → 用户详情"时，页面白屏并抛出 React 异常 `Objects are not valid as a React child`。仅当目标用户存在审计日志（audit_logs）记录时触发，无审计日志的用户可正常打开。
+
+**根因**：`lib/server/db.ts` 的 `getUserDetail` 函数在映射审计日志时存在两处与 `AuditLog` 类型定义不一致的问题：
+1. `metadata` 字段被 `safeJson` 解析为 **对象**，而 `AuditLog` 类型声明该字段为 `string`。
+2. 字段名使用了 `actorId` 而非类型要求的 `userId`。
+
+由于使用了 `as unknown as AuditLog[]` 强制类型断言，TypeScript 编译期无法发现该不一致。前端 `components/admin/user-detail.tsx` 的 `formatMetadata` 函数接收到的 `metadata` 是对象而非字符串，`JSON.parse(对象)` 抛出异常后 catch 分支直接返回该对象，React 尝试将对象作为子节点渲染，触发运行时异常。
+
+**解决方案**：
+1. 将 `getUserDetail` 中审计日志映射对齐 `auditLogs()` 函数的既有约定：`metadata` 保持为 `String(r.metadata ?? "{}")`（字符串），字段名 `actorId` 改为 `userId`，移除 `as unknown as` 强制断言改为 `as AuditLog[]`。
+2. 前端 `formatMetadata` 函数参数类型放宽为 `unknown`，并补充防御性逻辑：当传入对象时直接 `JSON.stringify` 而非走 `JSON.parse`，避免同类问题再次导致白屏。
+
+**关联方案ID**：无
+
+---
+
 > 最后更新时间：2026-07-29

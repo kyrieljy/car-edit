@@ -5,6 +5,10 @@ import type {
   AnalyticsGranularity,
   AnalyticsTimeseriesPoint,
   AnalyticsTrendResponse,
+  CostBucket,
+  CostDistributionResponse,
+  FailureTrendPoint,
+  FailureTrendResponse,
   RetentionResponse,
 } from "../types"
 import { database, type Row } from "./db"
@@ -349,4 +353,205 @@ function strftimeDay(ms: number): string {
   const month = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
+}
+
+// ---------------------------------------------------------------------------
+// getTimeSeriesSum — SUM aggregation variant (DESIGN-20260729-003)
+// ---------------------------------------------------------------------------
+
+/**
+ * Query a time-series SUM aggregation from any table.
+ * Identical to getTimeSeries but uses SUM(aggregateColumn) instead of COUNT(*).
+ * The `count` field in the returned points holds the SUM value.
+ */
+export function getTimeSeriesSum(options: {
+  table: string
+  timeColumn: string
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+  aggregateColumn: string
+  whereClause?: string
+  params?: Array<string | number>
+  groupColumn?: string
+}): AnalyticsTimeseriesPoint[] {
+  const { table, timeColumn, startMs, endMs, granularity, aggregateColumn, whereClause, params = [], groupColumn } = options
+  const bucket = bucketExpr(timeColumn, granularity)
+
+  const conditions = [`${timeColumn} >= ?`, `${timeColumn} <= ?`]
+  const sqlParams: Array<string | number> = [startMs, endMs]
+
+  if (whereClause) {
+    conditions.push(`(${whereClause})`)
+    sqlParams.push(...params)
+  }
+
+  const groupBy = groupColumn ? `${bucket}, ${groupColumn}` : bucket
+  const selectGroup = groupColumn ? `, ${groupColumn} AS group_value` : ""
+  const orderBy = groupColumn ? `${bucket} ASC, ${groupColumn} ASC` : `${bucket} ASC`
+
+  const sql = `SELECT ${bucket} AS date_bucket, COALESCE(SUM(${aggregateColumn}), 0) AS count${selectGroup} FROM ${table} WHERE ${conditions.join(" AND ")} GROUP BY ${groupBy} ORDER BY ${orderBy}`
+
+  const rows = database().prepare(sql).all(...sqlParams) as Row[]
+  return rows.map((row) => {
+    const point: AnalyticsTimeseriesPoint = {
+      date: String(row.date_bucket),
+      count: Number(row.count),
+    }
+    if (groupColumn) {
+      point.group = String((row as Record<string, unknown>).group_value ?? "")
+    }
+    return point
+  })
+}
+
+// ---------------------------------------------------------------------------
+// getFailureRateSeries — failure rate trend with anomaly detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute failure rate time series by querying total and failed generation
+ * counts, then merging to produce a per-bucket failure rate.
+ * Anomaly dates are those where the failure rate exceeds mean + 2 * stddev.
+ */
+export function getFailureRateSeries(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+  groupColumn?: string
+  whereClause?: string
+  params?: Array<string | number>
+}): FailureTrendResponse {
+  const { startMs, endMs, granularity, groupColumn, whereClause, params = [] } = options
+
+  // Query total generation counts
+  const totalPoints = getTimeSeries({
+    table: "generation_jobs",
+    timeColumn: "created_at",
+    startMs,
+    endMs,
+    granularity,
+    whereClause,
+    params,
+    groupColumn,
+  })
+
+  // Query failed generation counts
+  const failedConditions = ["status = 'failed'"]
+  const failedParams = [...params]
+  if (whereClause) {
+    failedConditions.unshift(`(${whereClause})`)
+  }
+  const failedWhereClause = failedConditions.join(" AND ")
+
+  const failedPoints = getTimeSeries({
+    table: "generation_jobs",
+    timeColumn: "created_at",
+    startMs,
+    endMs,
+    granularity,
+    whereClause: failedWhereClause,
+    params: failedParams,
+    groupColumn,
+  })
+
+  // Build lookup maps for merging
+  const totalMap = new Map<string, Map<string, number>>()
+  for (const p of totalPoints) {
+    const groupKey = p.group ?? "__total__"
+    if (!totalMap.has(groupKey)) totalMap.set(groupKey, new Map())
+    totalMap.get(groupKey)!.set(p.date, p.count)
+  }
+
+  const failedMap = new Map<string, Map<string, number>>()
+  for (const p of failedPoints) {
+    const groupKey = p.group ?? "__total__"
+    if (!failedMap.has(groupKey)) failedMap.set(groupKey, new Map())
+    failedMap.get(groupKey)!.set(p.date, p.count)
+  }
+
+  // Merge into FailureTrendPoint[]
+  const points: FailureTrendPoint[] = []
+  const allDates = Array.from(new Set([...totalPoints.map((p) => p.date), ...failedPoints.map((p) => p.date)])).sort()
+
+  const allGroups = Array.from(new Set([...totalMap.keys(), ...failedMap.keys()]))
+
+  for (const groupKey of allGroups) {
+    const totalForGroup = totalMap.get(groupKey) ?? new Map()
+    const failedForGroup = failedMap.get(groupKey) ?? new Map()
+    for (const date of allDates) {
+      const total = totalForGroup.get(date) ?? 0
+      const failed = failedForGroup.get(date) ?? 0
+      const failureRate = total > 0 ? (failed / total) * 100 : 0
+      const point: FailureTrendPoint = { date, total, failed, failureRate }
+      if (groupColumn && groupKey !== "__total__") {
+        point.group = groupKey
+      }
+      points.push(point)
+    }
+  }
+
+  // Compute anomaly dates (only for ungrouped series)
+  const anomalyDates: string[] = []
+  if (!groupColumn) {
+    const rates = points.map((p) => p.failureRate).filter((r) => r > 0)
+    if (rates.length > 0) {
+      const mean = rates.reduce((a, b) => a + b, 0) / rates.length
+      const variance = rates.reduce((a, b) => a + (b - mean) ** 2, 0) / rates.length
+      const stddev = Math.sqrt(variance)
+      const threshold = mean + 2 * stddev
+      for (const p of points) {
+        if (p.failureRate > threshold && p.failureRate > 0) {
+          anomalyDates.push(p.date)
+        }
+      }
+    }
+  }
+
+  return { points, anomalyDates }
+}
+
+// ---------------------------------------------------------------------------
+// getCostDistribution — histogram + percentiles (DESIGN-20260729-003)
+// ---------------------------------------------------------------------------
+
+/**
+ * Query cost distribution from usage_ledger, compute P50/P90/P99 and
+ * bucket into predefined ranges for histogram rendering.
+ */
+export function getCostDistribution(options: {
+  startMs: number
+  endMs: number
+}): CostDistributionResponse {
+  const { startMs, endMs } = options
+
+  const rows = database()
+    .prepare("SELECT cost_cents FROM usage_ledger WHERE created_at >= ? AND created_at <= ? ORDER BY cost_cents ASC")
+    .all(startMs, endMs) as Row[]
+
+  const costs = rows.map((r) => Number(r.cost_cents ?? 0))
+
+  if (costs.length === 0) {
+    return { buckets: [], p50: 0, p90: 0, p99: 0 }
+  }
+
+  const p50 = computePercentile(costs, 50)
+  const p90 = computePercentile(costs, 90)
+  const p99 = computePercentile(costs, 99)
+
+  // Define histogram buckets (in cents)
+  const bucketDefs = [
+    { range: "0-10", min: 0, max: 10 },
+    { range: "10-20", min: 10, max: 20 },
+    { range: "20-50", min: 20, max: 50 },
+    { range: "50-100", min: 50, max: 100 },
+    { range: "100+", min: 100, max: Infinity },
+  ]
+
+  const buckets: CostBucket[] = bucketDefs.map((b) => ({
+    range: b.range,
+    count: costs.filter((c) => c >= b.min && c < b.max).length,
+  }))
+
+  return { buckets, p50, p90, p99 }
 }

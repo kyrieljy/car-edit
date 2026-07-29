@@ -2301,5 +2301,508 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
+#### 失败率趋势
+
+- **路径**：`GET /api/admin/analytics/failures/trend`
+- **描述**：查询生成任务失败率的时间序列趋势，支持按生成模式或 Provider 分组，并自动检测异常日期（失败率超过历史均值 2 倍标准差）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+  | granularity | string | 否 | 聚合粒度（`hour` / `day` / `week` / `month`），默认 `day` |
+  | groupBy | string | 否 | 分组维度（`none` / `mode` / `provider`），默认 `none` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29", "total": 100, "failed": 5, "failureRate": 5.0, "group": "chat" }
+    ],
+    "anomalyDates": ["2026-07-28"]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | FailureTrendPoint[] | 时间序列数据点 |
+  | points[].date | string | 日期标签 |
+  | points[].total | number | 该时段总生成数 |
+  | points[].failed | number | 该时段失败数 |
+  | points[].failureRate | number | 失败率（百分比） |
+  | points[].group | string | 分组标签（groupBy=none 时省略） |
+  | anomalyDates | string[] | 异常日期列表 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### Provider 失败率排名
+
+- **路径**：`GET /api/admin/analytics/failures/provider-ranking`
+- **描述**：查询各 Provider 的失败率排名及 Top 失败原因关键词。
+- **查询参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "rankings": [
+      { "provider": "doubao", "requestCount": 500, "failureCount": 25, "failureRate": 5.0, "topReasons": ["timeout", "content_filter"] }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | rankings | ProviderFailureRanking[] | Provider 排名列表（按失败率降序） |
+  | rankings[].provider | string | Provider ID |
+  | rankings[].requestCount | number | 总请求数 |
+  | rankings[].failureCount | number | 失败请求数 |
+  | rankings[].failureRate | number | 失败率（百分比） |
+  | rankings[].topReasons | string[] | Top 失败原因关键词（最多 5 个） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 成本趋势
+
+- **路径**：`GET /api/admin/analytics/costs/trend`
+- **描述**：查询 Provider 调用成本的时间序列趋势，支持按 Provider 分组。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+  | granularity | string | 否 | 聚合粒度，默认 `day` |
+  | groupByProvider | boolean | 否 | 是否按 Provider 分组，默认 false |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29", "count": 1250, "group": "doubao" }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | AnalyticsTimeseriesPoint[] | 时间序列数据点 |
+  | points[].date | string | 日期标签 |
+  | points[].count | number | 该时段成本（单位：分） |
+  | points[].group | string | Provider 名称（groupByProvider=true 时存在） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`（cost_cents 字段）
+
+---
+
+#### 按用户成本排名
+
+- **路径**：`GET /api/admin/analytics/costs/by-user`
+- **描述**：查询成本最高的用户排名。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | limit | number | 否 | 返回条目数，默认 10 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "items": [
+      { "userId": "abc123", "username": "user1", "totalCostCents": 50000 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | items | CostByUserItem[] | 用户成本排名列表（按成本降序） |
+  | items[].userId | string | 用户 ID |
+  | items[].username | string | 用户名 |
+  | items[].totalCostCents | number | 总成本（单位：分） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`、`users`
+
+---
+
+#### 按配件类别成本
+
+- **路径**：`GET /api/admin/analytics/costs/by-category`
+- **描述**：查询各配件类别的成本占比。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "items": [
+      { "category": "wheels", "totalCostCents": 30000 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | items | CostByCategoryItem[] | 类别成本列表 |
+  | items[].category | string | 配件类别 ID |
+  | items[].totalCostCents | number | 该类别总成本（单位：分） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 单次生成成本分布
+
+- **路径**：`GET /api/admin/analytics/costs/distribution`
+- **描述**：查询单次生成成本的分桶分布及百分位数（P50/P90/P99）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "buckets": [
+      { "range": "0-10", "count": 150 },
+      { "range": "10-20", "count": 80 }
+    ],
+    "p50": 12,
+    "p90": 25,
+    "p99": 50
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | buckets | CostBucket[] | 成本分桶列表 |
+  | buckets[].range | string | 分桶范围标签 |
+  | buckets[].count | number | 该桶内记录数 |
+  | p50 | number | 中位数成本（单位：分） |
+  | p90 | number | 90 百分位成本 |
+  | p99 | number | 99 百分位成本 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 收入趋势
+
+- **路径**：`GET /api/admin/analytics/orders/revenue-trend`
+- **描述**：查询收入的时间序列趋势，并返回当日收入、月度收入和 ARPU 概览。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+  | granularity | string | 否 | 聚合粒度，默认 `day` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29", "count": 9900 }
+    ],
+    "dailyRevenue": 9900,
+    "monthlyRevenue": 198000,
+    "arpu": 3300
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | AnalyticsTimeseriesPoint[] | 时间序列数据点 |
+  | points[].date | string | 日期标签 |
+  | points[].count | number | 该时段收入（单位：分） |
+  | dailyRevenue | number | 当日收入（分） |
+  | monthlyRevenue | number | 当月收入（分） |
+  | arpu | number | 每付费用户平均收入（分） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`payment_orders`
+
+---
+
+#### 订单转化率
+
+- **路径**：`GET /api/admin/analytics/orders/conversion`
+- **描述**：查询付费转化率、订单状态分布及退款率趋势。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "conversionRate": 15.5,
+    "totalUsers": 1000,
+    "paidUsers": 155,
+    "statusDistribution": [
+      { "status": "paid", "count": 155 },
+      { "status": "pending", "count": 20 }
+    ],
+    "refundRateSeries": [
+      { "date": "2026-07-29", "rate": 2.5 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | conversionRate | number | 付费转化率（百分比） |
+  | totalUsers | number | 总用户数 |
+  | paidUsers | number | 付费用户数 |
+  | statusDistribution | OrderStatusCount[] | 订单状态分布 |
+  | statusDistribution[].status | string | 订单状态 |
+  | statusDistribution[].count | number | 该状态订单数 |
+  | refundRateSeries | Array | 退款率时间序列 |
+  | refundRateSeries[].date | string | 日期 |
+  | refundRateSeries[].rate | number | 退款率（百分比） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`payment_orders`、`users`
+
+---
+
+#### 续费率
+
+- **路径**：`GET /api/admin/analytics/orders/renewal`
+- **描述**：查询订阅续费率趋势及当前整体续费率。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 90 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "currentRate": 65.0,
+    "series": [
+      { "month": "2026-07", "rate": 65.0, "expired": 100, "renewed": 65 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | currentRate | number | 当前整体续费率（百分比） |
+  | series | RenewalRatePoint[] | 月度续费率趋势 |
+  | series[].month | string | 月份 |
+  | series[].rate | number | 该月续费率（百分比） |
+  | series[].expired | number | 该月到期订阅数 |
+  | series[].renewed | number | 该月续费订阅数 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`subscriptions`
+
+---
+
+#### 额度消耗趋势
+
+- **路径**：`GET /api/admin/analytics/quota/consumption-trend`
+- **描述**：查询额度消耗和额度调整的时间序列趋势（双序列）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 7 |
+  | granularity | string | 否 | 聚合粒度，默认 `day` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "consumptionSeries": [
+      { "date": "2026-07-29", "count": 500 }
+    ],
+    "adjustmentSeries": [
+      { "date": "2026-07-29", "count": 100 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | consumptionSeries | AnalyticsTimeseriesPoint[] | 额度消耗序列 |
+  | adjustmentSeries | AnalyticsTimeseriesPoint[] | 额度调整序列 |
+  | series[].date | string | 日期标签 |
+  | series[].count | number | 该时段额度变动量 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`usage_ledger`、`quota_adjustments`
+
+---
+
+#### 额度余额分布
+
+- **路径**：`GET /api/admin/analytics/quota/balance-distribution`
+- **描述**：查询用户额度余额的分布情况（已耗尽 / 即将耗尽 / 充足）。
+- **查询参数**：无
+- **响应格式**：
+
+  ```json
+  {
+    "exhausted": 10,
+    "nearExhausted": 25,
+    "sufficient": 165,
+    "total": 200
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | exhausted | number | 已耗尽用户数（剩余额度 = 0） |
+  | nearExhausted | number | 即将耗尽用户数（剩余额度 < 20% 上限） |
+  | sufficient | number | 充足用户数 |
+  | total | number | 总用户数 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`entitlement_usage`、`membership_plans`
+
+---
+
+#### 告警列表
+
+- **路径**：`GET /api/admin/analytics/alerts`
+- **描述**：查询异常告警记录列表，支持按状态筛选。每次请求会触发一次告警扫描。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | status | string | 否 | 状态筛选（`pending` / `confirmed` / `ignored`） |
+  | limit | number | 否 | 返回条目数，默认 50 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "alerts": [
+      {
+        "id": "alert_001",
+        "userId": "abc123",
+        "username": "user1",
+        "alertType": "high_frequency",
+        "alertValue": 150,
+        "detectedAt": 1722240000000,
+        "status": "pending",
+        "resolvedAt": null,
+        "resolverId": null
+      }
+    ],
+    "total": 1,
+    "scannedAt": 1722240000000
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | alerts | AlertRecord[] | 告警记录列表 |
+  | alerts[].id | string | 告警 ID |
+  | alerts[].userId | string | 用户 ID |
+  | alerts[].username | string | 用户名 |
+  | alerts[].alertType | string | 告警类型（`high_frequency` / `high_cost`） |
+  | alerts[].alertValue | number | 触发值（频率次数或成本分） |
+  | alerts[].detectedAt | number | 检测时间戳 |
+  | alerts[].status | string | 状态（`pending` / `confirmed` / `ignored`） |
+  | alerts[].resolvedAt | number\|null | 处理时间戳 |
+  | alerts[].resolverId | string\|null | 处理人 ID |
+  | total | number | 总告警数 |
+  | scannedAt | number | 最后扫描时间戳 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`alert_records`
+
+---
+
+#### 更新告警状态
+
+- **路径**：`PATCH /api/admin/analytics/alerts/[id]`
+- **描述**：确认或忽略一条告警记录。
+- **路径参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 告警记录 ID |
+
+- **请求体**：
+
+  ```json
+  { "status": "confirmed" }
+  ```
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | status | string | 是 | 目标状态（`confirmed` / `ignored`） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "alert": {
+      "id": "alert_001",
+      "userId": "abc123",
+      "username": "user1",
+      "alertType": "high_frequency",
+      "alertValue": 150,
+      "detectedAt": 1722240000000,
+      "status": "confirmed",
+      "resolvedAt": 1722240100000,
+      "resolverId": "admin_001"
+    }
+  }
+  ```
+
+- **错误码**：400（无效状态值）、401（未认证）、403（非管理员）、404（告警不存在）
+- **关联数据表**：`alert_records`
+
+---
+
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003

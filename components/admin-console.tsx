@@ -30,6 +30,10 @@ import GenerationRecords from "@/components/admin/generation-records"
 import GenerationDetail from "@/components/admin/generation-detail"
 import UserAnalytics from "@/components/admin/user-analytics"
 import UserDetail from "@/components/admin/user-detail"
+import FailureAnalytics from "@/components/admin/failure-analytics"
+import CostAnalytics from "@/components/admin/cost-analytics"
+import OrderAnalytics from "@/components/admin/order-analytics"
+import QuotaAnalytics from "@/components/admin/quota-analytics"
 import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
@@ -54,7 +58,7 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-costs" | "analytics-orders" | "analytics-quota"
 type AdminView = { type: "tab"; tab: AdminTab } | { type: "generation-detail"; jobId: string } | { type: "user-detail"; userId: string }
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
@@ -84,6 +88,10 @@ const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon
   { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
   { id: "analytics-generations", label: "生成记录", sub: "筛选 / 趋势 / 详情", icon: <BarChart3 size={20} /> },
   { id: "analytics-users", label: "用户分析", sub: "注册 / 活跃 / 留存", icon: <TrendingUp size={20} /> },
+  { id: "analytics-failures", label: "失败分析", sub: "失败率 / 归因 / 排名", icon: <Activity size={20} /> },
+  { id: "analytics-costs", label: "成本分析", sub: "趋势 / 归因 / 分布", icon: <Eye size={20} /> },
+  { id: "analytics-orders", label: "订单分析", sub: "收入 / 转化 / 续费", icon: <Receipt size={20} /> },
+  { id: "analytics-quota", label: "额度监控", sub: "消耗 / 余额 / 告警", icon: <Database size={20} /> },
   { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
   { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
   { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
@@ -104,6 +112,10 @@ function adminTabTitle(tab: AdminTab) {
     badcases: "失败样本记录",
     "analytics-generations": "生成记录分析",
     "analytics-users": "用户分析",
+    "analytics-failures": "失败记录分析",
+    "analytics-costs": "Provider 成本分析",
+    "analytics-orders": "订单收入分析",
+    "analytics-quota": "额度消耗监控",
     users: "用户管理",
     profiles: "用户画像",
     orders: "订单管理",
@@ -367,6 +379,10 @@ export function AdminConsole() {
               {tab === "analytics-users" && (
                 <UserAnalytics onOpenUserDetail={openUserDetail} />
               )}
+              {tab === "analytics-failures" && <FailureAnalytics />}
+              {tab === "analytics-costs" && <CostAnalytics />}
+              {tab === "analytics-orders" && <OrderAnalytics />}
+              {tab === "analytics-quota" && <QuotaAnalytics />}
               {tab === "users" && (
                 <>
                   <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} onOpenUserDetail={openUserDetail} />

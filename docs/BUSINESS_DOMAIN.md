@@ -33,6 +33,14 @@
 | 意图解析（Intent Parse） | 从自然语言中提取改装意图 | 本地解析（关键词匹配+规则引擎）+ LLM fallback |
 | 一键登录（One-Tap Login） | 基于运营商号码认证的无密码登录 | 集成阿里云号码认证 SDK |
 | 提示词包（Prompt Pack） | 版本化的提示词配置集合 | Git-tracked，当前稳定版 effective-prompt-v1-2026-05-29 |
+| 失败率（Failure Rate） | 生成任务失败数占总生成数的百分比 | 按时段聚合，支持按模式/Provider 分组 |
+| 异常日期（Anomaly Date） | 失败率超过历史均值 2 倍标准差的日期 | 运营分析平台自动检测并标注 |
+| 成本（Cost） | Provider 调用产生的费用 | 以分为单位存储（cost_cents），支持按用户/类别/Provider 维度统计 |
+| ARPU | 每付费用户平均收入 | 总收入 / 付费用户数，以分为单位 |
+| 付费转化率（Conversion Rate） | 付费用户数占总用户数的百分比 | 付费用户 = 有 status=paid 订单的用户 |
+| 续费率（Renewal Rate） | 到期订阅中续费的比例 | 按月统计：renewed / expired * 100% |
+| 额度余额（Quota Balance） | 用户当前剩余可用额度 | 分为已耗尽(0)、即将耗尽(<20%)、充足(>=20%)三档 |
+| 告警记录（Alert Record） | 系统检测到的用户异常行为记录 | 类型：high_frequency（高频生成）、high_cost（高成本） |
 
 ---
 
@@ -217,6 +225,11 @@ flowchart TD
 | BR-010 | 用户标签系统包含自动标签和手动标签两类。自动标签在运行时计算，不持久化：套餐类型（直接取 users.plan）、活跃度（最近 30 天生成次数：>50 高活、10-50 中活、1-10 低活、0 流失预警）、付费意愿（查询 subscriptions 表是否有 status='active' 记录）、用户价值（按 totalCostCents 排名：前 10% 高价值、10-40% 中价值、其余低价值）。手动标签由管理员在用户详情页添加/删除，持久化到 users.tags_json。 | 所有用户在管理后台查看/分析时 | 无 |
 | BR-011 | 留存率定义：注册后第 N 日仍有生成行为的用户占该批次注册用户的比例。第 N 日定义为注册时间戳 + N*24h 到 + (N+1)*24h 的时间窗口。 | 运营分析平台计算留存率指标时 | 无 |
 | BR-012 | 活跃度指标定义：DAU = 当日有至少 1 次生成行为的去重用户数；WAU = 过去 7 天（含当日）有生成行为的去重用户数；MAU = 过去 30 天（含当日）有生成行为的去重用户数。 | 运营分析平台计算用户活跃指标时 | 无 |
+| BR-013 | 失败率异常检测：计算查询窗口内每日失败率的均值和标准差，当某日失败率超过均值 + 2 倍标准差时标记为异常日期。 | 运营分析平台失败分析模块 | 当查询窗口内数据点不足 2 个时不执行异常检测 |
+| BR-014 | 成本统计以 generation_jobs.cost_cents 字段为数据源，支持按用户（user_id）、配件类别（selections 中的 category）、Provider（provider 字段）三个维度聚合。 | 运营分析平台成本分析模块 | 成本为 0 的记录不纳入分布统计 |
+| BR-015 | 付费转化率 = 有 status=paid 订单的用户数 / 总用户数 * 100%。续费率 = 当月续费订阅数 / 当月到期订阅数 * 100%。ARPU = 总收入 / 付费用户数。 | 运营分析平台订单分析模块 | 当前为模拟支付模式，退款率统计基于 status=refunded 订单 |
+| BR-016 | 额度余额分档：已耗尽 = 剩余额度为 0；即将耗尽 = 剩余额度 < 套餐上限的 20%；充足 = 剩余额度 >= 套餐上限的 20%。 | 运营分析平台额度监控模块 | 内部/内测用户不受此分档限制 |
+| BR-017 | 异常告警触发条件：high_frequency = 用户当日生成次数超过 100 次；high_cost = 用户当日总成本超过 5000 分（50 元）。同一用户同一类型同一小时内仅记录一条告警。 | 运营分析平台告警扫描 | 阈值可通过代码常量调整，当前为硬编码 |
 
 ---
 
@@ -232,6 +245,7 @@ erDiagram
     User ||--|| Subscription : owns
     User ||--o{ UsageLedger : consumes
     User ||--o{ AccountMessage : receives
+    User ||--o{ AlertRecord : triggers
 
     ChatSession ||--o{ ChatMessage : contains
     ChatMessage ||--o{ ChatAttachment : includes
@@ -253,6 +267,7 @@ erDiagram
 | User -> Subscription | 1:1 | 一个用户对应一个订阅计划（会员等级） |
 | User -> UsageLedger | 1:N | 一个用户可有多条积分消费记录 |
 | User -> AccountMessage | 1:N | 一个用户可接收多条账户消息通知 |
+| User -> AlertRecord | 1:N | 一个用户可触发多条异常告警记录，告警由系统自动扫描生成 |
 | ChatSession -> ChatMessage | 1:N | 一个对话会话包含多条消息 |
 | ChatMessage -> ChatAttachment | 1:N | 一条消息可包含多个附件（车辆图或配件参考图） |
 | PartCategory -> PartBrand | 1:N | 一个配件分类下有多个品牌 |
@@ -263,4 +278,4 @@ erDiagram
 ---
 
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003

@@ -4,6 +4,55 @@
 
 ## 2026-07-29
 
+### 缺陷修复 — 管理员"用户详情"页面审计日志渲染异常
+
+#### 修复
+- [修复] `lib/server/db.ts` `getUserDetail` 函数审计日志映射与 `AuditLog` 类型不一致：`metadata` 由 `safeJson` 解析的对象改为字符串、字段名 `actorId` 改为 `userId`、移除 `as unknown as` 强制断言
+- [修复] `components/admin/user-detail.tsx` `formatMetadata` 函数补充防御性逻辑，参数类型放宽为 `unknown`，对象类型直接 `JSON.stringify` 避免白屏
+
+### 运营分析平台（阶段四至六）— 失败分析、成本核算、订单分析、额度监控 (DESIGN-20260729-003)
+
+#### 新增
+- [新增] `lib/server/alert-scanner.ts` 异常检测扫描模块，支持高频生成和高成本告警检测 (关联方案ID: DESIGN-20260729-003)
+- [新增] `lib/types.ts` 新增失败分析、成本分析、订单分析、额度监控、告警记录等类型定义 (关联方案ID: DESIGN-20260729-003)
+- [新增] `lib/server/analytics-queries.ts` 新增 `getTimeSeriesSum`、`getFailureRateSeries`、`getCostDistribution` 查询函数 (关联方案ID: DESIGN-20260729-003)
+- [新增] `lib/server/db.ts` 新增 `alert_records` 表及 3 个索引 (关联方案ID: DESIGN-20260729-003)
+- [新增] `lib/server/db.ts` 新增 `getProviderFailureRanking`、`getCostByUser`、`getCostByCategory`、`getRevenueStats`、`getOrderConversionStats`、`getRenewalRate`、`getBalanceDistribution`、`listAlerts`、`updateAlertStatus`、`insertAlert` 数据库函数 (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/failures/trend/route.ts` 失败率趋势 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/failures/provider-ranking/route.ts` Provider 失败率排名 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/costs/trend/route.ts` 成本趋势 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/costs/by-user/route.ts` 按用户成本排名 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/costs/by-category/route.ts` 按配件类别成本 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/costs/distribution/route.ts` 单次生成成本分布 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/orders/revenue-trend/route.ts` 收入趋势 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/orders/conversion/route.ts` 订单转化率 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/orders/renewal/route.ts` 续费率 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/quota/consumption-trend/route.ts` 额度消耗趋势 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/quota/balance-distribution/route.ts` 额度余额分布 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/alerts/route.ts` 告警列表 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `app/api/admin/analytics/alerts/[id]/route.ts` 更新告警状态 API (关联方案ID: DESIGN-20260729-003)
+- [新增] `components/admin/failure-analytics.tsx` 失败分析组件 (关联方案ID: DESIGN-20260729-003)
+- [新增] `components/admin/cost-analytics.tsx` 成本分析组件 (关联方案ID: DESIGN-20260729-003)
+- [新增] `components/admin/order-analytics.tsx` 订单分析组件 (关联方案ID: DESIGN-20260729-003)
+- [新增] `components/admin/quota-analytics.tsx` 额度监控组件 (关联方案ID: DESIGN-20260729-003)
+
+#### 修改
+- [修改] `components/admin-console.tsx` 新增"失败分析"、"成本分析"、"订单分析"、"额度监控"四个 Tab 及导航项 (关联方案ID: DESIGN-20260729-003)
+- [修改] `app/globals.css` 新增分析页面容器、工具栏、异常横幅、原因关键词列表、告警表格等 CSS 样式 (关联方案ID: DESIGN-20260729-003)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 13 个运营分析 API 接口文档 (关联方案ID: DESIGN-20260729-003)
+- [文档] `docs/DB_SCHEMA.md` 新增 alert_records 表结构文档 (关联方案ID: DESIGN-20260729-003)
+- [文档] `docs/ARCHITECTURE.md` 新增 ADR-0006 异常检测与告警持久化方案，更新核心模块表 (关联方案ID: DESIGN-20260729-003)
+- [文档] `docs/BUSINESS_DOMAIN.md` 新增失败率/成本/ARPU/转化率/续费率/额度余额/告警记录等术语，新增 BR-013 至 BR-017 业务规则 (关联方案ID: DESIGN-20260729-003)
+
+#### 影响范围
+- 管理后台新增"失败分析"、"成本分析"、"订单分析"、"额度监控"四个分析页面
+- 数据库新增 alert_records 表（23 张表）
+- 新增 13 个管理端 API 端点
+
+---
+
 ### 运营分析平台（阶段一至三）— 时序聚合基础设施、生成记录分析、用户洞察 (DESIGN-20260729-002)
 
 #### 新增

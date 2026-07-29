@@ -660,12 +660,22 @@ export default function UserDetail({
 // Metadata formatter
 // ---------------------------------------------------------------------------
 
-function formatMetadata(metadata: string): string {
+function formatMetadata(metadata: unknown): string {
   if (!metadata) return '';
+  // Defensive: if metadata is already an object/array, stringify it directly
+  // instead of passing it to JSON.parse (which would throw on "[object Object]").
+  if (typeof metadata === 'object') {
+    try {
+      return JSON.stringify(metadata, null, 2);
+    } catch {
+      return String(metadata);
+    }
+  }
+  const text = String(metadata);
   try {
-    const parsed = JSON.parse(metadata);
+    const parsed = JSON.parse(text);
     return JSON.stringify(parsed, null, 2);
   } catch {
-    return metadata;
+    return text;
   }
 }

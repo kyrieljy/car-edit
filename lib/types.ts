@@ -872,3 +872,146 @@ export type UserDetailResponse = {
   }
   auditLogs: AuditLog[]
 }
+
+// ---------------------------------------------------------------------------
+// Analytics types (DESIGN-20260729-003) — Phase IV-VI
+// ---------------------------------------------------------------------------
+
+// --- Failure analysis ---
+
+export type FailureTrendPoint = {
+  date: string
+  total: number
+  failed: number
+  failureRate: number
+  group?: string
+}
+
+export type FailureTrendResponse = {
+  points: FailureTrendPoint[]
+  anomalyDates: string[]
+}
+
+export type ProviderFailureRanking = {
+  provider: string
+  requestCount: number
+  failureCount: number
+  failureRate: number
+  topReasons: string[]
+}
+
+export type ProviderFailureRankingResponse = {
+  rankings: ProviderFailureRanking[]
+}
+
+// --- Cost analysis ---
+
+export type CostTrendResponse = {
+  points: AnalyticsTimeseriesPoint[]
+}
+
+export type CostByUserItem = {
+  userId: string
+  username: string
+  totalCostCents: number
+}
+
+export type CostByUserResponse = {
+  items: CostByUserItem[]
+}
+
+export type CostByCategoryItem = {
+  category: string
+  totalCostCents: number
+}
+
+export type CostByCategoryResponse = {
+  items: CostByCategoryItem[]
+}
+
+export type CostBucket = {
+  range: string
+  count: number
+}
+
+export type CostDistributionResponse = {
+  buckets: CostBucket[]
+  p50: number
+  p90: number
+  p99: number
+}
+
+// --- Order analysis ---
+
+export type RevenueTrendResponse = {
+  points: AnalyticsTimeseriesPoint[]
+  dailyRevenue: number
+  monthlyRevenue: number
+  arpu: number
+}
+
+export type OrderStatusCount = {
+  status: string
+  count: number
+}
+
+export type OrderConversionResponse = {
+  conversionRate: number
+  totalUsers: number
+  paidUsers: number
+  statusDistribution: OrderStatusCount[]
+  refundRateSeries: Array<{ date: string; rate: number }>
+}
+
+export type RenewalRatePoint = {
+  month: string
+  rate: number
+  expired: number
+  renewed: number
+}
+
+export type RenewalRateResponse = {
+  currentRate: number
+  series: RenewalRatePoint[]
+}
+
+// --- Quota monitoring ---
+
+export type QuotaConsumptionTrendResponse = {
+  consumptionSeries: AnalyticsTimeseriesPoint[]
+  adjustmentSeries: AnalyticsTimeseriesPoint[]
+}
+
+export type BalanceDistributionResponse = {
+  exhausted: number
+  nearExhausted: number
+  sufficient: number
+  total: number
+}
+
+// --- Alert records ---
+
+export type AlertType = "high_frequency" | "high_cost"
+export type AlertStatus = "pending" | "confirmed" | "ignored"
+
+export type AlertRecord = {
+  id: string
+  userId: string
+  username: string
+  alertType: AlertType
+  alertValue: number
+  detectedAt: number
+  status: AlertStatus
+  resolvedAt: number | null
+  resolverId: string | null
+}
+
+export type AlertListResponse = {
+  alerts: AlertRecord[]
+  total: number
+  scannedAt: number
+}
+
+export type AlertUpdateResponse = {
+  alert: AlertRecord
+}

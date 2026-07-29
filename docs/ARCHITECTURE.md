@@ -165,9 +165,19 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
 | 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护 | `lib/server/local-images.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
-| 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
+| 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、失败分析、成本核算、订单分析、额度监控、异常告警、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `lib/server/alert-scanner.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
 
 ## 技术决策记录（ADR）
+
+### ADR-0006：异常检测与告警持久化方案
+
+- **状态**：已采纳
+- **日期**：2026-07-29
+- **背景**：运营分析平台阶段四至六需要额度监控和异常告警能力。需要决定异常检测的触发时机和告警数据的持久化方式。
+- **决策**：采用请求时触发（on-demand）的扫描模式，在管理员查询告警列表 API 时执行 `scanAnomalies()` 扫描；告警记录持久化到独立的 `alert_records` 表，支持状态流转（pending → confirmed/ignored）和处理人追踪。
+- **理由**：1) 请求时扫描避免了额外的定时任务基础设施（cron/queue），与现有 SQLite 单体架构一致 2) 独立表存储告警记录使管理员可以跨请求查看历史告警、追踪处理状态 3) 每小时去重逻辑（同一用户同一类型同一小时仅记录一条）防止告警洪水 4) 状态流转字段（resolved_at/resolver_id）支持审计追溯
+- **影响**：新增 `alert_records` 表及 3 个索引；新增 `lib/server/alert-scanner.ts` 模块；告警列表 API 在每次请求时执行扫描，有轻微性能开销（约 50-100ms）
+- **关联方案ID**：DESIGN-20260729-003
 
 ### ADR-0005：Recharts 图表库选型
 
@@ -244,11 +254,11 @@ flowchart LR
 
 | 存储位置 | 内容 | 说明 |
 |----------|------|------|
-| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 22 张表，WAL 模式 |
+| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 23 张表，WAL 模式 |
 | `data/car_mod_effect.sqlite-wal` | WAL 日志文件 | SQLite 写前日志 |
 | `data/car_mod_effect.sqlite-shm` | 共享内存文件 | SQLite 共享内存 |
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003

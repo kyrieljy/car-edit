@@ -52,6 +52,7 @@ import type {
   PromptTemplate,
   PromptTemplateScope,
   ProviderConfig,
+  ProviderFailureRanking,
   ProviderId,
   ResultCheckResult,
   SelectionMap,
@@ -59,6 +60,14 @@ import type {
   WorkflowConfig,
   WorkflowMode,
   WorkflowNodeConfig,
+  CostByUserItem,
+  CostByCategoryItem,
+  OrderStatusCount,
+  RenewalRatePoint,
+  BalanceDistributionResponse,
+  AlertRecord,
+  AlertType,
+  AlertStatus,
 } from "../types"
 
 const DB_PATH = path.join(process.cwd(), "data", "car_mod_effect.sqlite")
@@ -467,12 +476,26 @@ function initSchema(conn: DatabaseSync) {
       result_check_json TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS alert_records (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      alert_type TEXT NOT NULL,
+      alert_value INTEGER NOT NULL,
+      detected_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      resolved_at INTEGER,
+      resolver_id TEXT
+    );
   `)
   conn.exec("CREATE UNIQUE INDEX IF NOT EXISTS entitlement_usage_unique ON entitlement_usage(user_id, mode, date_key);")
   conn.exec("CREATE INDEX IF NOT EXISTS account_messages_user_created_idx ON account_messages(user_id, created_at DESC);")
   conn.exec("CREATE INDEX IF NOT EXISTS quota_adjustments_user_created_idx ON quota_adjustments(user_id, created_at DESC);")
   conn.exec("CREATE INDEX IF NOT EXISTS users_phone_idx ON users(phone);")
   conn.exec("CREATE INDEX IF NOT EXISTS verification_codes_phone_purpose_created_idx ON verification_codes(phone, purpose, created_at DESC);")
+  conn.exec("CREATE INDEX IF NOT EXISTS alert_records_user_idx ON alert_records(user_id);")
+  conn.exec("CREATE INDEX IF NOT EXISTS alert_records_detected_idx ON alert_records(detected_at DESC);")
+  conn.exec("CREATE INDEX IF NOT EXISTS alert_records_status_idx ON alert_records(status);")
   migrateSchema(conn)
 }
 
@@ -4917,11 +4940,11 @@ export function getUserDetail(userId: string): {
   `).all(userId, `%"${userId}"%`) as Row[]
   const auditLogs = auditRows.map((r) => ({
     id: String(r.id),
-    actorId: String(r.user_id ?? ""),
+    userId: String(r.user_id ?? ""),
     action: String(r.action ?? ""),
-    metadata: safeJson<unknown>(String(r.metadata ?? "{}"), {}),
+    metadata: String(r.metadata ?? "{}"),
     createdAt: Number(r.created_at ?? 0),
-  })) as unknown as AuditLog[]
+  })) as AuditLog[]
 
   return {
     user: {
@@ -5313,4 +5336,388 @@ function decryptSecret(value: string) {
   } catch {
     return ""
   }
+}
+
+// ---------------------------------------------------------------------------
+// Analytics query functions (DESIGN-20260729-003)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get provider failure rate ranking with top error reason keywords.
+ */
+export function getProviderFailureRanking(): ProviderFailureRanking[] {
+  const db = database()
+  const rows = db.prepare(`
+    SELECT provider,
+           COUNT(*) AS total,
+           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+    FROM generation_jobs
+    GROUP BY provider
+    ORDER BY (CASE WHEN COUNT(*) > 0 THEN SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) * 1.0 / COUNT(*) ELSE 0 END) DESC
+  `).all() as Row[]
+
+  return rows.map((row) => {
+    const provider = String(row.provider ?? "")
+    const requestCount = Number(row.total ?? 0)
+    const failureCount = Number(row.failed ?? 0)
+    const failureRate = requestCount > 0 ? (failureCount / requestCount) * 100 : 0
+
+    // Extract top 5 failure reason keywords for this provider
+    const reasonRows = db.prepare(
+      "SELECT failure_reason FROM generation_jobs WHERE provider = ? AND status = 'failed' AND failure_reason != '' LIMIT 50"
+    ).all(provider) as Row[]
+    const wordFreq = new Map<string, number>()
+    const stopWords = new Set(["the", "a", "an", "to", "of", "in", "on", "at", "for", "is", "was", "and", "or", "not", "with", "by", "from", "as", "it", "that", "this", "be", "are", "were", "has", "have", "had", "been", "will", "would", "could", "should", "may", "might", "can", "cannot", "but", "if", "then", "else", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very"])
+    for (const r of reasonRows) {
+      const text = String(r.failure_reason ?? "").toLowerCase()
+      const words = text.split(/[\s,;:.\-_=\/\\(){}[\]"'<>]+/).filter((w) => w.length > 2 && !stopWords.has(w))
+      for (const word of words) {
+        wordFreq.set(word, (wordFreq.get(word) ?? 0) + 1)
+      }
+    }
+    const topReasons = Array.from(wordFreq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word]) => word)
+
+    return { provider, requestCount, failureCount, failureRate, topReasons }
+  })
+}
+
+/**
+ * Get cost by user TOP N.
+ */
+export function getCostByUser(limit: number): CostByUserItem[] {
+  const rows = database().prepare(`
+    SELECT usage_ledger.user_id AS user_id,
+           users.username AS username,
+           COALESCE(SUM(usage_ledger.cost_cents), 0) AS total_cost
+    FROM usage_ledger
+    LEFT JOIN users ON users.id = usage_ledger.user_id
+    GROUP BY usage_ledger.user_id
+    ORDER BY total_cost DESC
+    LIMIT ?
+  `).all(limit) as Row[]
+
+  return rows.map((row) => ({
+    userId: String(row.user_id ?? ""),
+    username: String(row.username ?? ""),
+    totalCostCents: Number(row.total_cost ?? 0),
+  }))
+}
+
+/**
+ * Get cost by part category by parsing standard_json from generation_jobs.
+ */
+export function getCostByCategory(startMs: number, endMs: number): CostByCategoryItem[] {
+  const rows = database().prepare(`
+    SELECT generation_jobs.standard_json AS standard_json,
+           usage_ledger.cost_cents AS cost_cents
+    FROM usage_ledger
+    JOIN generation_jobs ON generation_jobs.id = usage_ledger.generation_id
+    WHERE usage_ledger.created_at >= ? AND usage_ledger.created_at <= ?
+  `).all(startMs, endMs) as Row[]
+
+  const categoryCostMap = new Map<string, number>()
+  for (const row of rows) {
+    const standardJson = safeJson<{ parts?: Array<{ category?: string; categoryLabel?: string }> }>(String(row.standard_json ?? "{}"), {})
+    const costCents = Number(row.cost_cents ?? 0)
+    const parts = standardJson.parts ?? []
+    if (parts.length === 0) {
+      categoryCostMap.set("unknown", (categoryCostMap.get("unknown") ?? 0) + costCents)
+      continue
+    }
+    for (const part of parts) {
+      const category = part.categoryLabel || part.category || "unknown"
+      categoryCostMap.set(category, (categoryCostMap.get(category) ?? 0) + costCents)
+    }
+  }
+
+  return Array.from(categoryCostMap.entries())
+    .map(([category, totalCostCents]) => ({ category, totalCostCents }))
+    .sort((a, b) => b.totalCostCents - a.totalCostCents)
+}
+
+/**
+ * Get revenue statistics: daily revenue, monthly revenue, and ARPU.
+ */
+export function getRevenueStats(startMs: number, endMs: number): { dailyRevenue: number; monthlyRevenue: number; arpu: number } {
+  const db = database()
+  const now = Date.now()
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+
+  const dailyRow = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS value FROM payment_orders WHERE status = 'paid' AND created_at >= ?").get(dayStart.getTime()) as Row
+  const dailyRevenue = Number(dailyRow?.value ?? 0)
+
+  const monthlyRow = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS value FROM payment_orders WHERE status = 'paid' AND created_at >= ?").get(monthStart.getTime()) as Row
+  const monthlyRevenue = Number(monthlyRow?.value ?? 0)
+
+  const totalRow = db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS value FROM payment_orders WHERE status = 'paid' AND created_at >= ? AND created_at <= ?").get(startMs, endMs) as Row
+  const totalRevenue = Number(totalRow?.value ?? 0)
+
+  const paidUsersRow = db.prepare("SELECT COUNT(DISTINCT user_id) AS value FROM payment_orders WHERE status = 'paid'").get() as Row
+  const paidUsers = Number(paidUsersRow?.value ?? 0)
+
+  const arpu = paidUsers > 0 ? totalRevenue / paidUsers : 0
+
+  return { dailyRevenue, monthlyRevenue, arpu }
+}
+
+/**
+ * Get order conversion statistics: conversion rate, status distribution, refund rate series.
+ */
+export function getOrderConversionStats(startMs: number, endMs: number): {
+  conversionRate: number
+  totalUsers: number
+  paidUsers: number
+  statusDistribution: OrderStatusCount[]
+  refundRateSeries: Array<{ date: string; rate: number }>
+} {
+  const db = database()
+  const totalUsersRow = db.prepare("SELECT COUNT(*) AS value FROM users").get() as Row
+  const totalUsers = Number(totalUsersRow?.value ?? 0)
+
+  const paidUsersRow = db.prepare("SELECT COUNT(DISTINCT user_id) AS value FROM payment_orders WHERE status = 'paid'").get() as Row
+  const paidUsers = Number(paidUsersRow?.value ?? 0)
+
+  const conversionRate = totalUsers > 0 ? (paidUsers / totalUsers) * 100 : 0
+
+  const statusRows = db.prepare("SELECT status, COUNT(*) AS count FROM payment_orders GROUP BY status").all() as Row[]
+  const statusDistribution: OrderStatusCount[] = statusRows.map((row) => ({
+    status: String(row.status ?? ""),
+    count: Number(row.count ?? 0),
+  }))
+
+  // Compute refund rate per day
+  const refundRows = db.prepare(`
+    SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS date,
+           SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refunded,
+           COUNT(*) AS total
+    FROM payment_orders
+    WHERE created_at >= ? AND created_at <= ?
+    GROUP BY date
+    ORDER BY date ASC
+  `).all(startMs, endMs) as Row[]
+
+  const refundRateSeries = refundRows.map((row) => {
+    const total = Number(row.total ?? 0)
+    const refunded = Number(row.refunded ?? 0)
+    return { date: String(row.date), rate: total > 0 ? (refunded / total) * 100 : 0 }
+  })
+
+  return { conversionRate, totalUsers, paidUsers, statusDistribution, refundRateSeries }
+}
+
+/**
+ * Get subscription renewal rate within a time range.
+ * Renewal = a paid payment_order exists within 7 days after subscription expiry.
+ */
+export function getRenewalRate(startMs: number, endMs: number): {
+  currentRate: number
+  series: RenewalRatePoint[]
+} {
+  const db = database()
+  const now = Date.now()
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+
+  // Query expired subscriptions in the range
+  const expiredRows = db.prepare(`
+    SELECT id, user_id, current_period_end
+    FROM subscriptions
+    WHERE current_period_end >= ? AND current_period_end <= ? AND current_period_end < ?
+  `).all(startMs, endMs, now) as Row[]
+
+  // Group by month
+  const monthMap = new Map<string, { expired: number; renewed: number }>()
+  let totalExpired = 0
+  let totalRenewed = 0
+
+  for (const row of expiredRows) {
+    const expiryMs = Number(row.current_period_end ?? 0)
+    const month = new Date(expiryMs).toISOString().slice(0, 7)
+    if (!monthMap.has(month)) monthMap.set(month, { expired: 0, renewed: 0 })
+    const entry = monthMap.get(month)!
+    entry.expired++
+    totalExpired++
+
+    // Check for renewal: paid order within 7 days after expiry
+    const renewalWindow = expiryMs + sevenDaysMs
+    const renewalRow = db.prepare(
+      "SELECT id FROM payment_orders WHERE user_id = ? AND status = 'paid' AND created_at > ? AND created_at <= ? LIMIT 1"
+    ).get(String(row.user_id), expiryMs, renewalWindow) as Row | undefined
+
+    if (renewalRow) {
+      entry.renewed++
+      totalRenewed++
+    }
+  }
+
+  const series: RenewalRatePoint[] = Array.from(monthMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, data]) => ({
+      month,
+      rate: data.expired > 0 ? (data.renewed / data.expired) * 100 : 0,
+      expired: data.expired,
+      renewed: data.renewed,
+    }))
+
+  const currentRate = totalExpired > 0 ? (totalRenewed / totalExpired) * 100 : 0
+
+  return { currentRate, series }
+}
+
+/**
+ * Get quota balance distribution across all users.
+ * Buckets: exhausted (0 remaining), nearExhausted (<20% remaining), sufficient (>=20% remaining).
+ */
+export function getBalanceDistribution(): BalanceDistributionResponse {
+  const db = database()
+  const now = new Date()
+  const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+
+  // Get all users with their plan
+  const userRows = db.prepare("SELECT id, plan FROM users").all() as Row[]
+
+  // Get plan limits
+  const planRows = db.prepare("SELECT id, config_limit, config_unlimited FROM membership_plans").all() as Row[]
+  const planLimitMap = new Map<string, { limit: number; unlimited: boolean }>()
+  for (const row of planRows) {
+    planLimitMap.set(String(row.id), {
+      limit: Number(row.config_limit ?? 0),
+      unlimited: Number(row.config_unlimited ?? 0) === 1,
+    })
+  }
+
+  // Get current month usage per user
+  const usageRows = db.prepare(`
+    SELECT user_id, SUM(used) AS total_used
+    FROM entitlement_usage
+    WHERE date_key = ? AND mode = 'config'
+    GROUP BY user_id
+  `).all(dateKey) as Row[]
+  const usageMap = new Map<string, number>()
+  for (const row of usageRows) {
+    usageMap.set(String(row.user_id), Number(row.total_used ?? 0))
+  }
+
+  let exhausted = 0
+  let nearExhausted = 0
+  let sufficient = 0
+
+  for (const user of userRows) {
+    const planInfo = planLimitMap.get(String(user.plan ?? "free"))
+    if (!planInfo || planInfo.unlimited) {
+      sufficient++
+      continue
+    }
+    const limit = planInfo.limit
+    const used = usageMap.get(String(user.id)) ?? 0
+    if (limit <= 0) {
+      sufficient++
+      continue
+    }
+    const remainingRatio = 1 - (used / limit)
+    if (remainingRatio <= 0) {
+      exhausted++
+    } else if (remainingRatio < 0.2) {
+      nearExhausted++
+    } else {
+      sufficient++
+    }
+  }
+
+  return {
+    exhausted,
+    nearExhausted,
+    sufficient,
+    total: userRows.length,
+  }
+}
+
+/**
+ * List alert records with user labels, ordered by detected_at descending.
+ */
+export function listAlerts(limit: number): AlertRecord[] {
+  const rows = database().prepare(`
+    SELECT alert_records.*, users.username AS username
+    FROM alert_records
+    LEFT JOIN users ON users.id = alert_records.user_id
+    ORDER BY alert_records.detected_at DESC
+    LIMIT ?
+  `).all(limit) as Row[]
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    username: String(row.username ?? ""),
+    alertType: String(row.alert_type) as AlertType,
+    alertValue: Number(row.alert_value ?? 0),
+    detectedAt: Number(row.detected_at ?? 0),
+    status: String(row.status ?? "pending") as AlertStatus,
+    resolvedAt: row.resolved_at != null ? Number(row.resolved_at) : null,
+    resolverId: row.resolver_id != null ? String(row.resolver_id) : null,
+  }))
+}
+
+/**
+ * Update alert status (confirm or ignore).
+ */
+export function updateAlertStatus(id: string, status: AlertStatus, resolverId: string): AlertRecord | null {
+  const now = Date.now()
+  database().prepare(`
+    UPDATE alert_records SET status = ?, resolved_at = ?, resolver_id = ? WHERE id = ?
+  `).run(status, now, resolverId, id)
+
+  const row = database().prepare(`
+    SELECT alert_records.*, users.username AS username
+    FROM alert_records
+    LEFT JOIN users ON users.id = alert_records.user_id
+    WHERE alert_records.id = ?
+  `).get(id) as Row | undefined
+
+  if (!row) return null
+
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    username: String(row.username ?? ""),
+    alertType: String(row.alert_type) as AlertType,
+    alertValue: Number(row.alert_value ?? 0),
+    detectedAt: Number(row.detected_at ?? 0),
+    status: String(row.status ?? "pending") as AlertStatus,
+    resolvedAt: row.resolved_at != null ? Number(row.resolved_at) : null,
+    resolverId: row.resolver_id != null ? String(row.resolver_id) : null,
+  }
+}
+
+/**
+ * Insert a new alert record if no duplicate exists for the same user/type/hour window.
+ */
+export function insertAlert(input: {
+  userId: string
+  alertType: AlertType
+  alertValue: number
+  detectedAt: number
+}): void {
+  const db = database()
+  // Dedup: same user, same alert_type, within the same hour window
+  const hourStart = Math.floor(input.detectedAt / (60 * 60 * 1000)) * (60 * 60 * 1000)
+  const hourEnd = hourStart + 60 * 60 * 1000
+  const existing = db.prepare(`
+    SELECT id FROM alert_records
+    WHERE user_id = ? AND alert_type = ? AND detected_at >= ? AND detected_at < ?
+    LIMIT 1
+  `).get(input.userId, input.alertType, hourStart, hourEnd) as Row | undefined
+
+  if (existing) return
+
+  const id = `alert-${randomUUID()}`
+  db.prepare(`
+    INSERT INTO alert_records (id, user_id, alert_type, alert_value, detected_at, status)
+    VALUES (?, ?, ?, ?, ?, 'pending')
+  `).run(id, input.userId, input.alertType, input.alertValue, input.detectedAt)
 }

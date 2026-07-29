@@ -43,6 +43,7 @@
 | quota_adjustments | 配额调整记录 | 管理模块 |
 | workflow_configs | 工作流编排 | 生成引擎 |
 | generation_bad_cases | 生成 Bad Case | 管理模块 |
+| alert_records | 异常告警记录 | 运营分析模块 |
 
 ## 表结构详情
 
@@ -836,5 +837,34 @@
 
 ---
 
+### alert_records（`alert_records`）
+
+- **用途**：存储异常告警记录，用于运营分析平台的额度监控模块。当系统检测到用户高频生成或高成本异常时自动写入告警记录，管理员可确认或忽略。
+- **字段**：
+
+  | 字段名 | 类型 | 是否必填 | 默认值 | 描述 |
+  |--------|------|----------|--------|------|
+  | id | TEXT | 是 | - | 记录唯一标识（主键） |
+  | user_id | TEXT | 是 | - | 关联的用户 ID |
+  | alert_type | TEXT | 是 | - | 告警类型（`high_frequency` / `high_cost`） |
+  | alert_value | INTEGER | 是 | - | 触发值（高频：生成次数；高成本：成本分） |
+  | detected_at | INTEGER | 是 | - | 检测时间戳（毫秒） |
+  | status | TEXT | 是 | `pending` | 处理状态（`pending` / `confirmed` / `ignored`） |
+  | resolved_at | INTEGER | 否 | - | 处理时间戳（毫秒） |
+  | resolver_id | TEXT | 否 | - | 处理人（管理员）用户 ID |
+
+- **索引**：
+
+  | 索引名 | 字段 | 类型 | 说明 |
+  |--------|------|------|------|
+  | alert_records_user_idx | user_id | INDEX | 按用户查询告警 |
+  | alert_records_detected_idx | detected_at DESC | INDEX | 按检测时间倒序查询 |
+  | alert_records_status_idx | status | INDEX | 按状态筛选告警 |
+
+- **约束**：PRIMARY KEY: `id`
+- **关联表**：users（通过 user_id）
+
+---
+
 > 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-002
+> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003
