@@ -1,4 +1,4 @@
-import type { AccountAvatarPreset, AccountMessage, AuthUser, EntitlementStatus } from "@/lib/types"
+import type { AccountAvatarPreset, AccountMessage, AuthUser, EntitlementStatus, PaymentOrder } from "@/lib/types"
 
 export type AccountPayload = {
   user: AuthUser
@@ -57,6 +57,11 @@ export async function changeAccountPhone(input: { phone: string; code: string })
 export async function refreshAccountBilling() {
   const response = await fetch("/api/billing/status")
   return readJsonResponse<{ billing: EntitlementStatus }>(response, "Billing refresh failed.")
+}
+
+export async function getAccountOrders() {
+  const response = await fetch("/api/billing/orders")
+  return readJsonResponse<{ orders: PaymentOrder[] }>(response, "Orders loading failed.")
 }
 
 export async function listAccountMessages() {

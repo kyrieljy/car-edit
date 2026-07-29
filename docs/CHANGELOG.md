@@ -2,6 +2,29 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-07-29
+
+### 新增
+- [新增] `app/api/billing/orders/route.ts` 用户查询自己的支付订单列表 API (关联方案ID: DESIGN-20260729-001)
+- [新增] `app/api/admin/orders/route.ts` 管理员查询所有订单 API，支持按时间范围、用户（模糊匹配）、套餐筛选 (关联方案ID: DESIGN-20260729-001)
+- [新增] `lib/account-client.ts` 新增 `getAccountOrders()` 客户端方法 (关联方案ID: DESIGN-20260729-001)
+- [新增] `lib/types.ts` 新增 `AdminPaymentOrder` 类型，`PaymentOrder` 类型新增 `refunded` 状态 (关联方案ID: DESIGN-20260729-001)
+- [新增] `components/admin-console.tsx` 管理后台新增"订单"tab，包含筛选栏（时间范围、用户、套餐）和订单表格 (关联方案ID: DESIGN-20260729-001)
+- [新增] `components/car-mod-studio.tsx` PC 端个人中心新增"我的订单"tab 和订单列表视图 (关联方案ID: DESIGN-20260729-001)
+- [新增] `components/mobile/mobile-studio-app.tsx` 移动端个人中心新增"我的订单"入口和订单列表子页面 (关联方案ID: DESIGN-20260729-001)
+- [新增] `app/globals.css` 新增 PC 端订单表格、移动端订单卡片、管理后台订单筛选栏和表格样式 (关联方案ID: DESIGN-20260729-001)
+
+### 修改
+- [修改] `app/api/billing/checkout/route.ts` 移除 403 禁用逻辑，恢复创建支付订单流程 (关联方案ID: DESIGN-20260729-001)
+- [修改] `app/api/billing/mock-paid/route.ts` 移除 403 禁用逻辑，恢复模拟支付完成流程 (关联方案ID: DESIGN-20260729-001)
+- [修改] `lib/server/db.ts` 导出 `getPaymentOrders(userId)` 函数，新增 `getAllPaymentOrders(filters)` 函数（JOIN users 表获取用户信息） (关联方案ID: DESIGN-20260729-001)
+- [修改] `components/subscribe-modal.tsx` 启用支付流程，免费版按钮 disabled，付费版点击直接串行调用 checkout + mock-paid 完成订阅 (关联方案ID: DESIGN-20260729-001)
+
+### 文档
+- [文档] `docs/API_REFERENCE.md` 更新 checkout/mock-paid 接口描述（移除禁用说明），新增 `GET /api/billing/orders` 和 `GET /api/admin/orders` 接口文档 (关联方案ID: DESIGN-20260729-001)
+- [文档] `docs/DB_SCHEMA.md` 修正 `payment_orders` 表字段描述（`amount` → `amount_cents`，删除不存在的 `paid_at`，补充 `method` 字段） (关联方案ID: DESIGN-20260729-001)
+- [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260729-001)
+
 ## 2026-07-28
 
 ### 修复

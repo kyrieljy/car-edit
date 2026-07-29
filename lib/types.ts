@@ -518,10 +518,15 @@ export type PaymentOrder = {
   userId: string
   planId: MembershipPlanId
   method: "wechat" | "alipay"
-  status: "pending" | "paid" | "failed"
+  status: "pending" | "paid" | "failed" | "refunded"
   amountCents: number
   createdAt: number
   updatedAt: number
+}
+
+export type AdminPaymentOrder = PaymentOrder & {
+  userName: string
+  userPhone: string
 }
 
 export type AccountMessageKind = "system" | "payment" | "subscription" | "quota"

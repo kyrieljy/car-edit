@@ -637,26 +637,84 @@ http://127.0.0.1:3000  （开发环境）
 #### 自助开通套餐
 
 - **路径**：`POST /api/billing/checkout`
-- **描述**：自助开通/续费套餐。当前已禁用，所有套餐由管理员分配。
+- **描述**：创建支付订单（模拟支付），用于用户自助开通/续费套餐。当前为模拟支付模式，不接入真实支付网关。
+- **请求参数**（JSON）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | planId | string | 是 | 会员计划 ID（`free` / `pro` / `max`） |
+  | method | string | 否 | 支付方式（`wechat` / `alipay`），默认 `wechat` |
+  | cycle | string | 否 | 计费周期（`monthly` / `yearly`），当前版本保留字段，固定为 monthly |
+
+- **响应格式**：
+
+  ```json
+  {
+    "order": {
+      "id": "order_xxx",
+      "userId": "user_xxx",
+      "planId": "pro",
+      "method": "wechat",
+      "status": "pending",
+      "amountCents": 2900,
+      "createdAt": 1722200000000,
+      "updatedAt": 1722200000000
+    }
+  }
+  ```
+
+- **错误码**：401（未认证）、400（参数错误或套餐无效）
+
+---
+
+#### 模拟支付完成
+
+- **路径**：`POST /api/billing/mock-paid`
+- **描述**：模拟支付完成，将订单状态更新为已支付，并更新用户订阅状态。当前为模拟支付模式。
+- **请求参数**（JSON）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | orderId | string | 是 | 订单 ID |
+
+- **响应格式**：
+
+  ```json
+  {
+    "ok": true,
+    "billing": { "...": "EntitlementStatus 对象" }
+  }
+  ```
+
+- **错误码**：401（未认证）、400（订单不存在或状态异常）
+
+---
+
+#### 查询用户订单
+
+- **路径**：`GET /api/billing/orders`
+- **描述**：查询当前登录用户的支付订单列表，按创建时间倒序排列。
 - **请求参数**：无
 - **响应格式**：
 
   ```json
   {
-    "error": "订阅由管理员统一管理，不支持自助开通。",
-    "code": "SUBSCRIPTION_MANAGED_BY_ADMIN"
+    "orders": [
+      {
+        "id": "order_xxx",
+        "userId": "user_xxx",
+        "planId": "pro",
+        "method": "wechat",
+        "status": "paid",
+        "amountCents": 2900,
+        "createdAt": 1722200000000,
+        "updatedAt": 1722200000000
+      }
+    ]
   }
   ```
 
-- **错误码**：403（`SUBSCRIPTION_MANAGED_BY_ADMIN`）
-
----
-
-#### 模拟支付
-
-- **路径**：`POST /api/billing/mock-paid`
-- **描述**：模拟支付完成接口。当前已禁用。
-- **错误码**：403
+- **错误码**：401（未认证）
 
 ---
 
@@ -1578,6 +1636,44 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
+#### 订单管理
+
+- **路径**：`GET /api/admin/orders`
+- **描述**：查询所有用户的支付订单，支持多维度筛选。需要管理员权限。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | startDate | string | 否 | 起始日期（格式 `YYYY-MM-DD`） |
+  | endDate | string | 否 | 截止日期（格式 `YYYY-MM-DD`） |
+  | userQuery | string | 否 | 用户名或手机号模糊匹配 |
+  | planId | string | 否 | 套餐 ID（`free` / `pro` / `max`） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "orders": [
+      {
+        "id": "order_xxx",
+        "userId": "user_xxx",
+        "planId": "pro",
+        "method": "wechat",
+        "status": "paid",
+        "amountCents": 2900,
+        "createdAt": 1722200000000,
+        "updatedAt": 1722200000000,
+        "userName": "张三",
+        "userPhone": "13800138000"
+      }
+    ]
+  }
+  ```
+
+- **错误码**：401（未认证）、403（需要管理员权限）
+
+---
+
 #### 工作流配置管理
 
 | 方法 | 路径 | 说明 |
@@ -1607,5 +1703,5 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
-> 最后更新时间：2026-07-25
-> 关联方案ID：DESIGN-20260725-001
+> 最后更新时间：2026-07-29
+> 关联方案ID：DESIGN-20260729-001

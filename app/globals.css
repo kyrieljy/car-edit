@@ -1625,6 +1625,81 @@ a {
   color: #fecaca;
 }
 
+.account-orders {
+  display: grid;
+  gap: 12px;
+}
+
+.account-orders-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 32px 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-orders-table {
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.account-orders-thead,
+.account-orders-trow {
+  display: grid;
+  grid-template-columns: 1.2fr 0.6fr 0.8fr 0.8fr 0.8fr 1.2fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+.account-orders-thead span,
+.account-orders-trow span {
+  padding: 8px 10px;
+  background: var(--surface);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-orders-thead span {
+  font-weight: 850;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.account-orders-trow span {
+  color: var(--text);
+}
+
+.account-orders-id {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.account-orders-status {
+  font-weight: 800;
+}
+
+.account-orders-status.paid {
+  color: var(--green);
+}
+
+.account-orders-status.pending {
+  color: var(--yellow);
+}
+
+.account-orders-status.failed,
+.account-orders-status.refunded {
+  color: var(--red);
+}
+
 .account-panel-empty {
   min-height: 260px;
   display: grid;
@@ -2150,6 +2225,98 @@ a {
     text-align: center !important;
     font-size: 13px !important;
     font-weight: 850 !important;
+  }
+
+  .mobile-orders-page {
+    display: grid !important;
+    gap: 14px !important;
+  }
+
+  .mobile-orders-list {
+    display: grid !important;
+    gap: 10px !important;
+  }
+
+  .mobile-order-card {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 18px !important;
+    background: color-mix(in srgb, var(--m-raised) 90%, transparent) !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-order-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    padding: 12px 16px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .mobile-order-id {
+    font-family: var(--font-mono, "JetBrains Mono", monospace) !important;
+    font-size: 12px !important;
+    color: var(--m-muted) !important;
+    font-weight: 800 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-order-status {
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    padding: 4px 10px !important;
+    border-radius: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-order-status.paid {
+    color: var(--green, #4ade80) !important;
+    background: rgba(74, 222, 128, 0.12) !important;
+  }
+
+  .mobile-order-status.pending {
+    color: var(--yellow, #facc15) !important;
+    background: rgba(250, 204, 21, 0.12) !important;
+  }
+
+  .mobile-order-status.failed,
+  .mobile-order-status.refunded {
+    color: var(--red, #f87171) !important;
+    background: rgba(248, 113, 113, 0.12) !important;
+  }
+
+  .mobile-order-body {
+    display: grid !important;
+    gap: 0 !important;
+    padding: 4px 16px 12px !important;
+  }
+
+  .mobile-order-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    padding: 8px 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+  }
+
+  .mobile-order-row:last-child {
+    border-bottom: none !important;
+  }
+
+  .mobile-order-row span {
+    color: var(--m-muted) !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  .mobile-order-row strong {
+    color: var(--m-text) !important;
+    font-size: 13px !important;
+    font-weight: 850 !important;
+    text-align: right !important;
   }
 
   .mobile-profile-hero {
@@ -22835,4 +23002,124 @@ a {
   .mobile-control-sheet {
     z-index: 125 !important;
   }
+}
+
+.admin-clinical .admin-orders-panel {
+  min-width: 0;
+}
+
+.admin-clinical .admin-orders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.admin-clinical .admin-filter-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.admin-clinical .admin-filter-field input,
+.admin-clinical .admin-filter-field select {
+  min-height: 38px;
+  min-width: 140px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-clinical .admin-filter-reset {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.admin-clinical .admin-filter-reset:hover {
+  opacity: 0.7;
+}
+
+.admin-clinical .admin-orders-table {
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+.admin-clinical .admin-orders-table .orders-col-id {
+  width: 160px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-user {
+  width: 180px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-plan {
+  width: 80px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-amount {
+  width: 100px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-method {
+  width: 110px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-status {
+  width: 90px;
+}
+
+.admin-clinical .admin-orders-table .orders-col-time {
+  width: 170px;
+}
+
+.admin-clinical .admin-orders-table td small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.admin-clinical .admin-orders-status {
+  font-weight: 850;
+}
+
+.admin-clinical .admin-orders-status.paid {
+  color: var(--green);
+}
+
+.admin-clinical .admin-orders-status.pending {
+  color: var(--yellow);
+}
+
+.admin-clinical .admin-orders-status.failed,
+.admin-clinical .admin-orders-status.refunded {
+  color: var(--red);
+}
+
+.admin-clinical .admin-orders-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 0;
+  font-size: 14px;
+  font-weight: 800;
 }

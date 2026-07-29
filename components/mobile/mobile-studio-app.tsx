@@ -26,6 +26,7 @@ import {
   Palette,
   Pencil,
   Plus,
+  Receipt,
   Search,
   Save,
   SlidersHorizontal,
@@ -52,6 +53,7 @@ import {
   changeAccountPassword,
   changeAccountPhone,
   formatAccountQuota,
+  getAccountOrders,
   listAccountAvatarPresets,
   listAccountMessages,
   markAccountMessageRead,
@@ -75,6 +77,7 @@ import type {
   PartCategory,
   PartColorPolicy,
   PartSelectionOptions,
+  PaymentOrder,
   SelectionMap,
 } from "@/lib/types"
 
@@ -2616,7 +2619,7 @@ function cleanMobileHistoryTitle(value: unknown) {
   return text
 }
 
-type MobileProfileSection = "overview" | "history" | "profile" | "password" | "phone" | "messages"
+type MobileProfileSection = "overview" | "history" | "profile" | "password" | "phone" | "messages" | "orders"
 type MobileProfileRouteDirection = "forward" | "back"
 
 const mobileProfileRouteVariants = {
@@ -2676,6 +2679,9 @@ function MobileProfilePage({
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messagesError, setMessagesError] = useState("")
   const [selectedMessageId, setSelectedMessageId] = useState("")
+  const [orders, setOrders] = useState<PaymentOrder[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState("")
 
   useEffect(() => {
     if (!open) return
@@ -2694,6 +2700,8 @@ function MobileProfilePage({
     setLoading(false)
     setMessagesError("")
     setSelectedMessageId("")
+    setOrders([])
+    setOrdersError("")
   }, [authUser, open])
 
   useEffect(() => {
@@ -2795,6 +2803,25 @@ function MobileProfilePage({
     void reloadMessages()
   }
 
+  const loadOrders = useCallback(async () => {
+    if (!authUser) return
+    setOrdersLoading(true)
+    setOrdersError("")
+    try {
+      const payload = await getAccountOrders()
+      setOrders(payload.orders)
+    } catch (orderError) {
+      setOrdersError(orderError instanceof Error ? orderError.message : isZh ? "订单加载失败。" : "Orders loading failed.")
+    } finally {
+      setOrdersLoading(false)
+    }
+  }, [authUser, isZh])
+
+  const openOrders = () => {
+    openProfileSection("orders")
+    void loadOrders()
+  }
+
   const backToProfileOverview = () => {
     setProfileRouteDirection("back")
     setStatus("")
@@ -2875,6 +2902,8 @@ function MobileProfilePage({
 
   const profileSectionTitle = section === "messages"
     ? (isZh ? "消息提醒" : "Notifications")
+    : section === "orders"
+    ? (isZh ? "我的订单" : "My orders")
     : section === "profile"
     ? (isZh ? "编辑资料" : "Edit profile")
     : section === "phone"
@@ -2976,11 +3005,68 @@ function MobileProfilePage({
     </section>
   )
 
+  const orderStatusLabel = (status: PaymentOrder["status"]) => {
+    const map: Record<PaymentOrder["status"], string> = isZh
+      ? { pending: "待支付", paid: "已支付", failed: "失败", refunded: "已退款" }
+      : { pending: "Pending", paid: "Paid", failed: "Failed", refunded: "Refunded" }
+    return map[status] || status
+  }
+
+  const orderMethodLabel = (method: PaymentOrder["method"]) => {
+    return method === "wechat" ? (isZh ? "微信支付" : "WeChat Pay") : (isZh ? "支付宝" : "Alipay")
+  }
+
+  const formatOrderAmount = (cents: number) => `¥${(cents / 100).toFixed(2)}`
+
+  const renderOrders = () => (
+    <section className="mobile-orders-page">
+      {ordersError && <p className="mobile-profile-status error">{ordersError}</p>}
+      {ordersLoading && !orders.length ? (
+        <p className="mobile-message-empty">{isZh ? "正在加载订单..." : "Loading orders..."}</p>
+      ) : orders.length ? (
+        <div className="mobile-orders-list">
+          {orders.map((order) => (
+            <article className="mobile-order-card" key={order.id}>
+              <div className="mobile-order-header">
+                <span className="mobile-order-id" title={order.id}>{order.id.slice(0, 12)}</span>
+                <span className={`mobile-order-status ${order.status}`}>{orderStatusLabel(order.status)}</span>
+              </div>
+              <div className="mobile-order-body">
+                <div className="mobile-order-row">
+                  <span>{isZh ? "套餐" : "Plan"}</span>
+                  <strong>{order.planId}</strong>
+                </div>
+                <div className="mobile-order-row">
+                  <span>{isZh ? "金额" : "Amount"}</span>
+                  <strong>{formatOrderAmount(order.amountCents)}</strong>
+                </div>
+                <div className="mobile-order-row">
+                  <span>{isZh ? "支付方式" : "Method"}</span>
+                  <strong>{orderMethodLabel(order.method)}</strong>
+                </div>
+                <div className="mobile-order-row">
+                  <span>{isZh ? "时间" : "Time"}</span>
+                  <strong>{new Date(order.createdAt).toLocaleString(isZh ? "zh-CN" : "en-US")}</strong>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="mobile-message-empty">{isZh ? "暂无订单记录" : "No orders yet"}</p>
+      )}
+    </section>
+  )
+
   const renderEditor = () => {
     if (!authUser || section === "overview") return renderProfileEditorShell(null)
 
     if (section === "messages") {
       return renderProfileEditorShell(renderMessages())
+    }
+
+    if (section === "orders") {
+      return renderProfileEditorShell(renderOrders())
     }
 
     if (section === "history") {
@@ -3185,6 +3271,14 @@ function MobileProfilePage({
                   <div>
                     <strong>{isZh ? "订阅与套餐" : "Subscription"}</strong>
                     <small>{isZh ? `当前套餐：${planName}` : `Current plan: ${planName}`}</small>
+                  </div>
+                  <ChevronRight size={19} />
+                </button>
+                <button type="button" className="mobile-profile-row" onClick={openOrders}>
+                  <span><Receipt size={19} /></span>
+                  <div>
+                    <strong>{isZh ? "我的订单" : "My orders"}</strong>
+                    <small>{isZh ? "查看支付购买记录" : "View payment history"}</small>
                   </div>
                   <ChevronRight size={19} />
                 </button>

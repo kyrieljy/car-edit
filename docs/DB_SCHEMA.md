@@ -688,9 +688,9 @@
   | id | TEXT | 是 | - | 订单唯一标识（主键） |
   | user_id | TEXT | 是 | - | 用户 ID |
   | plan_id | TEXT | 是 | - | 购买的会员计划 ID |
-  | amount | REAL | 是 | - | 支付金额 |
+  | method | TEXT | 是 | - | 支付方式（`wechat` / `alipay`） |
+  | amount_cents | INTEGER | 是 | - | 支付金额（分），如 2900 = ¥29.00 |
   | status | TEXT | 是 | - | 订单状态（pending / paid / failed / refunded） |
-  | paid_at | TEXT | 否 | - | 支付时间 |
   | created_at | TEXT | 是 | - | 创建时间 |
   | updated_at | TEXT | 是 | - | 最后更新时间 |
 
@@ -835,4 +835,5 @@
 
 ---
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-07-29
+> 关联方案ID：DESIGN-20260729-001

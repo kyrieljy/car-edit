@@ -14,6 +14,7 @@ import {
   KeyRound,
   ListPlus,
   LogOut,
+  Receipt,
   RefreshCw,
   ServerCog,
   ShieldCheck,
@@ -27,6 +28,7 @@ import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
   AccountAvatarPreset,
+  AdminPaymentOrder,
   AuthUser,
   GenerationJob,
   GenerationStandardJson,
@@ -46,7 +48,7 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders"
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
 
@@ -75,6 +77,7 @@ const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon
   { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
   { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
   { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
+  { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
   { id: "audit", label: "审计日志", sub: "后台操作 / 安全", icon: <Activity size={20} /> },
 ]
 
@@ -92,6 +95,7 @@ function adminTabTitle(tab: AdminTab) {
     badcases: "失败样本记录",
     users: "用户管理",
     profiles: "用户画像",
+    orders: "订单管理",
     audit: "审计日志",
   }[tab]
 }
@@ -307,6 +311,7 @@ export function AdminConsole() {
             </>
           )}
           {tab === "profiles" && <UserProfilesOpsTable summary={summary} />}
+          {tab === "orders" && <AdminOrdersTable />}
           {tab === "audit" && <AuditOpsTable summary={summary} />}
           {notice && <div className="notice admin-notice">{notice}</div>}
         </div>
@@ -4011,6 +4016,153 @@ function tabTitle(tab: Exclude<AdminTab, "workflows" | "badcases" | "profiles">)
     plans: "会员配置",
     usage: "用量统计",
     users: "用户管理",
+    orders: "订单管理",
     audit: "安全审计",
   }[tab]
+}
+
+function orderStatusBadge(status: AdminPaymentOrder["status"]) {
+  const map: Record<AdminPaymentOrder["status"], string> = {
+    pending: "待支付",
+    paid: "已支付",
+    failed: "失败",
+    refunded: "已退款",
+  }
+  return map[status] || status
+}
+
+function orderMethodLabel(method: AdminPaymentOrder["method"]) {
+  return method === "wechat" ? "微信支付" : "支付宝"
+}
+
+function AdminOrdersTable() {
+  const [orders, setOrders] = useState<AdminPaymentOrder[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [userQuery, setUserQuery] = useState("")
+  const [planId, setPlanId] = useState("")
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      const params = new URLSearchParams()
+      if (startDate) params.set("startDate", startDate)
+      if (endDate) params.set("endDate", endDate)
+      if (userQuery.trim()) params.set("userQuery", userQuery.trim())
+      if (planId) params.set("planId", planId)
+      const response = await fetch(`/api/admin/orders?${params.toString()}`)
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "订单加载失败")
+      }
+      const body = await response.json()
+      setOrders(body.orders)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "订单加载失败")
+    } finally {
+      setLoading(false)
+    }
+  }, [startDate, endDate, userQuery, planId])
+
+  useEffect(() => {
+    void loadOrders()
+  }, [loadOrders])
+
+  const resetFilters = () => {
+    setStartDate("")
+    setEndDate("")
+    setUserQuery("")
+    setPlanId("")
+  }
+
+  return (
+    <section className="admin-ops-stack">
+      <article className="admin-panel data-table admin-orders-panel">
+        <PanelHeading label="订单管理" title="支付订单记录" count={`${orders.length} 条`} />
+
+        <div className="admin-orders-filters">
+          <label className="admin-filter-field">
+            <span>起始日期</span>
+            <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          </label>
+          <label className="admin-filter-field">
+            <span>截止日期</span>
+            <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          </label>
+          <label className="admin-filter-field">
+            <span>用户</span>
+            <input
+              type="text"
+              placeholder="用户名 / 手机号"
+              value={userQuery}
+              onChange={(event) => setUserQuery(event.target.value)}
+            />
+          </label>
+          <label className="admin-filter-field">
+            <span>套餐</span>
+            <select value={planId} onChange={(event) => setPlanId(event.target.value)}>
+              <option value="">全部</option>
+              <option value="free">free</option>
+              <option value="pro">pro</option>
+              <option value="max">max</option>
+            </select>
+          </label>
+          <button type="button" className="admin-filter-reset" onClick={resetFilters}>
+            重置
+          </button>
+        </div>
+
+        {error && <div className="notice admin-notice">{error}</div>}
+        {loading && !orders.length ? (
+          <p className="admin-orders-empty">正在加载订单...</p>
+        ) : orders.length ? (
+          <table className="admin-orders-table">
+            <colgroup>
+              <col className="orders-col-id" />
+              <col className="orders-col-user" />
+              <col className="orders-col-plan" />
+              <col className="orders-col-amount" />
+              <col className="orders-col-method" />
+              <col className="orders-col-status" />
+              <col className="orders-col-time" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>订单号</th>
+                <th>用户</th>
+                <th>套餐</th>
+                <th>金额</th>
+                <th>支付方式</th>
+                <th>状态</th>
+                <th>创建时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id}>
+                  <td className="admin-id-chip" title={order.id}>
+                    {order.id.slice(0, 16)}
+                  </td>
+                  <td>
+                    <div>{order.userName || "-"}</div>
+                    <small>{order.userPhone || "-"}</small>
+                  </td>
+                  <td>{order.planId}</td>
+                  <td>{formatAdminMoney(order.amountCents)}</td>
+                  <td>{orderMethodLabel(order.method)}</td>
+                  <td className={`admin-orders-status ${order.status}`}>{orderStatusBadge(order.status)}</td>
+                  <td>{formatAdminDate(order.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="admin-orders-empty">暂无订单记录</p>
+        )}
+      </article>
+    </section>
+  )
 }

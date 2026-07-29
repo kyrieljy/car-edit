@@ -39,6 +39,7 @@ import {
   Film,
   ImagePlus,
   PencilRuler,
+  Receipt,
   Video,
   Zap,
 } from "lucide-react"
@@ -52,6 +53,7 @@ import {
   changeAccountPassword,
   changeAccountPhone,
   formatAccountQuota,
+  getAccountOrders,
   listAccountAvatarPresets,
   sendPhoneChangeCode,
   updateAccountProfile,
@@ -71,6 +73,7 @@ import type {
   PartAsset,
   PartColorPolicy,
   PartSelectionOptions,
+  PaymentOrder,
   SelectionMap,
 } from "@/lib/types"
 
@@ -2528,7 +2531,7 @@ export function CarModStudio() {
   )
 }
 
-type AccountPanelMode = "overview" | "profile" | "password" | "phone"
+type AccountPanelMode = "overview" | "profile" | "password" | "phone" | "orders"
 
 function DesktopAccountPanel({
   open,
@@ -2565,6 +2568,9 @@ function DesktopAccountPanel({
   const [notice, setNotice] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [orders, setOrders] = useState<PaymentOrder[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState("")
 
   useEffect(() => {
     if (!open) return
@@ -2580,6 +2586,8 @@ function DesktopAccountPanel({
     setNotice("")
     setError("")
     setLoading(false)
+    setOrders([])
+    setOrdersError("")
   }, [authUser, open])
 
   useEffect(() => {
@@ -2620,6 +2628,15 @@ function DesktopAccountPanel({
     phoneDone: isZh ? "手机号已更新" : "Phone updated",
     codeSent: isZh ? "验证码已发送" : "Code sent",
     mismatch: isZh ? "两次输入的新密码不一致。" : "The new passwords do not match.",
+    orders: isZh ? "我的订单" : "My orders",
+    ordersEmpty: isZh ? "暂无订单记录" : "No orders yet",
+    ordersError: isZh ? "订单加载失败" : "Orders loading failed",
+    orderNo: isZh ? "订单号" : "Order ID",
+    orderPlan: isZh ? "套餐" : "Plan",
+    orderAmount: isZh ? "金额" : "Amount",
+    orderMethod: isZh ? "支付方式" : "Method",
+    orderStatus: isZh ? "状态" : "Status",
+    orderTime: isZh ? "创建时间" : "Created at",
   }
 
   const displayName = authUser?.name || authUser?.username || copy.signIn
@@ -2680,6 +2697,42 @@ function DesktopAccountPanel({
     setNotice(copy.phoneDone)
   })
 
+  const loadOrders = useCallback(async () => {
+    if (!authUser) return
+    setOrdersLoading(true)
+    setOrdersError("")
+    try {
+      const payload = await getAccountOrders()
+      setOrders(payload.orders)
+    } catch (orderError) {
+      setOrdersError(orderError instanceof Error ? orderError.message : copy.ordersError)
+    } finally {
+      setOrdersLoading(false)
+    }
+  }, [authUser, copy.ordersError])
+
+  useEffect(() => {
+    if (!open || !authUser) return undefined
+    if (mode !== "orders") return undefined
+    if (orders.length || ordersLoading) return undefined
+    void loadOrders()
+    return undefined
+  }, [authUser, mode, open, orders.length, ordersLoading, loadOrders])
+
+  const orderStatusLabel = (status: PaymentOrder["status"]) => {
+    const map: Record<PaymentOrder["status"], string> = isZh
+      ? { pending: "待支付", paid: "已支付", failed: "失败", refunded: "已退款" }
+      : { pending: "Pending", paid: "Paid", failed: "Failed", refunded: "Refunded" }
+    return map[status] || status
+  }
+
+  const orderMethodLabel = (method: PaymentOrder["method"]) => {
+    return method === "wechat" ? (isZh ? "微信支付" : "WeChat Pay") : (isZh ? "支付宝" : "Alipay")
+  }
+
+  const formatOrderAmount = (cents: number) => {
+    return `¥${(cents / 100).toFixed(2)}`
+  }
 
   return (
     <AnimatePresence>
@@ -2764,6 +2817,10 @@ function DesktopAccountPanel({
                     <Phone size={15} />
                     {copy.phone}
                   </button>
+                  <button type="button" className={mode === "orders" ? "active" : ""} onClick={() => setMode("orders")}>
+                    <Receipt size={15} />
+                    {copy.orders}
+                  </button>
                 </nav>
 
                 <section className="account-panel-body">
@@ -2772,6 +2829,10 @@ function DesktopAccountPanel({
                       <button type="button" onClick={() => setMode("profile")}>
                         <Camera size={16} />
                         {copy.avatar}
+                      </button>
+                      <button type="button" onClick={() => setMode("orders")}>
+                        <Receipt size={16} />
+                        {copy.orders}
                       </button>
                       <button type="button" onClick={onSubscribe}>
                         <BadgeCheck size={16} />
@@ -2868,6 +2929,38 @@ function DesktopAccountPanel({
                         {copy.changePhone}
                       </button>
                     </form>
+                  )}
+
+                  {mode === "orders" && (
+                    <div className="account-orders">
+                      {ordersError && <p className="account-panel-message error">{ordersError}</p>}
+                      {ordersLoading && !orders.length ? (
+                        <p className="account-orders-empty">{isZh ? "正在加载订单..." : "Loading orders..."}</p>
+                      ) : orders.length ? (
+                        <div className="account-orders-table">
+                          <div className="account-orders-thead">
+                            <span>{copy.orderNo}</span>
+                            <span>{copy.orderPlan}</span>
+                            <span>{copy.orderAmount}</span>
+                            <span>{copy.orderMethod}</span>
+                            <span>{copy.orderStatus}</span>
+                            <span>{copy.orderTime}</span>
+                          </div>
+                          {orders.map((order) => (
+                            <div className="account-orders-trow" key={order.id}>
+                              <span className="account-orders-id" title={order.id}>{order.id.slice(0, 12)}</span>
+                              <span>{order.planId}</span>
+                              <span>{formatOrderAmount(order.amountCents)}</span>
+                              <span>{orderMethodLabel(order.method)}</span>
+                              <span className={`account-orders-status ${order.status}`}>{orderStatusLabel(order.status)}</span>
+                              <span>{new Date(order.createdAt).toLocaleString(isZh ? "zh-CN" : "en-US")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="account-orders-empty">{copy.ordersEmpty}</p>
+                      )}
+                    </div>
                   )}
                 </section>
               </>

@@ -95,8 +95,8 @@ Next.js Route Handlers，作为系统的 HTTP 入口。负责处理外部请求�
 - `app/api/auth/` -- 登录、注册、登出、手机验证码、密码管理等认证端点
 - `app/api/generations/` -- AI 生成任务创建与查询
 - `app/api/chat/` -- 对话模式的消息与会话管理
-- `app/api/admin/` -- 管理后台全量 CRUD 端点
-- `app/api/billing/` -- 会员套餐、支付、订阅状态
+- `app/api/admin/` -- 管理后台全量 CRUD 端点（含订单管理）
+- `app/api/billing/` -- 会员套餐、支付、订阅状态、用户订单查询
 
 ### 2. 业务逻辑层（lib/）
 
@@ -160,9 +160,9 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 提示词引擎 | 15 种模板作用域，版本化 Prompt Pack，组合规则引擎 | `lib/prompts.ts`, `config/prompt-packs/` |
 | 视觉识别 | 车辆识别、配件识别、生成结果检查 | `lib/server/vision-provider.ts` |
 | 安全护栏 | 内容安全检查（文件类型、屏蔽词、改装关键词） | `lib/server/guardrail.ts` |
-| 计费系统 | 三级会员（free/pro/max），用量账本，额度消费 | `app/api/billing/`, `lib/server/db.ts` |
+| 计费系统 | 三级会员（free/pro/max），用量账本，额度消费，模拟支付与订单管理 | `app/api/billing/`, `lib/server/db.ts` |
 | 聊天系统 | 对话模式意图解析（本地 + LLM fallback），会话管理 | `app/api/chat/`, `components/chat-mode.tsx` |
-| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
+| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
 | 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护 | `lib/server/local-images.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
 
@@ -240,4 +240,5 @@ flowchart LR
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-07-29
+> 关联方案ID：DESIGN-20260729-001

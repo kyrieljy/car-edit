@@ -44,6 +44,7 @@ import type {
   PartBrand,
   PartCategory,
   PartColorPolicy,
+  AdminPaymentOrder,
   PartPromptTestStatus,
   PartReferenceRole,
   PartSelectionOptions,
@@ -4021,6 +4022,71 @@ function paymentOrders(userId: string): PaymentOrder[] {
     amountCents: Number(row.amount_cents),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
+  }))
+}
+
+export function getPaymentOrders(userId: string): PaymentOrder[] {
+  return paymentOrders(userId)
+}
+
+export function getAllPaymentOrders(filters: {
+  startDate?: string
+  endDate?: string
+  userQuery?: string
+  planId?: string
+}): AdminPaymentOrder[] {
+  const conditions: string[] = []
+  const params: Array<string | number> = []
+
+  if (filters.startDate) {
+    const startMs = new Date(filters.startDate + "T00:00:00").getTime()
+    if (Number.isFinite(startMs)) {
+      conditions.push("po.created_at >= ?")
+      params.push(startMs)
+    }
+  }
+
+  if (filters.endDate) {
+    const endMs = new Date(filters.endDate + "T23:59:59.999").getTime()
+    if (Number.isFinite(endMs)) {
+      conditions.push("po.created_at <= ?")
+      params.push(endMs)
+    }
+  }
+
+  if (filters.userQuery) {
+    const query = `%${filters.userQuery}%`
+    conditions.push("(u.username LIKE ? OR u.phone LIKE ?)")
+    params.push(query, query)
+  }
+
+  if (filters.planId) {
+    conditions.push("po.plan_id = ?")
+    params.push(filters.planId)
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
+  const rows = database()
+    .prepare(
+      `SELECT po.*, u.username, u.phone
+       FROM payment_orders po
+       LEFT JOIN users u ON po.user_id = u.id
+       ${whereClause}
+       ORDER BY po.created_at DESC`
+    )
+    .all(...params) as Array<Row & { username: string; phone: string }>
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    planId: row.plan_id as MembershipPlanId,
+    method: row.method as PaymentOrder["method"],
+    status: row.status as PaymentOrder["status"],
+    amountCents: Number(row.amount_cents),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    userName: String(row.username || ""),
+    userPhone: String(row.phone || ""),
   }))
 }
 

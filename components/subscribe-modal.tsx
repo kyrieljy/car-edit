@@ -88,7 +88,7 @@ const subscribeCopy = {
   },
 } satisfies Record<Language, Record<string, string>>
 
-const USER_SUBSCRIPTION_CHECKOUT_ENABLED = false
+const USER_SUBSCRIPTION_CHECKOUT_ENABLED = true
 
 const mobileCopy = {
   en: {
@@ -287,7 +287,6 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
       setLoading(false)
     }
   }
-
   if (typeof document === "undefined") return null
 
   const selectedPlanTabId = mobilePlanTabIds.includes(selectedPlanId) ? selectedPlanId : "pro"
