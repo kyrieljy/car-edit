@@ -1627,70 +1627,69 @@ export function CarModStudio() {
       data-mobile-theme={mobileTheme}
       data-mobile-sheet={mobileControlSheet ?? ""}
     >
+      {/* PC floating vertical menu - placed outside .studio-card to avoid backdrop-filter containing block */}
+      {menuCollapsed ? (
+        <nav className="app-floating-rail-collapsed" aria-label="Menu expand">
+          <button
+            type="button"
+            className="app-rail-item"
+            data-tooltip={language === "zh" ? "展开菜单" : "Expand menu"}
+            onClick={() => setMenuCollapsed(false)}
+            aria-label={language === "zh" ? "展开菜单" : "Expand menu"}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      ) : (
+        <nav className="app-floating-rail" aria-label="Main navigation">
+          <button
+            type="button"
+            className={activeMenu === "edit" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "改图" : "Edit"}
+            onClick={() => setActiveMenu("edit")}
+            aria-label={language === "zh" ? "改图" : "Edit"}
+          >
+            <PencilRuler size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "generate" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "生图" : "Generate"}
+            onClick={() => setActiveMenu("generate")}
+            aria-label={language === "zh" ? "生图" : "Generate"}
+          >
+            <ImagePlus size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "video" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "视频" : "Video"}
+            onClick={() => setActiveMenu("video")}
+            aria-label={language === "zh" ? "视频" : "Video"}
+          >
+            <Film size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeMenu === "effect" ? "app-rail-item active" : "app-rail-item"}
+            data-tooltip={language === "zh" ? "特效" : "Effects"}
+            onClick={() => setActiveMenu("effect")}
+            aria-label={language === "zh" ? "特效" : "Effects"}
+          >
+            <Zap size={16} />
+          </button>
+          <button
+            type="button"
+            className="app-rail-item app-rail-collapse"
+            data-tooltip={language === "zh" ? "收起菜单" : "Collapse menu"}
+            onClick={() => setMenuCollapsed(true)}
+            aria-label={language === "zh" ? "收起菜单" : "Collapse menu"}
+          >
+            <ChevronLeft size={16} />
+          </button>
+        </nav>
+      )}
       <div className={shellMode === "chat" ? "studio-card chat-card" : "studio-card"}>
-        {/* PC floating vertical menu */}
-        {menuCollapsed ? (
-          <nav className="app-floating-rail-collapsed" aria-label="Menu expand">
-            <button
-              type="button"
-              className="app-rail-item"
-              data-tooltip={language === "zh" ? "展开菜单" : "Expand menu"}
-              onClick={() => setMenuCollapsed(false)}
-              aria-label={language === "zh" ? "展开菜单" : "Expand menu"}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </nav>
-        ) : (
-          <nav className="app-floating-rail" aria-label="Main navigation">
-            <button
-              type="button"
-              className={activeMenu === "edit" ? "app-rail-item active" : "app-rail-item"}
-              data-tooltip={language === "zh" ? "改图" : "Edit"}
-              onClick={() => setActiveMenu("edit")}
-              aria-label={language === "zh" ? "改图" : "Edit"}
-            >
-              <PencilRuler size={16} />
-            </button>
-            <button
-              type="button"
-              className={activeMenu === "generate" ? "app-rail-item active" : "app-rail-item"}
-              data-tooltip={language === "zh" ? "生图" : "Generate"}
-              onClick={() => setActiveMenu("generate")}
-              aria-label={language === "zh" ? "生图" : "Generate"}
-            >
-              <ImagePlus size={16} />
-            </button>
-            <button
-              type="button"
-              className={activeMenu === "video" ? "app-rail-item active" : "app-rail-item"}
-              data-tooltip={language === "zh" ? "视频" : "Video"}
-              onClick={() => setActiveMenu("video")}
-              aria-label={language === "zh" ? "视频" : "Video"}
-            >
-              <Film size={16} />
-            </button>
-            <button
-              type="button"
-              className={activeMenu === "effect" ? "app-rail-item active" : "app-rail-item"}
-              data-tooltip={language === "zh" ? "特效" : "Effects"}
-              onClick={() => setActiveMenu("effect")}
-              aria-label={language === "zh" ? "特效" : "Effects"}
-            >
-              <Zap size={16} />
-            </button>
-            <button
-              type="button"
-              className="app-rail-item app-rail-collapse"
-              data-tooltip={language === "zh" ? "收起菜单" : "Collapse menu"}
-              onClick={() => setMenuCollapsed(true)}
-              aria-label={language === "zh" ? "收起菜单" : "Collapse menu"}
-            >
-              <ChevronLeft size={16} />
-            </button>
-          </nav>
-        )}
-
         <header className="studio-header">
           <h1>{t.title}</h1>
           <ModeSwitch mode={appMode} setMode={setAppMode} labels={{ config: t.configMode, chat: t.chatMode }} />

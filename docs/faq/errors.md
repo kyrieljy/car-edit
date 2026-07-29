@@ -51,4 +51,18 @@
 
 ---
 
-> 最后更新时间：2026-07-25
+## Q：position:fixed 元素未相对于浏览器视口定位，而是贴在父容器边缘
+**现象**：PC 端浮动菜单（`.app-floating-rail`）设置了 `position: fixed; left: 0`，但菜单并未贴到浏览器窗口最左侧，而是贴在 `.studio-card` 容器的左边缘（即"黑色操作区"的左边缘）。
+
+**根因**：CSS 规范规定，当祖先元素设置了 `backdrop-filter`（或 `transform`、`filter`、`perspective` 等属性）时，会创建一个新的包含块（containing block）。此时后代的 `position: fixed` 不再相对于浏览器视口定位，而是相对于该祖先元素定位。`.studio-card` 设置了 `backdrop-filter: blur(8px)`，导致菜单的 `left: 0` 实际上是相对于 `.studio-card` 的左边缘。
+
+**解决方案**：
+1. 将 `position: fixed` 的菜单元素从设有 `backdrop-filter` 的 `.studio-card` 内部移出，放到没有该属性的 `.app-shell`（`<main>` 元素）直接子级。
+2. 确保菜单的所有祖先元素（直到视口）都没有 `backdrop-filter`、`transform`、`filter`、`perspective` 等会创建包含块的属性。
+3. 修改 `components/car-mod-studio.tsx`，将 `<nav className="app-floating-rail">` 移到 `<div className="studio-card">` 之前。
+
+**关联方案ID**：DESIGN-20260728-001
+
+---
+
+> 最后更新时间：2026-07-28

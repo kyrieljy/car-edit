@@ -145,8 +145,17 @@ export function AdminConsole() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier, password, purpose: "admin" }),
     })
-    const body = (await response.json().catch(() => ({}))) as { error?: string }
-    setNotice(response.ok ? "管理员验证码已发送" : body.error || "验证码发送失败")
+    const body = (await response.json().catch(() => ({}))) as { error?: string; devCode?: string }
+    if (!response.ok) {
+      setNotice(body.error || "验证码发送失败")
+      return
+    }
+    if (body.devCode) {
+      setAdminCode(body.devCode)
+      setNotice("验证码已自动回写（开发模式）")
+    } else {
+      setNotice("管理员验证码已发送，请查收短信")
+    }
   }
 
   const login = async () => {

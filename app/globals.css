@@ -17,6 +17,7 @@
   --green: #48d18d;
   --red: #ef6363;
   --shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+  --shadow-rail: 3px 0 8px rgba(0, 0, 0, 0.3);
   --font-mono: "Courier New", "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     monospace;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -6763,17 +6764,18 @@ a {
   .app-floating-rail {
     position: fixed;
     top: 50%;
-    left: 4px;
+    left: 0;
     transform: translateY(-50%);
     z-index: 900;
     display: none;
     flex-direction: column;
     gap: 2px;
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 0 12px 12px 0;
     background: var(--surface);
     border: 1px solid var(--line-soft);
-    box-shadow: var(--shadow);
+    border-left: none;
+    box-shadow: var(--shadow-rail);
   }
 
   @media (min-width: 761px) {
@@ -6785,17 +6787,18 @@ a {
   .app-floating-rail-collapsed {
     position: fixed;
     top: 50%;
-    left: 4px;
+    left: 0;
     transform: translateY(-50%);
     z-index: 900;
     display: none;
     flex-direction: column;
     gap: 2px;
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 0 12px 12px 0;
     background: var(--surface);
     border: 1px solid var(--line-soft);
-    box-shadow: var(--shadow);
+    border-left: none;
+    box-shadow: var(--shadow-rail);
   }
 
   @media (min-width: 761px) {

@@ -2,6 +2,20 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-07-28
+
+### 修复
+- [修复] `components/admin-console.tsx` 管理员登录 `sendAdminCode` 函数处理 API 返回的 `devCode` 字段：开发环境（mock 短信）自动回写验证码到输入框并提示"验证码已自动回写（开发模式）"；生产环境（真实短信）不自动回写，提示"管理员验证码已发送，请查收短信"
+- [修复] `components/car-mod-studio.tsx` 将 PC 端浮动菜单（`.app-floating-rail` / `.app-floating-rail-collapsed`）从 `.studio-card` 内部移出至 `.app-shell` 直接子级，修复因 `.studio-card` 的 `backdrop-filter` 创建包含块导致 `position: fixed` 失效、菜单未贴浏览器窗口最左侧的问题 (关联方案ID: DESIGN-20260728-001)
+
+### 修改
+- [修改] `app/globals.css` `.app-floating-rail` 和 `.app-floating-rail-collapsed` 的 `left` 由 4px 改为 0，`border-radius` 由 12px 改为 0 12px 12px 0，`border-left: none`，`box-shadow` 由 `var(--shadow)` 改为 `var(--shadow-rail)`，实现菜单完全贴边窗口左侧 (关联方案ID: DESIGN-20260728-001)
+- [修改] `app/globals.css` `:root` 新增 `--shadow-rail` 设计令牌（右侧定向阴影） (关联方案ID: DESIGN-20260728-001)
+
+### 文档
+- [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260728-001)
+- [文档] `docs/faq/errors.md` 新增 `position:fixed` 被 `backdrop-filter` 包含块影响的 FAQ 条目 (关联方案ID: DESIGN-20260728-001)
+
 ## 2026-07-27
 
 ### 修改
@@ -22,8 +36,8 @@
 ### 文档
 - [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260727-001)
 
-> 最后更新时间：2026-07-27
-> 关联方案ID：DESIGN-20260727-002
+> 最后更新时间：2026-07-28
+> 关联方案ID：DESIGN-20260728-001
 
 ## v0.1.5 - 2026-07-26
 
