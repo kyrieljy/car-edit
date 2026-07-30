@@ -2804,5 +2804,278 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
-> 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003
+#### 失败归因分析
+
+- **路径**：`GET /api/admin/analytics/failures/attribution`
+- **描述**：查询生成失败记录的归因分类分布，基于 `failure_reason` 关键词匹配自动分类。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 30 |
+  | provider | string | 否 | Provider 筛选 |
+  | mode | string | 否 | 生成模式筛选（`config` / `chat`） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "items": [
+      { "category": "Provider timeout", "count": 45, "percentage": 30.0 }
+    ],
+    "total": 150
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | items | FailureAttributionItem[] | 归因分类列表（按数量降序） |
+  | items[].category | string | 归因类别名称 |
+  | items[].count | number | 该类失败数量 |
+  | items[].percentage | number | 占比（百分比） |
+  | total | number | 失败总数 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### API 成功率监控
+
+- **路径**：`GET /api/admin/analytics/health/success-rate`
+- **描述**：按时间粒度查询各 Provider 的 API 成功率趋势。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | hours | number | 否 | 查询小时数，默认 24 |
+  | granularity | string | 否 | 聚合粒度，默认 `hour` |
+  | provider | string | 否 | Provider 筛选 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29 14:00", "provider": "openai", "successRate": 98.5, "total": 200, "succeeded": 197 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | SuccessRatePoint[] | 成功率数据点 |
+  | points[].date | string | 时间标签 |
+  | points[].provider | string | Provider 名称 |
+  | points[].successRate | number | 成功率（百分比） |
+  | points[].total | number | 总请求数 |
+  | points[].succeeded | number | 成功请求数 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 响应时间监控
+
+- **路径**：`GET /api/admin/analytics/health/latency`
+- **描述**：按时间粒度查询生成任务的 P50/P95/P99 延迟分位数趋势。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | hours | number | 否 | 查询小时数，默认 24 |
+  | granularity | string | 否 | 聚合粒度，默认 `hour` |
+  | provider | string | 否 | Provider 筛选 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29 14:00", "provider": "openai", "p50": 1200, "p95": 3500, "p99": 5200 }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | LatencyPoint[] | 延迟数据点 |
+  | points[].date | string | 时间标签 |
+  | points[].provider | string | Provider 名称 |
+  | points[].p50 | number | P50 延迟（毫秒） |
+  | points[].p95 | number | P95 延迟（毫秒） |
+  | points[].p99 | number | P99 延迟（毫秒） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 队列积压监控
+
+- **路径**：`GET /api/admin/analytics/health/queue`
+- **描述**：实时查询当前生成任务队列状态（queued / running）。
+- **查询参数**：无
+- **响应格式**：
+
+  ```json
+  { "queued": 5, "running": 3, "alert": false }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | queued | number | 排队中任务数 |
+  | running | number | 运行中任务数 |
+  | alert | boolean | 是否超过积压阈值（>20） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### 质量评分趋势
+
+- **路径**：`GET /api/admin/analytics/quality/score-trend`
+- **描述**：按时间粒度查询生成结果质量评分的日均趋势。评分来源于 `result_check.score`。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 30 |
+  | granularity | string | 否 | 聚合粒度，默认 `day` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29", "avgScore": 82.5, "minScore": 60, "maxScore": 95, "count": 120 }
+    ],
+    "threshold": 70
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | QualityScorePoint[] | 评分趋势数据点 |
+  | points[].date | string | 日期标签 |
+  | points[].avgScore | number | 平均评分 |
+  | points[].minScore | number | 最低评分 |
+  | points[].maxScore | number | 最高评分 |
+  | points[].count | number | 采样数 |
+  | threshold | number | 告警阈值 |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_jobs`
+
+---
+
+#### Bad Case 处理效率
+
+- **路径**：`GET /api/admin/analytics/quality/bad-cases`
+- **描述**：查询 Bad Case 的处理效率统计，包括平均处理时长、已处理/未处理数量趋势。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 查询天数窗口，默认 30 |
+  | granularity | string | 否 | 聚合粒度，默认 `day` |
+
+- **响应格式**：
+
+  ```json
+  {
+    "points": [
+      { "date": "2026-07-29", "avgProcessTimeMs": 3600000, "processed": 12, "unprocessed": 3 }
+    ],
+    "totalProcessed": 120,
+    "totalUnprocessed": 15,
+    "overallAvgTimeMs": 4200000
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | points | BadCaseEfficiencyPoint[] | 处理效率趋势 |
+  | points[].date | string | 日期标签 |
+  | points[].avgProcessTimeMs | number | 平均处理时长（毫秒） |
+  | points[].processed | number | 已处理数量 |
+  | points[].unprocessed | number | 未处理数量 |
+  | totalProcessed | number | 总已处理数量 |
+  | totalUnprocessed | number | 总未处理数量 |
+  | overallAvgTimeMs | number | 整体平均处理时长（毫秒） |
+
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`generation_bad_cases`
+
+---
+
+#### 用户消息广播
+
+- **路径**：`POST /api/admin/messages/broadcast`
+- **描述**：向指定用户群体批量发送系统消息，消息写入 `account_messages` 表。
+- **请求体**：
+
+  ```json
+  {
+    "title": "System Maintenance Notice",
+    "body": "We will perform maintenance at 02:00 UTC.",
+    "target": "all",
+    "planId": "pro",
+    "tag": "vip",
+    "userIds": ["user_1", "user_2"]
+  }
+  ```
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | title | string | 是 | 消息标题 |
+  | body | string | 是 | 消息内容 |
+  | target | string | 是 | 目标类型（`all` / `plan` / `tag` / `users`） |
+  | planId | string | 否* | 套餐 ID（target=`plan` 时必填） |
+  | tag | string | 否* | 用户标签（target=`tag` 时必填） |
+  | userIds | string[] | 否* | 用户 ID 列表（target=`users` 时必填） |
+
+- **响应格式**：
+
+  ```json
+  { "sent": 150 }
+  ```
+
+- **错误码**：400（参数错误）、401（未认证）、403（非管理员）
+- **关联数据表**：`account_messages`、`users`、`user_tags`
+
+---
+
+#### 数据报表导出
+
+- **路径**：`GET /api/admin/reports/generate`
+- **描述**：生成运营数据报表并导出为 CSV。支持日报（近 24 小时，按小时）、周报（近 7 天，按天）、月报（近 30 天，按天）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | type | string | 否 | 报表类型（`daily` / `weekly` / `monthly`），默认 `daily` |
+
+- **响应格式**：`text/csv` 文件下载，带 UTF-8 BOM 头
+- **CSV 列**：Date / New Users / Total Generations / Success Rate (%) / Revenue (USD) / Cost (USD)
+- **错误码**：401（未认证）、403（非管理员）
+- **关联数据表**：`users`、`generation_jobs`、`payment_orders`、`usage_ledger`
+
+---
+
+> 最后更新时间：2026-07-30
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001

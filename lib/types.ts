@@ -1015,3 +1015,107 @@ export type AlertListResponse = {
 export type AlertUpdateResponse = {
   alert: AlertRecord
 }
+
+// --- Failure attribution ---
+
+export type FailureAttributionItem = {
+  category: string
+  count: number
+  percentage: number
+}
+
+export type FailureAttributionResponse = {
+  items: FailureAttributionItem[]
+  total: number
+}
+
+// --- Health monitoring ---
+
+export type SuccessRatePoint = {
+  date: string
+  provider: string
+  successRate: number
+  total: number
+  succeeded: number
+}
+
+export type SuccessRateResponse = {
+  points: SuccessRatePoint[]
+}
+
+export type LatencyPoint = {
+  date: string
+  provider?: string
+  p50: number
+  p95: number
+  p99: number
+}
+
+export type LatencyResponse = {
+  points: LatencyPoint[]
+}
+
+export type QueueStatusResponse = {
+  queued: number
+  running: number
+  alert: boolean
+}
+
+// --- Quality analysis ---
+
+export type QualityScorePoint = {
+  date: string
+  avgScore: number
+  minScore: number
+  maxScore: number
+  count: number
+}
+
+export type QualityScoreTrendResponse = {
+  points: QualityScorePoint[]
+  threshold: number
+}
+
+export type BadCaseEfficiencyPoint = {
+  date: string
+  avgProcessTimeMs: number
+  processed: number
+  unprocessed: number
+}
+
+export type BadCaseEfficiencyResponse = {
+  points: BadCaseEfficiencyPoint[]
+  totalProcessed: number
+  totalUnprocessed: number
+  overallAvgTimeMs: number
+}
+
+// --- Message broadcast ---
+
+export type BroadcastTarget = "all" | "plan" | "tag" | "users"
+
+export type BroadcastMessageInput = {
+  title: string
+  body: string
+  target: BroadcastTarget
+  planId?: string
+  tag?: string
+  userIds?: string[]
+}
+
+export type BroadcastMessageResponse = {
+  sent: number
+}
+
+// --- Report generation ---
+
+export type ReportType = "daily" | "weekly" | "monthly"
+
+export type ReportMetrics = {
+  date: string
+  newUsers: number
+  totalGenerations: number
+  successRate: number
+  totalRevenueCents: number
+  totalCostCents: number
+}

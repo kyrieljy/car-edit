@@ -2,6 +2,40 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-07-30
+
+### 运营需求剩余功能补全 (DESIGN-20260730-001)
+
+#### 新增
+- [新增] `lib/server/analytics-queries.ts` 新增 `getFailureAttribution`、`getSuccessRateSeries`、`getLatencyPercentiles`、`getQueueStatus`、`getQualityScoreTrend`、`getBadCaseEfficiency`、`getReportMetrics` 查询函数 (关联方案ID: DESIGN-20260730-001)
+- [新增] `lib/types.ts` 新增失败归因、健康监控、质量分析、消息广播、报表生成等类型定义 (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/failures/attribution/route.ts` 失败归因分析 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/health/success-rate/route.ts` API 成功率监控 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/health/latency/route.ts` 响应时间监控 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/health/queue/route.ts` 队列积压监控 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/quality/score-trend/route.ts` 质量评分趋势 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/analytics/quality/bad-cases/route.ts` Bad Case 处理效率 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/messages/broadcast/route.ts` 用户消息广播 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `app/api/admin/reports/generate/route.ts` 数据报表导出 API (关联方案ID: DESIGN-20260730-001)
+- [新增] `components/admin/health-analytics.tsx` 系统健康监控组件 (关联方案ID: DESIGN-20260730-001)
+- [新增] `components/admin/quality-analytics.tsx` 内容质量分析组件 (关联方案ID: DESIGN-20260730-001)
+- [新增] `components/admin/message-broadcaster.tsx` 消息推送组件 (关联方案ID: DESIGN-20260730-001)
+- [新增] `components/admin/report-generator.tsx` 报表生成组件 (关联方案ID: DESIGN-20260730-001)
+
+#### 修改
+- [修改] `components/admin/failure-analytics.tsx` 新增归因饼图展示，集成 `DonutChartCard` (关联方案ID: DESIGN-20260730-001)
+- [修改] `components/admin-console.tsx` 新增"系统健康"、"质量分析"、"消息推送"、"报表导出"四个 Tab 及导航项 (关联方案ID: DESIGN-20260730-001)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 8 个运营分析 API 接口文档 (关联方案ID: DESIGN-20260730-001)
+
+#### 影响范围
+- 管理后台新增"系统健康"、"质量分析"、"消息推送"、"报表导出"四个页面
+- 新增 8 个管理端 API 端点
+- 所有功能基于现有数据表，无需新增表或字段
+
+---
+
 ## 2026-07-29
 
 ### 缺陷修复 — 管理员"用户详情"页面审计日志渲染异常

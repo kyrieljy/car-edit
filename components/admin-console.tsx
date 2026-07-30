@@ -34,6 +34,10 @@ import FailureAnalytics from "@/components/admin/failure-analytics"
 import CostAnalytics from "@/components/admin/cost-analytics"
 import OrderAnalytics from "@/components/admin/order-analytics"
 import QuotaAnalytics from "@/components/admin/quota-analytics"
+import HealthAnalytics from "@/components/admin/health-analytics"
+import QualityAnalytics from "@/components/admin/quality-analytics"
+import MessageBroadcaster from "@/components/admin/message-broadcaster"
+import ReportGenerator from "@/components/admin/report-generator"
 import { buildGenerationPrompt } from "@/lib/generation-core"
 import type {
   AdminSummary,
@@ -58,7 +62,7 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-costs" | "analytics-orders" | "analytics-quota"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-costs" | "analytics-orders" | "analytics-quota" | "analytics-health" | "analytics-quality" | "ops-messages" | "ops-reports"
 type AdminView = { type: "tab"; tab: AdminTab } | { type: "generation-detail"; jobId: string } | { type: "user-detail"; userId: string }
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
@@ -92,6 +96,10 @@ const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon
   { id: "analytics-costs", label: "成本分析", sub: "趋势 / 归因 / 分布", icon: <Eye size={20} /> },
   { id: "analytics-orders", label: "订单分析", sub: "收入 / 转化 / 续费", icon: <Receipt size={20} /> },
   { id: "analytics-quota", label: "额度监控", sub: "消耗 / 余额 / 告警", icon: <Database size={20} /> },
+  { id: "analytics-health", label: "系统健康", sub: "成功率 / 延迟 / 队列", icon: <Activity size={20} /> },
+  { id: "analytics-quality", label: "质量分析", sub: "评分 / Bad Case", icon: <BarChart3 size={20} /> },
+  { id: "ops-messages", label: "消息推送", sub: "广播 / 筛选", icon: <Users size={20} /> },
+  { id: "ops-reports", label: "报表导出", sub: "日报 / 周报 / 月报", icon: <Receipt size={20} /> },
   { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
   { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
   { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
@@ -116,6 +124,10 @@ function adminTabTitle(tab: AdminTab) {
     "analytics-costs": "Provider 成本分析",
     "analytics-orders": "订单收入分析",
     "analytics-quota": "额度消耗监控",
+    "analytics-health": "系统健康监控",
+    "analytics-quality": "内容质量分析",
+    "ops-messages": "消息推送",
+    "ops-reports": "报表导出",
     users: "用户管理",
     profiles: "用户画像",
     orders: "订单管理",
@@ -383,6 +395,10 @@ export function AdminConsole() {
               {tab === "analytics-costs" && <CostAnalytics />}
               {tab === "analytics-orders" && <OrderAnalytics />}
               {tab === "analytics-quota" && <QuotaAnalytics />}
+              {tab === "analytics-health" && <HealthAnalytics />}
+              {tab === "analytics-quality" && <QualityAnalytics />}
+              {tab === "ops-messages" && <MessageBroadcaster />}
+              {tab === "ops-reports" && <ReportGenerator />}
               {tab === "users" && (
                 <>
                   <UsersOpsTable summary={summary} onChanged={() => void loadSummary()} notify={notify} onOpenUserDetail={openUserDetail} />

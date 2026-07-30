@@ -7,9 +7,21 @@ import type {
   AnalyticsTrendResponse,
   CostBucket,
   CostDistributionResponse,
+  FailureAttributionItem,
+  FailureAttributionResponse,
   FailureTrendPoint,
   FailureTrendResponse,
+  LatencyPoint,
+  LatencyResponse,
+  QualityScorePoint,
+  QualityScoreTrendResponse,
+  BadCaseEfficiencyPoint,
+  BadCaseEfficiencyResponse,
+  QueueStatusResponse,
+  ReportMetrics,
   RetentionResponse,
+  SuccessRatePoint,
+  SuccessRateResponse,
 } from "../types"
 import { database, type Row } from "./db"
 
@@ -554,4 +566,383 @@ export function getCostDistribution(options: {
   }))
 
   return { buckets, p50, p90, p99 }
+}
+
+// ---------------------------------------------------------------------------
+// Failure attribution (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+const FAILURE_CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
+  { category: "Provider timeout", keywords: ["timeout", "超时", "time out", "ETIMEDOUT", "ECONNRESET"] },
+  { category: "Provider rate limit", keywords: ["rate limit", "quota exceeded", "too many requests", "429", "throttled"] },
+  { category: "Content guardrail", keywords: ["guardrail", "blocked", "content policy", "safety", "审核", "拦截"] },
+  { category: "Prompt build failed", keywords: ["prompt", "template", "build", "render", "mustache"] },
+  { category: "Image processing failed", keywords: ["image", "canvas", "decode", "encode", "resize", "format"] },
+  { category: "Provider error", keywords: ["provider", "api error", "500", "502", "503", "bad gateway"] },
+  { category: "Validation failed", keywords: ["validation", "invalid", "missing", "required", "parameter"] },
+]
+
+function classifyFailure(errorMessage: string | null): string {
+  if (!errorMessage) return "Other"
+  const lower = errorMessage.toLowerCase()
+  for (const rule of FAILURE_CATEGORY_RULES) {
+    if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+      return rule.category
+    }
+  }
+  return "Other"
+}
+
+export function getFailureAttribution(options: {
+  startMs: number
+  endMs: number
+  provider?: string
+  mode?: string
+}): FailureAttributionResponse {
+  const { startMs, endMs, provider, mode } = options
+  const conditions = ["status = 'failed'", "created_at >= ?", "created_at <= ?"]
+  const params: Array<string | number> = [startMs, endMs]
+  if (provider) {
+    conditions.push("provider = ?")
+    params.push(provider)
+  }
+  if (mode) {
+    conditions.push("mode = ?")
+    params.push(mode)
+  }
+
+  const sql = `SELECT failure_reason FROM generation_jobs WHERE ${conditions.join(" AND ")}`
+  const rows = database().prepare(sql).all(...params) as Array<{ failure_reason: string | null }>
+
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const category = classifyFailure(row.failure_reason)
+    counts.set(category, (counts.get(category) ?? 0) + 1)
+  }
+
+  const total = rows.length
+  const items: FailureAttributionItem[] = Array.from(counts.entries())
+    .map(([category, count]) => ({
+      category,
+      count,
+      percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  return { items, total }
+}
+
+// ---------------------------------------------------------------------------
+// Health monitoring — success rate (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getSuccessRateSeries(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+  provider?: string
+}): SuccessRateResponse {
+  const { startMs, endMs, granularity, provider } = options
+  const bucket = bucketExpr("created_at", granularity)
+  const conditions = ["created_at >= ?", "created_at <= ?"]
+  const params: Array<string | number> = [startMs, endMs]
+  if (provider) {
+    conditions.push("provider = ?")
+    params.push(provider)
+  }
+
+  const whereClause = conditions.join(" AND ")
+
+  // Total counts per bucket (optionally grouped by provider)
+  const totalSql = provider
+    ? `SELECT ${bucket} AS date_bucket, COUNT(*) AS total FROM generation_jobs WHERE ${whereClause} GROUP BY ${bucket} ORDER BY ${bucket} ASC`
+    : `SELECT ${bucket} AS date_bucket, provider, COUNT(*) AS total FROM generation_jobs WHERE ${whereClause} GROUP BY ${bucket}, provider ORDER BY ${bucket} ASC, provider ASC`
+
+  const succeededSql = provider
+    ? `SELECT ${bucket} AS date_bucket, COUNT(*) AS succeeded FROM generation_jobs WHERE ${whereClause} AND status = 'succeeded' GROUP BY ${bucket} ORDER BY ${bucket} ASC`
+    : `SELECT ${bucket} AS date_bucket, provider, COUNT(*) AS succeeded FROM generation_jobs WHERE ${whereClause} AND status = 'succeeded' GROUP BY ${bucket}, provider ORDER BY ${bucket} ASC, provider ASC`
+
+  if (!provider) {
+    // Ungrouped query already includes provider; need to adjust params for succeeded query
+    const totalRows = database().prepare(totalSql).all(...params) as Array<{
+      date_bucket: string
+      provider: string
+      total: number
+    }>
+    const succeededRows = database().prepare(succeededSql).all(...params) as Array<{
+      date_bucket: string
+      provider: string
+      succeeded: number
+    }>
+
+    const succeededMap = new Map<string, number>()
+    for (const r of succeededRows) {
+      succeededMap.set(`${r.date_bucket}|${r.provider}`, r.succeeded)
+    }
+
+    const points: SuccessRatePoint[] = totalRows.map((r) => {
+      const succeeded = succeededMap.get(`${r.date_bucket}|${r.provider}`) ?? 0
+      return {
+        date: r.date_bucket,
+        provider: r.provider,
+        successRate: r.total > 0 ? Number(((succeeded / r.total) * 100).toFixed(1)) : 0,
+        total: r.total,
+        succeeded,
+      }
+    })
+
+    return { points }
+  }
+
+  // Provider-specific query (no provider grouping)
+  const totalRows = database().prepare(totalSql).all(...params) as Array<{
+    date_bucket: string
+    total: number
+  }>
+  const succeededRows = database().prepare(succeededSql).all(...params) as Array<{
+    date_bucket: string
+    succeeded: number
+  }>
+
+  const succeededMap = new Map<string, number>()
+  for (const r of succeededRows) {
+    succeededMap.set(r.date_bucket, r.succeeded)
+  }
+
+  const points: SuccessRatePoint[] = totalRows.map((r) => {
+    const succeeded = succeededMap.get(r.date_bucket) ?? 0
+    return {
+      date: r.date_bucket,
+      provider: provider ?? "all",
+      successRate: r.total > 0 ? Number(((succeeded / r.total) * 100).toFixed(1)) : 0,
+      total: r.total,
+      succeeded,
+    }
+  })
+
+  return { points }
+}
+
+// ---------------------------------------------------------------------------
+// Health monitoring — latency percentiles (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getLatencyPercentiles(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+  provider?: string
+}): LatencyResponse {
+  const { startMs, endMs, granularity, provider } = options
+  const bucket = bucketExpr("created_at", granularity)
+  const conditions = ["status = 'succeeded'", "completed_at > created_at", "created_at >= ?", "created_at <= ?"]
+  const params: Array<string | number> = [startMs, endMs]
+  if (provider) {
+    conditions.push("provider = ?")
+    params.push(provider)
+  }
+
+  const whereClause = conditions.join(" AND ")
+
+  const sql = provider
+    ? `SELECT ${bucket} AS date_bucket, (completed_at - created_at) AS duration_ms FROM generation_jobs WHERE ${whereClause} ORDER BY date_bucket ASC, duration_ms ASC`
+    : `SELECT ${bucket} AS date_bucket, provider, (completed_at - created_at) AS duration_ms FROM generation_jobs WHERE ${whereClause} ORDER BY date_bucket ASC, provider ASC, duration_ms ASC`
+
+  const rows = database().prepare(sql).all(...params) as Array<{
+    date_bucket: string
+    provider?: string
+    duration_ms: number
+  }>
+
+  // Group by date (and provider if ungrouped)
+  const groupKey = (r: typeof rows[0]) => (provider ? r.date_bucket : `${r.date_bucket}|${r.provider}`)
+
+  const groups = new Map<string, { date: string; provider?: string; durations: number[] }>()
+  for (const r of rows) {
+    const key = groupKey(r)
+    if (!groups.has(key)) {
+      groups.set(key, { date: r.date_bucket, provider: r.provider, durations: [] })
+    }
+    groups.get(key)!.durations.push(r.duration_ms)
+  }
+
+  const points: LatencyPoint[] = []
+  for (const g of groups.values()) {
+    const d = g.durations
+    points.push({
+      date: g.date,
+      provider: g.provider,
+      p50: Math.round(computePercentile(d, 50)),
+      p95: Math.round(computePercentile(d, 95)),
+      p99: Math.round(computePercentile(d, 99)),
+    })
+  }
+
+  return { points }
+}
+
+// ---------------------------------------------------------------------------
+// Health monitoring — queue status (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getQueueStatus(): QueueStatusResponse {
+  const db = database()
+  const queued = Number(
+    (db.prepare("SELECT COUNT(*) AS value FROM generation_jobs WHERE status = 'queued'").get() as Row)?.value ?? 0
+  )
+  const running = Number(
+    (db.prepare("SELECT COUNT(*) AS value FROM generation_jobs WHERE status = 'running'").get() as Row)?.value ?? 0
+  )
+  return { queued, running, alert: queued > 20 }
+}
+
+// ---------------------------------------------------------------------------
+// Quality analysis — score trend (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getQualityScoreTrend(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+}): QualityScoreTrendResponse {
+  const { startMs, endMs, granularity } = options
+  const bucket = bucketExpr("created_at", granularity)
+
+  const sql = `SELECT ${bucket} AS date_bucket, result_check FROM generation_jobs WHERE status = 'succeeded' AND result_check IS NOT NULL AND created_at >= ? AND created_at <= ? ORDER BY date_bucket ASC`
+  const rows = database().prepare(sql).all(startMs, endMs) as Array<{
+    date_bucket: string
+    result_check: string | null
+  }>
+
+  const groups = new Map<string, number[]>()
+  for (const r of rows) {
+    if (!r.result_check) continue
+    try {
+      const rc = JSON.parse(r.result_check) as { score?: number }
+      if (typeof rc.score === "number") {
+        const list = groups.get(r.date_bucket) ?? []
+        list.push(rc.score)
+        groups.set(r.date_bucket, list)
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+
+  const points: QualityScorePoint[] = []
+  for (const [date, scores] of groups) {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+    points.push({
+      date,
+      avgScore: Number(avg.toFixed(1)),
+      minScore: Math.min(...scores),
+      maxScore: Math.max(...scores),
+      count: scores.length,
+    })
+  }
+
+  points.sort((a, b) => a.date.localeCompare(b.date))
+
+  return { points, threshold: 70 }
+}
+
+// ---------------------------------------------------------------------------
+// Quality analysis — bad case efficiency (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getBadCaseEfficiency(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+}): BadCaseEfficiencyResponse {
+  const { startMs, endMs, granularity } = options
+  const bucket = bucketExpr("created_at", granularity)
+
+  const sql = `SELECT ${bucket} AS date_bucket, COUNT(*) AS total, AVG(CASE WHEN updated_at > created_at THEN (updated_at - created_at) ELSE NULL END) AS avg_time, SUM(CASE WHEN updated_at > created_at THEN 1 ELSE 0 END) AS processed FROM generation_bad_cases WHERE created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`
+
+  const rows = database().prepare(sql).all(startMs, endMs) as Array<{
+    date_bucket: string
+    total: number
+    avg_time: number | null
+    processed: number
+  }>
+
+  const overallSql = `SELECT COUNT(*) AS total, AVG(CASE WHEN updated_at > created_at THEN (updated_at - created_at) ELSE NULL END) AS avg_time, SUM(CASE WHEN updated_at > created_at THEN 1 ELSE 0 END) AS processed FROM generation_bad_cases WHERE created_at >= ? AND created_at <= ?`
+  const overall = database().prepare(overallSql).get(startMs, endMs) as {
+    total: number
+    avg_time: number | null
+    processed: number
+  }
+
+  const points: BadCaseEfficiencyPoint[] = rows.map((r) => ({
+    date: r.date_bucket,
+    avgProcessTimeMs: Math.round(r.avg_time ?? 0),
+    processed: r.processed,
+    unprocessed: r.total - r.processed,
+  }))
+
+  return {
+    points,
+    totalProcessed: Number(overall.processed ?? 0),
+    totalUnprocessed: Number(overall.total ?? 0) - Number(overall.processed ?? 0),
+    overallAvgTimeMs: Math.round(overall.avg_time ?? 0),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Report generation helpers (DESIGN-20260730-001)
+// ---------------------------------------------------------------------------
+
+export function getReportMetrics(options: {
+  startMs: number
+  endMs: number
+  granularity: AnalyticsGranularity
+}): ReportMetrics[] {
+  const { startMs, endMs, granularity } = options
+  const bucket = bucketExpr("created_at", granularity)
+
+  // New users per bucket
+  const userRows = database()
+    .prepare(`SELECT ${bucket} AS date_bucket, COUNT(*) AS count FROM users WHERE created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
+    .all(startMs, endMs) as Array<{ date_bucket: string; count: number }>
+  const userMap = new Map(userRows.map((r) => [r.date_bucket, r.count]))
+
+  // Total generations per bucket
+  const genRows = database()
+    .prepare(`SELECT ${bucket} AS date_bucket, COUNT(*) AS count FROM generation_jobs WHERE created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
+    .all(startMs, endMs) as Array<{ date_bucket: string; count: number }>
+  const genMap = new Map(genRows.map((r) => [r.date_bucket, r.count]))
+
+  // Successful generations per bucket
+  const successRows = database()
+    .prepare(`SELECT ${bucket} AS date_bucket, COUNT(*) AS count FROM generation_jobs WHERE status = 'succeeded' AND created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
+    .all(startMs, endMs) as Array<{ date_bucket: string; count: number }>
+  const successMap = new Map(successRows.map((r) => [r.date_bucket, r.count]))
+
+  // Revenue per bucket
+  const revenueRows = database()
+    .prepare(`SELECT ${bucket} AS date_bucket, COALESCE(SUM(amount_cents), 0) AS total FROM payment_orders WHERE status = 'paid' AND created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
+    .all(startMs, endMs) as Array<{ date_bucket: string; total: number }>
+  const revenueMap = new Map(revenueRows.map((r) => [r.date_bucket, r.total]))
+
+  // Cost per bucket
+  const costRows = database()
+    .prepare(`SELECT ${bucket} AS date_bucket, COALESCE(SUM(cost_cents), 0) AS total FROM usage_ledger WHERE created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
+    .all(startMs, endMs) as Array<{ date_bucket: string; total: number }>
+  const costMap = new Map(costRows.map((r) => [r.date_bucket, r.total]))
+
+  const allDates = Array.from(new Set([...userMap.keys(), ...genMap.keys(), ...revenueMap.keys(), ...costMap.keys()])).sort()
+
+  return allDates.map((date) => {
+    const totalGen = genMap.get(date) ?? 0
+    const successGen = successMap.get(date) ?? 0
+    return {
+      date,
+      newUsers: userMap.get(date) ?? 0,
+      totalGenerations: totalGen,
+      successRate: totalGen > 0 ? Number(((successGen / totalGen) * 100).toFixed(1)) : 0,
+      totalRevenueCents: revenueMap.get(date) ?? 0,
+      totalCostCents: costMap.get(date) ?? 0,
+    }
+  })
 }

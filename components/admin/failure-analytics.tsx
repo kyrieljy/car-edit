@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type {
+  FailureAttributionResponse,
   FailureTrendResponse,
   ProviderFailureRankingResponse,
 } from '@/lib/types';
@@ -10,6 +11,7 @@ import {
   StatCard,
   LineChartCard,
   BarChartCard,
+  DonutChartCard,
   TimeRangeSelector,
   GranularitySelector,
 } from './analytics-charts';
@@ -32,6 +34,7 @@ export default function FailureAnalytics() {
   const [groupBy, setGroupBy] = useState<string>('none');
   const [trendData, setTrendData] = useState<FailureTrendResponse | null>(null);
   const [rankingData, setRankingData] = useState<ProviderFailureRankingResponse | null>(null);
+  const [attributionData, setAttributionData] = useState<FailureAttributionResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchTrend = useCallback(async () => {
@@ -63,6 +66,18 @@ export default function FailureAnalytics() {
     }
   }, []);
 
+  const fetchAttribution = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/analytics/failures/attribution?days=${days}`);
+      if (res.ok) {
+        const data = await res.json() as FailureAttributionResponse;
+        setAttributionData(data);
+      }
+    } catch {
+      // noop
+    }
+  }, [days]);
+
   useEffect(() => {
     void fetchTrend();
   }, [fetchTrend]);
@@ -70,6 +85,10 @@ export default function FailureAnalytics() {
   useEffect(() => {
     void fetchRanking();
   }, [fetchRanking]);
+
+  useEffect(() => {
+    void fetchAttribution();
+  }, [fetchAttribution]);
 
   // Build chart series from trend data
   const trendSeries = trendData
@@ -135,6 +154,13 @@ export default function FailureAnalytics() {
             title="Provider Failure Rate Ranking (%)"
             data={rankingBars}
           />
+
+          {attributionData && attributionData.items.length > 0 && (
+            <DonutChartCard
+              title="Failure Attribution"
+              data={attributionData.items.map((item) => ({ name: item.category, value: item.count }))}
+            />
+          )}
 
           {rankingData && rankingData.rankings.length > 0 && (
             <div className="analytics-chart-card">
