@@ -2,7 +2,68 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-07-31
+
+### PC端个人中心弹窗重构 (DESIGN-20260731-001)
+
+#### 新增
+- [新增] `components/pc-account-panel.tsx` PC 端个人中心弹窗主组件，实现左侧菜单（账户/订阅/订单）+ 右侧内容区分栏布局，内含账户页（头像选择、昵称/邮箱行内编辑保存、手机号验证码换绑含60s冷却、更改密码按钮）、订阅页（顶部额度卡片+套餐选择+支付方式子弹窗）、订单页（懒加载订单表格）、头像选择子弹窗、密码修改子弹窗（支持未设置密码场景提示） (关联方案ID: DESIGN-20260731-001)
+- [新增] `lib/use-subscription-plans.ts` 套餐列表请求自定义 hook，封装 `GET /api/billing/plans` 请求与排序逻辑 (关联方案ID: DESIGN-20260731-001)
+- [新增] `lib/subscription-checkout.ts` 订阅支付完成两步 API（checkout + mock-paid）封装模块 (关联方案ID: DESIGN-20260731-001)
+- [新增] `lib/subscription-display.ts` 套餐展示辅助函数模块（planDisplayName、planFeatures、formatPlanPrice），从 subscribe-modal.tsx 迁移 (关联方案ID: DESIGN-20260731-001)
+- [新增] `app/globals.css` 新增 `.pc-account-panel` 及相关样式（弹窗布局、侧边栏菜单、内容区、账户页表单、订阅套餐卡片、订单表格、头像/密码子弹窗），圆角与尺寸对齐 demo2，颜色使用 CSS 变量 (关联方案ID: DESIGN-20260731-001)
+
+#### 修改
+- [修改] `components/car-mod-studio.tsx` 移除内联 `DesktopAccountPanel` 实现（约450行），引入 `PcAccountPanel` 组件；移除 Header 中"会员"按钮及相关 `subscribeOpen` state 与 `SubscribeModal` PC 端挂载 (关联方案ID: DESIGN-20260731-001)
+- [修改] `components/subscribe-modal.tsx` 套餐展示辅助函数与支付逻辑改为从 `lib/subscription-display`、`lib/subscription-checkout`、`lib/use-subscription-plans` 导入，减少自身代码量 (关联方案ID: DESIGN-20260731-001)
+- [修改] `lib/types.ts` `AuthUser` 类型新增 `hasPassword: boolean` 字段，表示用户是否已设置密码 (关联方案ID: DESIGN-20260731-001)
+- [修改] `lib/server/db.ts` `mapAuthUser` 函数新增 `hasPassword` 字段映射（基于 `password_hash` 是否为空）；`changeUserPassword` 函数当 `password_hash` 为空串时跳过 `verifyPassword` 校验，支持无密码用户首次设置密码 (关联方案ID: DESIGN-20260731-001)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 更新 `GET /api/auth/me` 响应示例新增 `hasPassword` 字段；更新 `POST /api/auth/password` 描述及参数说明，记录未设置密码时可传空 currentPassword 的行为变更 (关联方案ID: DESIGN-20260731-001)
+
+#### 影响范围
+- PC 端个人中心弹窗由单面板 Tab 布局重构为左菜单+右内容区分栏布局，整合账户/订阅/订单三大模块
+- 主界面 Header 移除独立"会员"按钮，订阅入口统一收归个人中心弹窗
+- `AuthUser` 类型新增 `hasPassword` 字段，`/api/auth/me` 响应自动携带
+- `/api/auth/password` 接口行为增强：未设置密码用户可首次设置密码（currentPassword 传空）
+- 移动端订阅流程不受影响（共享逻辑抽取后签名一致）
+
 ## 2026-07-30
+
+### 移动端个人中心套餐按钮与额度展示重构 (DESIGN-20260730-006)
+
+#### 修改
+- [修改] `components/mobile/mobile-studio-app.tsx` `MobileProfilePage` 组件卡片头部按钮由"编辑资料"改为显示当前套餐小写 id（`planIdDisplay`，取值 `billing?.plan.id || authUser?.plan || "guest"`），点击行为由 `openProfileSection("profile")` 改为 `openSubscribe`；操作区两个按钮由可点击 button 改为只读 span，左按钮显示生成额度（`生成 X`/`Gen X`），右按钮显示对话额度（`对话 Y`/`Chat Y`）；删除不再使用的 `planName` 变量 (关联方案ID: DESIGN-20260730-006)
+- [修改] `app/globals.css` `.mobile-profile-card-actions` 选择器新增 `.mobile-profile-card-action-readonly` 只读 span 样式（`cursor: default`、`user-select: none`），同步 light 主题选择器 (关联方案ID: DESIGN-20260730-006)
+
+#### 影响范围
+- 编辑资料入口改为头像点击进入（原头部按钮已改为套餐入口）
+- 订阅弹窗改由头部套餐按钮触发（原左操作按钮已改为只读额度展示）
+- 纯展示层调整，不涉及 API、数据库或业务逻辑变更
+
+### 移动端个人中心顶栏微调 (free-task)
+
+#### 修改
+- [修改] `components/mobile/mobile-studio-app.tsx` `MobileProfilePage` 组件 topbar 移除"个人中心"标题文字，返回按钮图标由 22px 缩小至 18px
+- [修改] `app/globals.css` `.mobile-profile-topbar button` 尺寸由 48px 缩小至 36px、圆角由 18px 调整为 12px，`.mobile-profile-topbar` 新增 `margin-bottom: 20px` 增加与下方卡片区域的间距
+
+### 移动端个人中心按钮与列表调整 (DESIGN-20260730-005)
+
+#### 修改
+- [修改] `components/mobile/mobile-studio-app.tsx` `MobileProfilePage` 组件卡片左操作按钮文案由"订阅套餐"改为动态显示当前套餐名称（`planName`），右操作按钮文案由"我的订单"改为显示生成与对话剩余额度，图标由 `Receipt` 改为 `Zap`，点击行为由 `openOrders` 改为 `openSubscribe` (关联方案ID: DESIGN-20260730-005)
+- [修改] `components/mobile/mobile-studio-app.tsx` `MobileProfilePage` 组件简单列表移除"编辑资料"和"订阅与套餐"两个行项，精简为 5 项（消息通知 → 换绑手机号 → 修改密码 → 我的订单 → 退出账号） (关联方案ID: DESIGN-20260730-005)
+- [修改] `components/mobile/mobile-studio-app.tsx` 新增 `configBalance`/`chatBalance` 局部变量复用 `formatMobileProfileBalance` 计算额度文本，移除不再使用的 `Receipt` 图标导入 (关联方案ID: DESIGN-20260730-005)
+- [修改] `app/globals.css` `.mobile-profile-card-actions button` 规则补充 `min-width: 0`、`white-space: nowrap`、`overflow: hidden` 防止额度文案溢出 (关联方案ID: DESIGN-20260730-005)
+
+### 移动端个人中心编辑子页面重构 (DESIGN-20260730-004)
+
+#### 重构
+- [重构] `components/mobile/mobile-studio-app.tsx` 重构编辑资料、换绑手机号、修改密码三个子页面的表单 JSX：移除 label 标签改用 placeholder、新增 renderInput 辅助函数封装输入框与清除按钮、提交按钮改为药丸形、renderProfileEditorShell 新增副标题引导、头像选择器移除 legend (关联方案ID: DESIGN-20260730-004)
+- [重构] `app/globals.css` 重构 `.mobile-profile-editor` 相关样式：移除表单卡片边框、输入框改为深色卡片样式（14px 圆角）、新增 `.mobile-profile-input-wrap`/`.mobile-profile-clear-btn`/`.mobile-profile-code-wrap`/`.mobile-profile-code-send`/`.mobile-profile-submit-btn`/`.mobile-profile-subtitle` 样式类、提交按钮改为药丸形（`--m-cyan` 背景）、状态反馈简化为纯文字+图标 (关联方案ID: DESIGN-20260730-004)
+
+#### 修改
+- [修改] `components/mobile/mobile-studio-app.tsx` 新增 `AlertCircle`、`Check` 图标导入，移除不再使用的 `Save` 图标导入 (关联方案ID: DESIGN-20260730-004)
 
 ### 移除管理员生成记录手动重试功能 (DESIGN-20260730-002)
 
@@ -190,8 +251,8 @@
 ### 文档
 - [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260727-001)
 
-> 最后更新时间：2026-07-30
-> 关联方案ID：DESIGN-20260730-002
+> 最后更新时间：2026-07-31
+> 关联方案ID：DESIGN-20260731-001
 
 ## v0.1.5 - 2026-07-26
 

@@ -1790,11 +1790,18 @@ export function updateUserProfile(userId: string, input: { name: string; email: 
 export function changeUserPassword(userId: string, input: { currentPassword: string; nextPassword: string }) {
   const row = database().prepare("SELECT * FROM users WHERE id = ? LIMIT 1").get(userId) as Row | undefined
   if (!row) throw new Error("User not found.")
-  if (!verifyPassword(input.currentPassword, String(row.password_hash || ""))) {
-    throw new Error("Current password is incorrect.")
+  const storedHash = String(row.password_hash || "")
+  // When the user has no password set yet (phone-only registration), skip current password verification.
+  if (storedHash) {
+    if (!verifyPassword(input.currentPassword, storedHash)) {
+      throw new Error("Current password is incorrect.")
+    }
   }
   assertStrongPassword(input.nextPassword)
   database().prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").run(passwordHash(input.nextPassword), nowMs(), userId)
+  if (!storedHash) {
+    ensureUserIdentity(userId, "password", String(row.username || userId))
+  }
   writeAudit(userId, "auth.password.change", {})
   return getUserById(userId) as AuthUser
 }
@@ -4380,6 +4387,7 @@ function mapAuthUser(row: Row): AuthUser {
     phone: String(row.phone || ""),
     avatarId: avatar.id,
     avatarUrl: avatar.imageUrl,
+    hasPassword: Boolean(String(row.password_hash || "")),
     role: String(row.role || "user") as AuthUser["role"],
     plan: String(row.plan || "free") as AuthUser["plan"],
     status: String(row.status || "active") === "disabled" ? "disabled" : "active",

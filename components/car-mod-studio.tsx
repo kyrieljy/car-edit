@@ -20,13 +20,9 @@ import {
   KeyRound,
   Languages,
   Layers3,
-  LockKeyhole,
-  LogOut,
-  Mail,
   MessageSquare,
   Moon,
   Palette,
-  Phone,
   Plus,
   Save,
   SlidersHorizontal,
@@ -39,7 +35,6 @@ import {
   Film,
   ImagePlus,
   PencilRuler,
-  Receipt,
   Video,
   Zap,
 } from "lucide-react"
@@ -48,21 +43,10 @@ import { AccountAvatar } from "@/components/account-avatar"
 import { ChatMode } from "@/components/chat-mode"
 import { ImageComparisonSlider } from "@/components/image-comparison-slider"
 import { MobileLoadingScreen, MobileStudioApp } from "@/components/mobile/mobile-studio-app"
-import { SubscribeModal } from "@/components/subscribe-modal"
-import {
-  changeAccountPassword,
-  changeAccountPhone,
-  formatAccountQuota,
-  getAccountOrders,
-  listAccountAvatarPresets,
-  sendPhoneChangeCode,
-  updateAccountProfile,
-  type AccountPayload,
-} from "@/lib/account-client"
+import { PcAccountPanel } from "@/components/pc-account-panel"
 import { readProgressResponse } from "@/lib/progress-client"
 import { canvasSafeImageUrl, downloadImageAsset, imageExtensionFromUrl } from "@/lib/client/image-download"
 import type {
-  AccountAvatarPreset,
   AuthUser,
   CatalogResponse,
   EntitlementStatus,
@@ -73,7 +57,6 @@ import type {
   PartAsset,
   PartColorPolicy,
   PartSelectionOptions,
-  PaymentOrder,
   SelectionMap,
 } from "@/lib/types"
 
@@ -1707,10 +1690,6 @@ export function CarModStudio() {
             </button>
             {authUser ? (
               <>
-                <button className="admin-link" onClick={() => setSubscribeOpen(true)}>
-                  <BadgeCheck size={15} />
-                  {t.member}
-                </button>
                 {authUser.role === "admin" && (
                   <a className="admin-link desktop-admin-link" href="/admin">
                     <KeyRound size={15} />
@@ -2495,7 +2474,7 @@ export function CarModStudio() {
             setAuthOpen(false)
           }}
         />
-        <DesktopAccountPanel
+        <PcAccountPanel
           open={profileOpen}
           language={language}
           authUser={authUser}
@@ -2505,483 +2484,17 @@ export function CarModStudio() {
             setProfileOpen(false)
             setAuthOpen(true)
           }}
-          onSubscribe={() => {
-            setProfileOpen(false)
-            setSubscribeOpen(true)
-          }}
           onAccountUpdated={({ user, billing: nextBilling }) => {
             setAuthUser(user)
             setBilling(nextBilling)
           }}
-          onLogout={logout}
-        />
-        <SubscribeModal
-          open={subscribeOpen}
-          language={language}
-          mobileTheme={mobileTheme}
-          billing={billing}
-          onClose={() => setSubscribeOpen(false)}
-          onUpdated={(nextBilling) => {
+          onBillingUpdated={(nextBilling) => {
             setBilling(nextBilling)
-            setSubscribeOpen(false)
           }}
+          onLogout={logout}
         />
       </div>
     </main>
-  )
-}
-
-type AccountPanelMode = "overview" | "profile" | "password" | "phone" | "orders"
-
-function DesktopAccountPanel({
-  open,
-  language,
-  authUser,
-  billing,
-  onClose,
-  onAuth,
-  onSubscribe,
-  onAccountUpdated,
-  onLogout,
-}: {
-  open: boolean
-  language: Language
-  authUser: AuthUser | null
-  billing: EntitlementStatus | null
-  onClose: () => void
-  onAuth: () => void
-  onSubscribe: () => void
-  onAccountUpdated: (payload: AccountPayload) => void
-  onLogout: () => Promise<void>
-}) {
-  const isZh = language === "zh"
-  const [mode, setMode] = useState<AccountPanelMode>("overview")
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [avatarId, setAvatarId] = useState("person_default")
-  const [avatarPresets, setAvatarPresets] = useState<AccountAvatarPreset[]>([])
-  const [currentPassword, setCurrentPassword] = useState("")
-  const [nextPassword, setNextPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [phone, setPhone] = useState("")
-  const [phoneCode, setPhoneCode] = useState("")
-  const [notice, setNotice] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [orders, setOrders] = useState<PaymentOrder[]>([])
-  const [ordersLoading, setOrdersLoading] = useState(false)
-  const [ordersError, setOrdersError] = useState("")
-  const [ordersLoaded, setOrdersLoaded] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setMode("overview")
-    setName(authUser?.name || authUser?.username || "")
-    setEmail(authUser?.email || "")
-    setAvatarId(authUser?.avatarId || "person_default")
-    setPhone(authUser?.phone || "")
-    setCurrentPassword("")
-    setNextPassword("")
-    setConfirmPassword("")
-    setPhoneCode("")
-    setNotice("")
-    setError("")
-    setLoading(false)
-    setOrders([])
-    setOrdersError("")
-  }, [authUser, open])
-
-  useEffect(() => {
-    if (!open) return undefined
-    let cancelled = false
-    listAccountAvatarPresets()
-      .then((payload) => {
-        if (!cancelled) setAvatarPresets(payload.avatars)
-      })
-      .catch(() => {
-        if (!cancelled) setAvatarPresets([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open])
-
-  const copy = {
-    title: isZh ? "个人中心" : "Profile",
-    subtitle: isZh ? "管理账号、会员和额度" : "Manage account, membership and quota",
-    signIn: isZh ? "登录账号" : "Sign in",
-    plan: isZh ? "当前会员" : "Current plan",
-    configQuota: isZh ? "配置额度" : "Config quota",
-    chatQuota: isZh ? "对话额度" : "Chat quota",
-    used: isZh ? "已用" : "used",
-    unlimited: isZh ? "不限" : "Unlimited",
-    upgrade: isZh ? "升级会员" : "Upgrade",
-    profile: isZh ? "资料" : "Profile",
-    avatar: isZh ? "设置头像" : "Set avatar",
-    password: isZh ? "密码" : "Password",
-    phone: isZh ? "手机号" : "Phone",
-    save: isZh ? "保存" : "Save",
-    sendCode: isZh ? "发送验证码" : "Send code",
-    changePhone: isZh ? "确认换绑" : "Update phone",
-    logout: isZh ? "退出登录" : "Sign out",
-    done: isZh ? "已保存" : "Saved",
-    passwordDone: isZh ? "密码已修改" : "Password updated",
-    phoneDone: isZh ? "手机号已更新" : "Phone updated",
-    codeSent: isZh ? "验证码已发送" : "Code sent",
-    mismatch: isZh ? "两次输入的新密码不一致。" : "The new passwords do not match.",
-    orders: isZh ? "我的订单" : "My orders",
-    ordersEmpty: isZh ? "暂无订单记录" : "No orders yet",
-    ordersError: isZh ? "订单加载失败" : "Orders loading failed",
-    orderNo: isZh ? "订单号" : "Order ID",
-    orderPlan: isZh ? "套餐" : "Plan",
-    orderAmount: isZh ? "金额" : "Amount",
-    orderMethod: isZh ? "支付方式" : "Method",
-    orderStatus: isZh ? "状态" : "Status",
-    orderTime: isZh ? "创建时间" : "Created at",
-  }
-
-  const displayName = authUser?.name || authUser?.username || copy.signIn
-  const planName = billing?.plan.label || authUser?.plan || "--"
-  const configRemaining = formatAccountQuota(billing?.configRemaining, copy.unlimited)
-  const chatRemaining = formatAccountQuota(billing?.chatRemainingToday, copy.unlimited)
-  const activeAvatarPresets = avatarPresets.length
-    ? avatarPresets
-    : authUser?.avatarUrl
-      ? [{ id: authUser.avatarId, label: displayName, imageUrl: authUser.avatarUrl, active: true, sortOrder: 0, builtIn: true, createdAt: 0, updatedAt: 0 }]
-      : []
-  const subscriptionEnd = billing?.subscription?.currentPeriodEnd
-    ? new Date(billing.subscription.currentPeriodEnd).toLocaleDateString(isZh ? "zh-CN" : "en-US")
-    : isZh ? "未订阅" : "No active subscription"
-
-  const runAccountAction = async (action: () => Promise<void>) => {
-    setLoading(true)
-    setNotice("")
-    setError("")
-    try {
-      await action()
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : isZh ? "操作失败。" : "Action failed.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const saveProfile = () => runAccountAction(async () => {
-    const payload = await updateAccountProfile({ name, email, avatarId })
-    onAccountUpdated(payload)
-    setNotice(copy.done)
-  })
-
-  const savePassword = () => runAccountAction(async () => {
-    if (nextPassword !== confirmPassword) {
-      setError(copy.mismatch)
-      return
-    }
-    const payload = await changeAccountPassword({ currentPassword, nextPassword })
-    onAccountUpdated(payload)
-    setCurrentPassword("")
-    setNextPassword("")
-    setConfirmPassword("")
-    setNotice(copy.passwordDone)
-  })
-
-  const sendCode = () => runAccountAction(async () => {
-    await sendPhoneChangeCode(phone)
-    setNotice(copy.codeSent)
-  })
-
-  const savePhone = () => runAccountAction(async () => {
-    const payload = await changeAccountPhone({ phone, code: phoneCode })
-    onAccountUpdated(payload)
-    setPhone(payload.user.phone)
-    setPhoneCode("")
-    setNotice(copy.phoneDone)
-  })
-
-  const loadOrders = useCallback(async () => {
-    if (!authUser) return
-    setOrdersLoading(true)
-    setOrdersError("")
-    try {
-      const payload = await getAccountOrders()
-      setOrders(payload.orders)
-    } catch (orderError) {
-      setOrdersError(orderError instanceof Error ? orderError.message : copy.ordersError)
-    } finally {
-      setOrdersLoading(false)
-      setOrdersLoaded(true)
-    }
-  }, [authUser, copy.ordersError])
-
-  useEffect(() => {
-    if (!open || !authUser) return undefined
-    if (mode !== "orders") return undefined
-    if (ordersLoaded || ordersLoading) return undefined
-    void loadOrders()
-    return undefined
-  }, [authUser, mode, open, ordersLoaded, ordersLoading, loadOrders])
-
-  const orderStatusLabel = (status: PaymentOrder["status"]) => {
-    const map: Record<PaymentOrder["status"], string> = isZh
-      ? { pending: "待支付", paid: "已支付", failed: "失败", refunded: "已退款" }
-      : { pending: "Pending", paid: "Paid", failed: "Failed", refunded: "Refunded" }
-    return map[status] || status
-  }
-
-  const orderMethodLabel = (method: PaymentOrder["method"]) => {
-    return method === "wechat" ? (isZh ? "微信支付" : "WeChat Pay") : (isZh ? "支付宝" : "Alipay")
-  }
-
-  const formatOrderAmount = (cents: number) => {
-    return `¥${(cents / 100).toFixed(2)}`
-  }
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="account-panel-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-        >
-          <motion.section
-            className="account-panel"
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 14, scale: 0.98 }}
-            transition={{ duration: 0.22 }}
-            onClick={(event) => event.stopPropagation()}
-            aria-label={copy.title}
-          >
-            <header className="account-panel-head">
-              <div>
-                <span>{copy.subtitle}</span>
-                <h2>{copy.title}</h2>
-              </div>
-              <button type="button" onClick={onClose} aria-label="Close">
-                <X size={18} />
-              </button>
-            </header>
-
-            {authUser ? (
-              <>
-                <section className="account-panel-hero">
-                  <button type="button" className="account-avatar-trigger" onClick={() => setMode("profile")} aria-label={copy.avatar}>
-                    <AccountAvatar user={authUser} className="account-avatar" />
-                    <span>
-                      <Camera size={13} />
-                    </span>
-                  </button>
-                  <div>
-                    <strong>{displayName}</strong>
-                    <span>{authUser.phone || authUser.email || authUser.username}</span>
-                  </div>
-                  <button type="button" onClick={onSubscribe}>
-                    <BadgeCheck size={16} />
-                    {copy.upgrade}
-                  </button>
-                </section>
-
-                <section className="account-quota-grid">
-                  <article>
-                    <span>{copy.plan}</span>
-                    <strong>{planName}</strong>
-                    <small>{subscriptionEnd}</small>
-                  </article>
-                  <article>
-                    <span>{copy.configQuota}</span>
-                    <strong>{configRemaining}</strong>
-                    <small>{billing ? `${billing.configUsed} ${copy.used}` : "--"}</small>
-                  </article>
-                  <article>
-                    <span>{copy.chatQuota}</span>
-                    <strong>{chatRemaining}</strong>
-                    <small>{billing ? `${billing.chatUsedToday} ${copy.used}` : "--"}</small>
-                  </article>
-                </section>
-
-                <nav className="account-panel-tabs" aria-label={copy.title}>
-                  <button type="button" className={mode === "overview" ? "active" : ""} onClick={() => setMode("overview")}>
-                    <UserRound size={15} />
-                    {isZh ? "概览" : "Overview"}
-                  </button>
-                  <button type="button" className={mode === "profile" ? "active" : ""} onClick={() => setMode("profile")}>
-                    <Mail size={15} />
-                    {copy.profile}
-                  </button>
-                  <button type="button" className={mode === "password" ? "active" : ""} onClick={() => setMode("password")}>
-                    <LockKeyhole size={15} />
-                    {copy.password}
-                  </button>
-                  <button type="button" className={mode === "phone" ? "active" : ""} onClick={() => setMode("phone")}>
-                    <Phone size={15} />
-                    {copy.phone}
-                  </button>
-                  <button type="button" className={mode === "orders" ? "active" : ""} onClick={() => setMode("orders")}>
-                    <Receipt size={15} />
-                    {copy.orders}
-                  </button>
-                </nav>
-
-                <section className="account-panel-body">
-                  {mode === "overview" && (
-                    <div className="account-action-grid">
-                      <button type="button" onClick={() => setMode("profile")}>
-                        <Camera size={16} />
-                        {copy.avatar}
-                      </button>
-                      <button type="button" onClick={() => setMode("orders")}>
-                        <Receipt size={16} />
-                        {copy.orders}
-                      </button>
-                      <button type="button" onClick={onSubscribe}>
-                        <BadgeCheck size={16} />
-                        {copy.upgrade}
-                      </button>
-                      <button type="button" className="danger" onClick={() => void onLogout()}>
-                        <LogOut size={16} />
-                        {copy.logout}
-                      </button>
-                    </div>
-                  )}
-
-                  {mode === "profile" && (
-                    <form className="account-form" onSubmit={(event) => {
-                      event.preventDefault()
-                      void saveProfile()
-                    }}>
-                      <fieldset className="account-avatar-picker">
-                        <legend>{isZh ? "头像" : "Avatar"}</legend>
-                        <div>
-                          {activeAvatarPresets.map((preset) => (
-                            <button
-                              type="button"
-                              key={preset.id}
-                              className={avatarId === preset.id ? "selected" : ""}
-                              onClick={() => setAvatarId(preset.id)}
-                              aria-pressed={avatarId === preset.id}
-                              aria-label={preset.label}
-                            >
-                              <AccountAvatar imageUrl={preset.imageUrl} label={preset.label} />
-                            </button>
-                          ))}
-                        </div>
-                      </fieldset>
-                      <label>
-                        <span>{isZh ? "昵称" : "Display name"}</span>
-                        <input value={name} onChange={(event) => setName(event.target.value)} />
-                      </label>
-                      <label>
-                        <span>{isZh ? "邮箱" : "Email"}</span>
-                        <input value={email} onChange={(event) => setEmail(event.target.value)} />
-                      </label>
-                      <button type="submit" disabled={loading}>
-                        <Save size={16} />
-                        {copy.save}
-                      </button>
-                    </form>
-                  )}
-
-                  {mode === "password" && (
-                    <form className="account-form" onSubmit={(event) => {
-                      event.preventDefault()
-                      void savePassword()
-                    }}>
-                      <label>
-                        <span>{isZh ? "当前密码" : "Current password"}</span>
-                        <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
-                      </label>
-                      <label>
-                        <span>{isZh ? "新密码" : "New password"}</span>
-                        <input type="password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} />
-                      </label>
-                      <label>
-                        <span>{isZh ? "确认新密码" : "Confirm new password"}</span>
-                        <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
-                      </label>
-                      <button type="submit" disabled={loading}>
-                        <Save size={16} />
-                        {copy.save}
-                      </button>
-                    </form>
-                  )}
-
-                  {mode === "phone" && (
-                    <form className="account-form" onSubmit={(event) => {
-                      event.preventDefault()
-                      void savePhone()
-                    }}>
-                      <label>
-                        <span>{isZh ? "新手机号" : "New phone"}</span>
-                        <input value={phone} onChange={(event) => setPhone(event.target.value)} />
-                      </label>
-                      <label>
-                        <span>{isZh ? "验证码" : "Code"}</span>
-                        <div className="account-code-row">
-                          <input value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} />
-                          <button type="button" onClick={() => void sendCode()} disabled={loading}>
-                            {copy.sendCode}
-                          </button>
-                        </div>
-                      </label>
-                      <button type="submit" disabled={loading}>
-                        <Save size={16} />
-                        {copy.changePhone}
-                      </button>
-                    </form>
-                  )}
-
-                  {mode === "orders" && (
-                    <div className="account-orders">
-                      {ordersError && <p className="account-panel-message error">{ordersError}</p>}
-                      {ordersLoading && !orders.length ? (
-                        <p className="account-orders-empty">{isZh ? "正在加载订单..." : "Loading orders..."}</p>
-                      ) : orders.length ? (
-                        <div className="account-orders-table">
-                          <div className="account-orders-thead">
-                            <span>{copy.orderNo}</span>
-                            <span>{copy.orderPlan}</span>
-                            <span>{copy.orderAmount}</span>
-                            <span>{copy.orderMethod}</span>
-                            <span>{copy.orderStatus}</span>
-                            <span>{copy.orderTime}</span>
-                          </div>
-                          {orders.map((order) => (
-                            <div className="account-orders-trow" key={order.id}>
-                              <span className="account-orders-id" title={order.id}>{order.id.slice(0, 12)}</span>
-                              <span>{order.planId}</span>
-                              <span>{formatOrderAmount(order.amountCents)}</span>
-                              <span>{orderMethodLabel(order.method)}</span>
-                              <span className={`account-orders-status ${order.status}`}>{orderStatusLabel(order.status)}</span>
-                              <span>{new Date(order.createdAt).toLocaleString(isZh ? "zh-CN" : "en-US")}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="account-orders-empty">{copy.ordersEmpty}</p>
-                      )}
-                    </div>
-                  )}
-                </section>
-              </>
-            ) : (
-              <section className="account-panel-empty">
-                <UserRound size={30} />
-                <strong>{isZh ? "尚未登录" : "Not signed in"}</strong>
-                <button type="button" onClick={onAuth}>
-                  <KeyRound size={16} />
-                  {copy.signIn}
-                </button>
-              </section>
-            )}
-
-            {(notice || error) && <p className={error ? "account-panel-message error" : "account-panel-message"}>{error || notice}</p>}
-          </motion.section>
-        </motion.div>
-      )}
-    </AnimatePresence>
   )
 }
 

@@ -320,6 +320,7 @@ http://127.0.0.1:3000  （开发环境）
       "phone": "13800138000",
       "avatarId": "",
       "avatarUrl": "",
+      "hasPassword": true,
       "role": "admin",
       "plan": "internal",
       "status": "active",
@@ -352,7 +353,7 @@ http://127.0.0.1:3000  （开发环境）
 
   | 字段 | 类型 | 描述 |
   |------|------|------|
-  | user | AuthUser or null | 当前用户信息，未登录时为 null |
+  | user | AuthUser or null | 当前用户信息，未登录时为 null。AuthUser 包含 `hasPassword: boolean` 字段，表示该用户是否已设置密码（手机号注册用户初始为 false） |
   | billing | EntitlementStatus or null | 当前计费状态，未登录时为 null |
 
 ---
@@ -396,12 +397,12 @@ http://127.0.0.1:3000  （开发环境）
 #### 修改密码
 
 - **路径**：`POST /api/auth/password`
-- **描述**：验证当前密码后修改为新密码。
+- **描述**：验证当前密码后修改为新密码。当用户未设置密码时（`hasPassword` 为 false，如手机号一键注册用户），`currentPassword` 可传空字符串，直接设置新密码。 (已更新 2026-07-31)
 - **请求参数**：
 
   | 参数名 | 类型 | 必填 | 描述 |
   |--------|------|------|------|
-  | currentPassword | string | 是 | 当前密码 |
+  | currentPassword | string | 条件必填 | 当前密码。已设置密码时必填，未设置密码时可传空字符串 |
   | nextPassword | string | 是 | 新密码 |
 
 - **请求示例**：
@@ -409,6 +410,15 @@ http://127.0.0.1:3000  （开发环境）
   ```json
   {
     "currentPassword": "oldpassword",
+    "nextPassword": "newpassword"
+  }
+  ```
+
+  未设置密码时首次设置密码：
+
+  ```json
+  {
+    "currentPassword": "",
     "nextPassword": "newpassword"
   }
   ```
@@ -3031,5 +3041,5 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
-> 最后更新时间：2026-07-30
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002
+> 最后更新时间：2026-07-31
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002、DESIGN-20260731-001

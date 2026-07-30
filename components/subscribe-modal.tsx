@@ -4,10 +4,18 @@ import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { Check, ChevronLeft, CreditCard, X } from "lucide-react"
-import { ACCOUNT_MESSAGES_REFRESH_EVENT } from "@/lib/account-events"
+import { completeSubscriptionCheckout } from "@/lib/subscription-checkout"
+import {
+  annualPriceCents,
+  formatPlanPrice,
+  planDisplayName,
+  planDisplayNameMap,
+  planFeatures,
+  sortPlans,
+  type Language,
+} from "@/lib/subscription-display"
 import type { EntitlementStatus, MembershipPlan, MembershipPlanId } from "@/lib/types"
 
-type Language = "en" | "zh"
 type BillingCycle = "monthly" | "yearly"
 type MobileTheme = "dark" | "light"
 
@@ -20,19 +28,6 @@ type SubscribeModalProps = {
   billing?: EntitlementStatus | null
   onClose: () => void
   onUpdated: (billing: EntitlementStatus) => void
-}
-
-const displayName: Record<Language, Record<MembershipPlanId, string>> = {
-  en: {
-    free: "Starter",
-    pro: "Pro",
-    max: "Premium",
-  },
-  zh: {
-    free: "基础版",
-    pro: "Pro 会员",
-    max: "Max 会员",
-  },
 }
 
 const subscribeCopy = {
@@ -176,39 +171,7 @@ const mobileCopy = {
   }
 >
 
-function planDisplayName(plan: MembershipPlan, language: Language) {
-  const defaultLabels = new Set(["Free", "Pro", "Max", "Starter", "Premium", "基础版", "Pro 会员", "Max 会员"])
-  if (plan.label && !defaultLabels.has(plan.label)) return plan.label
-  return displayName[language][plan.id] || plan.label || plan.id
-}
 
-function formatPlanPrice(priceCents: number) {
-  return (priceCents / 100).toLocaleString("zh-CN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })
-}
-
-function planFeatures(plan: MembershipPlan, language: Language) {
-  if (language === "zh") {
-    return [
-      plan.configUnlimited ? "配置模式不限次数" : `配置模式 ${plan.configLimit} 次`,
-      plan.chatEnabled ? (plan.chatUnlimited ? "对话模式不限次数" : `对话模式每日 ${plan.chatDailyLimit} 次`) : "对话模式暂不开放",
-      `月费 ¥${formatPlanPrice(plan.priceCents)}`,
-      "微信 / 支付宝支付",
-    ]
-  }
-  return [
-    plan.configUnlimited ? "Unlimited config mode renders" : `${plan.configLimit} config mode renders`,
-    plan.chatEnabled ? (plan.chatUnlimited ? "Unlimited chat generations" : `${plan.chatDailyLimit} chat generations per day`) : "Chat mode locked",
-    `Monthly price ¥${formatPlanPrice(plan.priceCents)}`,
-    "WeChat / Alipay checkout",
-  ]
-}
-
-function annualPriceCents(plan: MembershipPlan) {
-  return plan.priceCents === 0 ? 0 : plan.priceCents * 10
-}
 
 export function SubscribeModal({ open, language, mobileTheme = "dark", billing, onClose, onUpdated }: SubscribeModalProps) {
   const [plans, setPlans] = useState<MembershipPlan[]>([])
@@ -235,10 +198,7 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
       .catch(() => setNotice(t.planLoadFailed))
   }, [billing?.plan.id, open, t.planLoadFailed])
 
-  const visiblePlans = useMemo(() => {
-    const order: MembershipPlanId[] = ["free", "pro", "max"]
-    return [...plans].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
-  }, [plans])
+  const visiblePlans = useMemo(() => sortPlans(plans), [plans])
 
   const displayPlans = useMemo(() => {
     if (visiblePlans.length > 0) return visiblePlans
@@ -263,22 +223,12 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
     setLoading(true)
     setNotice("")
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: plan.id, method: selectedMethod, cycle: billingCycle }),
+      const nextBilling = await completeSubscriptionCheckout(plan, selectedMethod, billingCycle, {
+        checkoutFailed: t.checkoutFailed,
+        mockPaymentFailed: t.mockPaymentFailed,
+        subscriptionFailed: t.subscriptionFailed,
       })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body.error || t.checkoutFailed)
-      const paid = await fetch("/api/billing/mock-paid", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: body.order.id }),
-      })
-      const paidBody = await paid.json()
-      if (!paid.ok) throw new Error(paidBody.error || t.mockPaymentFailed)
-      onUpdated(paidBody.billing)
-      window.dispatchEvent(new Event(ACCOUNT_MESSAGES_REFRESH_EVENT))
+      onUpdated(nextBilling)
       setCheckoutPlan(null)
       onClose()
     } catch (error) {
@@ -521,7 +471,7 @@ export function SubscribeModal({ open, language, mobileTheme = "dark", billing, 
             <div>
               <span>{t.selectedPlan}</span>
               <strong>
-                {displayName[language][checkoutPlan.id]} ¥{formatPlanPrice(checkoutPlan.priceCents)}
+                {planDisplayNameMap[language][checkoutPlan.id]} ¥{formatPlanPrice(checkoutPlan.priceCents)}
                 <small>{t.month}</small>
               </strong>
             </div>

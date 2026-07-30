@@ -471,6 +471,7 @@ export type AuthUser = {
   phone: string
   avatarId: string
   avatarUrl: string
+  hasPassword: boolean
   role: UserRole
   plan: MembershipPlanId | "internal" | "prototype"
   status: UserStatus
