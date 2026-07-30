@@ -4,6 +4,20 @@
 
 ## 2026-07-30
 
+### 移除管理员生成记录手动重试功能 (DESIGN-20260730-002)
+
+#### 修改
+- [修改] `components/admin/generation-detail.tsx` 移除重试按钮、重试状态管理、重试次数/父任务/子任务展示、RetryChildrenTable 组件 (关联方案ID: DESIGN-20260730-002)
+- [修改] `components/admin-console.tsx` 移除失败样本列表中重试次数的文本展示 (关联方案ID: DESIGN-20260730-002)
+- [修改] `lib/types.ts` 从 `GenerationDetailResponse` 移除 `retryCount`、`retryParentId`、`retryChildren` 字段，从 `AdminGenerationFailure` 移除 `retryCount` 字段 (关联方案ID: DESIGN-20260730-002)
+- [修改] `lib/server/db.ts` `getGenerationDetail` 函数移除重试子任务查询逻辑及返回字段 (关联方案ID: DESIGN-20260730-002)
+
+#### 删除
+- [删除] `app/api/admin/generations/[id]/retry/route.ts` 删除管理员手动重试 API 接口 (关联方案ID: DESIGN-20260730-002)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 移除重试生成任务接口文档，更新详情/列表接口响应示例移除重试相关字段 (关联方案ID: DESIGN-20260730-002)
+
 ### 运营需求剩余功能补全 (DESIGN-20260730-001)
 
 #### 新增
@@ -176,8 +190,8 @@
 ### 文档
 - [文档] `docs/CHANGELOG.md` 同步更新本次变更 (关联方案ID: DESIGN-20260727-001)
 
-> 最后更新时间：2026-07-28
-> 关联方案ID：DESIGN-20260728-001
+> 最后更新时间：2026-07-30
+> 关联方案ID：DESIGN-20260730-002
 
 ## v0.1.5 - 2026-07-26
 

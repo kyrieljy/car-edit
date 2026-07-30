@@ -1006,7 +1006,6 @@ http://127.0.0.1:3000  （开发环境）
         "promptSummary": "...",
         "promptHidden": "...",
         "resultCheck": null,
-        "retryCount": 0,
         "failureReason": "",
         "costCents": 10,
         "badCaseTags": [],
@@ -1139,7 +1138,6 @@ http://127.0.0.1:3000  （开发环境）
     "promptSummary": "...",
     "promptHidden": "...",
     "resultCheck": { "passed": true, "score": 85, "..." : "..." },
-    "retryCount": 0,
     "failureReason": "",
     "costCents": 10,
     "badCaseTags": [],
@@ -1742,7 +1740,6 @@ http://127.0.0.1:3000  （开发环境）
         "promptSummary": "...",
         "costCents": 10,
         "durationMs": 5200,
-        "retryCount": 0,
         "failureReason": "",
         "createdAt": 1784980000000
       }
@@ -1821,20 +1818,11 @@ http://127.0.0.1:3000  （开发环境）
       { "step": "image_generation", "message": "图片生成中...", "elapsedMs": 5200, "completedAt": "2026-07-29T10:00:05.200Z" }
     ],
     "resultCheck": { "passed": true, "score": 85, "...": "..." },
-    "retryCount": 0,
     "failureReason": "",
     "costCents": 10,
     "badCaseTags": [],
     "usageUnits": 1,
-    "createdAt": 1784980000000,
-    "retryChildren": [
-      {
-        "id": "gen_yyyyy",
-        "status": "succeeded",
-        "retryCount": 1,
-        "createdAt": 1784980100000
-      }
-    ]
+    "createdAt": 1784980000000
   }
   ```
 
@@ -1845,44 +1833,10 @@ http://127.0.0.1:3000  （开发环境）
   | progressSteps | ProgressStep[] | 解析 progressJson 后的时间线步骤列表 |
   | vehicleInfo | object | 车辆识别信息 |
   | resultCheck | object or null | 结果校验结果 |
-  | retryChildren | GenerationRecordItem[] | 该记录的所有重试子记录 |
 
 - **错误码**：401（未认证）、403（非管理员）、404（记录不存在）
 
 - **关联数据表**：`generation_jobs`
-
----
-
-#### 重试生成任务
-
-- **路径**：`POST /api/admin/generations/[id]/retry`
-- **描述**：使用原始任务参数快速重试一个生成任务。创建新的生成任务并将 `retryCount` 递增，同时写入审计日志。
-- **路径参数**：
-
-  | 参数名 | 类型 | 必填 | 描述 |
-  |--------|------|------|------|
-  | id | string | 是 | 原始生成记录 ID |
-
-- **请求参数**：无（自动从原记录提取任务参数）
-- **响应格式**：
-
-  ```json
-  {
-    "ok": true,
-    "jobId": "gen_yyyyy"
-  }
-  ```
-
-- **响应字段说明**：
-
-  | 字段 | 类型 | 描述 |
-  |------|------|------|
-  | ok | boolean | 是否发起成功 |
-  | jobId | string | 新创建的生成任务 ID |
-
-- **错误码**：401（未认证）、403（非管理员）、404（原始记录不存在）
-
-- **关联数据表**：`generation_jobs`、`audit_logs`
 
 ---
 
@@ -3078,4 +3032,4 @@ http://127.0.0.1:3000  （开发环境）
 ---
 
 > 最后更新时间：2026-07-30
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002

@@ -581,7 +581,6 @@ export type AdminGenerationFailure = {
   provider: ProviderId
   failureReason: string
   badCaseTags: string[]
-  retryCount: number
   costCents: number
   createdAt: number
 }
@@ -784,14 +783,11 @@ export type GenerationDetailResponse = {
   resultCheck: unknown
   vehicleInfo: unknown
   progressSteps: GenerationProgressStepInfo[]
-  retryCount: number
   failureReason: string
   costCents: number
   usageUnits: number
   createdAt: number
   completedAt: number | null
-  retryParentId: string | null
-  retryChildren: GenerationRecordItem[]
 }
 
 export type ActivitySeriesPoint = {

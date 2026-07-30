@@ -3331,7 +3331,6 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
                 <td className="admin-failure-meta-cell">
                   <div className="admin-failure-meta">
                     {renderAdminTags(row.badCaseTags, "无标签", 2)}
-                    <span>重试 {row.retryCount}</span>
                     <span>成本 {formatAdminMoney(row.costCents)}</span>
                     <span className="admin-id-chip" title={row.generationId}>
                       {row.generationId}

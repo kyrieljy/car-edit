@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  RefreshCw,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -13,7 +12,6 @@ import {
 import type {
   GenerationDetailResponse,
   GenerationProgressStepInfo,
-  GenerationRecordItem,
 } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -268,65 +266,12 @@ function ResultCheckCard({ data }: { data: unknown }) {
 }
 
 // ---------------------------------------------------------------------------
-// Retry Children Table
-// ---------------------------------------------------------------------------
-
-function RetryChildrenTable({ children }: { children: GenerationRecordItem[] }) {
-  if (children.length === 0) return null;
-
-  return (
-    <div className="analytics-detail-card">
-      <h4>重试子任务 ({children.length})</h4>
-      <table className="analytics-table">
-        <thead>
-          <tr>
-            <th>任务 ID</th>
-            <th>用户</th>
-            <th>状态</th>
-            <th>提供商</th>
-            <th>耗时</th>
-            <th>费用</th>
-            <th>创建时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          {children.map((child) => (
-            <tr key={child.id}>
-              <td className="analytics-cell-id">{child.id.slice(0, 8)}...</td>
-              <td>{child.username}</td>
-              <td>
-                <span
-                  className={
-                    child.status === 'succeeded'
-                      ? 'analytics-badge-success'
-                      : child.status === 'failed'
-                        ? 'analytics-badge-failure'
-                        : 'analytics-badge-pending'
-                  }
-                >
-                  {statusLabel(child.status)}
-                </span>
-              </td>
-              <td>{child.provider}</td>
-              <td>{formatDuration(child.durationMs)}</td>
-              <td>{formatCost(child.costCents)}</td>
-              <td>{formatTimestamp(child.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
 export default function GenerationDetail({ jobId, onBack }: GenerationDetailProps) {
   const [data, setData] = useState<GenerationDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // ---- fetch job detail ----
@@ -352,23 +297,6 @@ export default function GenerationDetail({ jobId, onBack }: GenerationDetailProp
       }
     }
   }, [jobId]);
-
-  // ---- retry handler ----
-  const handleRetry = useCallback(async () => {
-    if (retrying) return;
-    setRetrying(true);
-    try {
-      const res = await fetch(`/api/admin/generations/${jobId}/retry`, {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await fetchDetail();
-    } catch {
-      // silently fail
-    } finally {
-      setRetrying(false);
-    }
-  }, [jobId, retrying, fetchDetail]);
 
   // ---- effect ----
   useEffect(() => {
@@ -469,16 +397,6 @@ export default function GenerationDetail({ jobId, onBack }: GenerationDetailProp
             <span className="analytics-detail-key">用量单位</span>
             <span>{data.usageUnits}</span>
           </div>
-          <div className="analytics-detail-row">
-            <span className="analytics-detail-key">重试次数</span>
-            <span>{data.retryCount}</span>
-          </div>
-          {data.retryParentId && (
-            <div className="analytics-detail-row">
-              <span className="analytics-detail-key">父重试任务</span>
-              <span>{data.retryParentId}</span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -553,26 +471,6 @@ export default function GenerationDetail({ jobId, onBack }: GenerationDetailProp
           <AlertCircle size={16} />
           <span>失败原因: {data.failureReason}</span>
         </div>
-      )}
-
-      {/* ---- Retry Button ---- */}
-      <div className="analytics-detail-actions">
-        <button
-          className="analytics-retry-btn"
-          type="button"
-          disabled={retrying}
-          onClick={handleRetry}
-        >
-          <RefreshCw size={14} />
-          {retrying ? '重试中...' : '重试任务'}
-        </button>
-      </div>
-
-      {/* ---- Retry Children ---- */}
-      {data.retryChildren && data.retryChildren.length > 0 && (
-        <RetryChildrenTable>
-          {data.retryChildren}
-        </RetryChildrenTable>
       )}
     </div>
   );

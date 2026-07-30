@@ -4674,14 +4674,11 @@ export function getGenerationDetail(jobId: string): {
   resultCheck: unknown
   vehicleInfo: unknown
   progressSteps: Array<{ step: string; label: string; status: string; timestamp: number | null; durationMs: number | null }>
-  retryCount: number
   failureReason: string
   costCents: number
   usageUnits: number
   createdAt: number
   completedAt: number | null
-  retryParentId: string | null
-  retryChildren: Array<{ id: string; userId: string; username: string; mode: string; status: string; provider: string; displayVehicleModel: string; costCents: number; durationMs: number | null; createdAt: number; completedAt: number | null; failureReason: string }>
 } | null {
   const row = database().prepare(`
     SELECT g.*, u.username AS username, vu.url AS source_image_url
@@ -4723,36 +4720,6 @@ export function getGenerationDetail(jobId: string): {
   const createdAt = Number(row.created_at ?? 0)
   const completedAt = row.completed_at !== undefined && row.completed_at !== null && Number(row.completed_at) > 0 ? Number(row.completed_at) : null
 
-  // Find retry children (jobs with retry_count > 0 that were created after this job by same user with same mode)
-  // Since there's no direct parent_id, we use retry_count and timing as a heuristic
-  const retryChildrenRows = database().prepare(`
-    SELECT g.id AS id, g.user_id AS user_id, u.username AS username,
-      g.mode AS mode, g.status AS status, g.provider AS provider,
-      g.display_vehicle_model AS display_vehicle_model,
-      g.cost_cents AS cost_cents,
-      CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END AS duration_ms,
-      g.created_at AS created_at, g.failure_reason AS failure_reason
-    FROM generation_jobs g
-    LEFT JOIN users u ON u.id = g.user_id
-    WHERE g.user_id = ? AND g.retry_count > 0 AND g.created_at > ?
-    ORDER BY g.created_at ASC
-    LIMIT 10
-  `).all(String(row.user_id ?? ""), createdAt) as Row[]
-  const retryChildren = retryChildrenRows.map((r) => ({
-    id: String(r.id),
-    userId: String(r.user_id ?? ""),
-    username: String(r.username ?? ""),
-    mode: String(r.mode ?? "config"),
-    status: String(r.status ?? ""),
-    provider: String(r.provider ?? ""),
-    displayVehicleModel: String(r.display_vehicle_model ?? ""),
-    costCents: Number(r.cost_cents ?? 0),
-    durationMs: r.duration_ms !== null && r.duration_ms !== undefined ? Number(r.duration_ms) : null,
-    createdAt: Number(r.created_at ?? 0),
-    completedAt: null,
-    failureReason: String(r.failure_reason ?? ""),
-  }))
-
   return {
     id: String(row.id),
     userId: String(row.user_id ?? ""),
@@ -4769,14 +4736,11 @@ export function getGenerationDetail(jobId: string): {
     resultCheck,
     vehicleInfo,
     progressSteps,
-    retryCount: Number(row.retry_count ?? 0),
     failureReason: String(row.failure_reason ?? ""),
     costCents: Number(row.cost_cents ?? 0),
     usageUnits: Number(row.usage_units ?? 0),
     createdAt,
     completedAt,
-    retryParentId: null,
-    retryChildren,
   }
 }
 
