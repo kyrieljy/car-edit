@@ -5,10 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  AlertCircle,
   ArrowDownToLine,
   BadgeCheck,
-  Bell,
   Car,
+  Check,
   CheckCheck,
   ChevronDown,
   ChevronLeft,
@@ -26,9 +27,7 @@ import {
   Palette,
   Pencil,
   Plus,
-  Receipt,
   Search,
-  Save,
   SlidersHorizontal,
   Sparkles,
   Upload,
@@ -52,7 +51,6 @@ import { ACCOUNT_MESSAGES_REFRESH_EVENT } from "@/lib/account-events"
 import {
   changeAccountPassword,
   changeAccountPhone,
-  formatAccountQuota,
   getAccountOrders,
   listAccountAvatarPresets,
   listAccountMessages,
@@ -2747,11 +2745,9 @@ function MobileProfilePage({
   }, [open])
 
   const displayName = authUser ? authUser.name || authUser.username : isZh ? "未登录" : "Guest"
-  const accountLine = authUser?.phone || authUser?.email || authUser?.username || (isZh ? "登录后管理你的账号" : "Sign in to manage your account")
-  const planName = billing?.plan.label || authUser?.plan || (isZh ? "游客" : "Guest")
-  const unlimitedText = isZh ? "不限" : "Unlimited"
-  const configBalance = formatAccountQuota(billing?.configRemaining, unlimitedText)
-  const chatBalance = formatAccountQuota(billing?.chatRemainingToday, unlimitedText)
+  const planIdDisplay = billing?.plan.id || authUser?.plan || (isZh ? "游客" : "guest")
+  const configBalance = billing ? formatMobileProfileBalance(billing.configRemaining, isZh ? "不限" : "Unlimited") : "--"
+  const chatBalance = billing ? formatMobileProfileBalance(billing.chatRemainingToday, isZh ? "不限" : "Unlimited") : "--"
   const activeAvatarPresets = avatarPresets.length
     ? avatarPresets
     : authUser?.avatarUrl
@@ -2914,8 +2910,49 @@ function MobileProfilePage({
         ? (isZh ? "修改密码" : "Change password")
         : (isZh ? "个人中心" : "Profile")
 
+  const profileSectionSubtitle = section === "profile"
+    ? (isZh ? "个性化你的账号资料和头像" : "Personalize your profile and avatar")
+    : section === "phone"
+      ? (isZh ? "输入新手机号并完成验证" : "Enter a new phone number and verify")
+      : section === "password"
+        ? (isZh ? "设置一个新的登录密码" : "Set a new login password")
+        : ""
+
+  const renderInput = (
+    value: string,
+    onChange: (value: string) => void,
+    placeholder: string,
+    ariaLabel: string,
+    type?: string,
+  ) => (
+    <div className="mobile-profile-input-wrap">
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+      />
+      {value && (
+        <button
+          type="button"
+          className="mobile-profile-clear-btn"
+          onClick={() => onChange("")}
+          aria-label={isZh ? "清除" : "Clear"}
+        >
+          <X size={11} />
+        </button>
+      )}
+    </div>
+  )
+
   const renderStatus = () => (
-    (status || error) ? <p className={error ? "mobile-profile-status error" : "mobile-profile-status"}>{error || status}</p> : null
+    (status || error) ? (
+      <p className={error ? "mobile-profile-status error" : "mobile-profile-status"}>
+        {error ? <AlertCircle size={14} /> : <Check size={14} />}
+        {error || status}
+      </p>
+    ) : null
   )
 
   const renderProfileEditorShell = (children: ReactNode | null) => (
@@ -2937,9 +2974,11 @@ function MobileProfilePage({
             </button>
             <strong>{profileSectionTitle}</strong>
           </header>
+          {profileSectionSubtitle && (
+            <p className="mobile-profile-subtitle">{profileSectionSubtitle}</p>
+          )}
           <section className="mobile-profile-edit-body">
             {children}
-            {renderStatus()}
           </section>
         </motion.div>
       )}
@@ -3093,8 +3132,7 @@ function MobileProfilePage({
           event.preventDefault()
           void saveProfile()
         }}>
-          <fieldset className="mobile-avatar-picker">
-            <legend>{isZh ? "头像" : "Avatar"}</legend>
+          <fieldset className="mobile-avatar-picker" aria-label={isZh ? "选择头像" : "Choose avatar"}>
             <div>
               {activeAvatarPresets.map((preset) => (
                 <button
@@ -3110,16 +3148,10 @@ function MobileProfilePage({
               ))}
             </div>
           </fieldset>
-          <label>
-            <span>{isZh ? "昵称" : "Display name"}</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label>
-            <span>{isZh ? "邮箱" : "Email"}</span>
-            <input value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          <button type="submit" disabled={loading}>
-            <Save size={17} />
+          {renderInput(name, setName, isZh ? "昵称" : "Display name", isZh ? "昵称" : "Display name")}
+          {renderInput(email, setEmail, isZh ? "邮箱" : "Email", isZh ? "邮箱" : "Email")}
+          {renderStatus()}
+          <button type="submit" className="mobile-profile-submit-btn" disabled={loading}>
             {isZh ? "保存资料" : "Save profile"}
           </button>
         </form>
@@ -3132,20 +3164,11 @@ function MobileProfilePage({
           event.preventDefault()
           void savePassword()
         }}>
-          <label>
-            <span>{isZh ? "当前密码" : "Current password"}</span>
-            <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
-          </label>
-          <label>
-            <span>{isZh ? "新密码" : "New password"}</span>
-            <input type="password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} />
-          </label>
-          <label>
-            <span>{isZh ? "确认新密码" : "Confirm new password"}</span>
-            <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
-          </label>
-          <button type="submit" disabled={loading}>
-            <Save size={17} />
+          {renderInput(currentPassword, setCurrentPassword, isZh ? "当前密码" : "Current password", isZh ? "当前密码" : "Current password", "password")}
+          {renderInput(nextPassword, setNextPassword, isZh ? "新密码" : "New password", isZh ? "新密码" : "New password", "password")}
+          {renderInput(confirmPassword, setConfirmPassword, isZh ? "确认新密码" : "Confirm new password", isZh ? "确认新密码" : "Confirm new password", "password")}
+          {renderStatus()}
+          <button type="submit" className="mobile-profile-submit-btn" disabled={loading}>
             {isZh ? "修改密码" : "Change password"}
           </button>
         </form>
@@ -3157,21 +3180,25 @@ function MobileProfilePage({
         event.preventDefault()
         void savePhone()
       }}>
-        <label>
-          <span>{isZh ? "新手机号" : "New phone"}</span>
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} />
-        </label>
-        <label>
-          <span>{isZh ? "验证码" : "Code"}</span>
-          <div className="mobile-profile-code-row">
-            <input value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} />
-            <button type="button" onClick={() => void sendCode()} disabled={loading}>
-              {isZh ? "发送" : "Send"}
-            </button>
-          </div>
-        </label>
-        <button type="submit" disabled={loading}>
-          <Save size={17} />
+        {renderInput(phone, setPhone, isZh ? "新手机号" : "New phone", isZh ? "新手机号" : "New phone")}
+        <div className="mobile-profile-code-wrap">
+          <input
+            value={phoneCode}
+            onChange={(event) => setPhoneCode(event.target.value)}
+            placeholder={isZh ? "验证码" : "Code"}
+            aria-label={isZh ? "验证码" : "Code"}
+          />
+          <button
+            type="button"
+            className="mobile-profile-code-send"
+            onClick={() => void sendCode()}
+            disabled={loading}
+          >
+            {isZh ? "发送验证码" : "Send code"}
+          </button>
+        </div>
+        {renderStatus()}
+        <button type="submit" className="mobile-profile-submit-btn" disabled={loading}>
           {isZh ? "确认换绑" : "Update phone"}
         </button>
       </form>
@@ -3184,7 +3211,6 @@ function MobileProfilePage({
         <motion.section
           className="mobile-profile-page"
           data-mobile-theme={mobileTheme}
-          data-has-messages={authUser ? "true" : "false"}
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
@@ -3193,111 +3219,81 @@ function MobileProfilePage({
         >
           <header className="mobile-profile-topbar">
             <button type="button" onClick={onClose} aria-label={isZh ? "返回" : "Back"}>
-              <ChevronLeft size={22} />
+              <ChevronLeft size={18} />
             </button>
-            <strong>{isZh ? "个人中心" : "Profile"}</strong>
           </header>
 
-          {authUser && (
-            <button type="button" className="mobile-profile-message-trigger" onClick={openMessages} aria-label={isZh ? "消息提醒" : "Notifications"}>
-              <Bell size={18} />
-              <span>{isZh ? "消息" : "Messages"}</span>
-              {unreadMessageCount > 0 && <em>{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</em>}
-            </button>
-          )}
-
-          <section className="mobile-profile-hero">
-            <button type="button" className="mobile-profile-avatar" onClick={() => authUser && openProfileSection("profile")} aria-label={isZh ? "更改头像" : "Change avatar"}>
-              <AccountAvatar user={authUser} />
-            </button>
-            <h2>{displayName}</h2>
-            <p>{accountLine}</p>
-          </section>
-
-          <section className="mobile-profile-stats" aria-label={isZh ? "账号额度" : "Account balance"}>
-            <div>
-              <strong>{configBalance}</strong>
-              <span>{isZh ? "生成额度" : "Generations"}</span>
+          <section className="mobile-profile-card">
+            <div className="mobile-profile-card-header">
+              <button type="button" className="mobile-profile-avatar mobile-profile-avatar-sm" onClick={() => authUser && openProfileSection("profile")} aria-label={isZh ? "更改头像" : "Change avatar"}>
+                <AccountAvatar user={authUser} />
+              </button>
+              <span className="mobile-profile-card-name">{displayName}</span>
+              {authUser ? (
+                <button type="button" className="mobile-profile-card-edit" onClick={openSubscribe}>
+                  {planIdDisplay}
+                </button>
+              ) : (
+                <button type="button" className="mobile-profile-card-edit" onClick={openAuth}>
+                  {isZh ? "登录" : "Sign in"}
+                </button>
+              )}
             </div>
-            <div>
-              <strong>{chatBalance}</strong>
-              <span>{isZh ? "对话额度" : "Chat quota"}</span>
-            </div>
-            <div>
-              <strong>{planName}</strong>
-              <span>{isZh ? "当前套餐" : "Current plan"}</span>
+            <div className="mobile-profile-card-actions">
+              <span className="mobile-profile-card-action-readonly">
+                <Sparkles size={16} />
+                {isZh ? `生成 ${configBalance}` : `Gen ${configBalance}`}
+              </span>
+              <span className="mobile-profile-card-action-readonly">
+                <Zap size={16} />
+                {isZh ? `对话 ${chatBalance}` : `Chat ${chatBalance}`}
+              </span>
             </div>
           </section>
 
           {renderEditor()}
           {section === "overview" && renderStatus()}
 
-          <section className="mobile-profile-list">
+          <section className="mobile-profile-simple-list">
             {!authUser ? (
-              <button type="button" className="mobile-profile-row primary" onClick={openAuth}>
-                <span><KeyRound size={19} /></span>
-                <div>
-                  <strong>{isZh ? "登录账号" : "Sign in"}</strong>
-                  <small>{isZh ? "登录后解锁完整账号管理" : "Unlock account management"}</small>
-                </div>
-                <ChevronRight size={19} />
+              <button type="button" className="mobile-profile-simple-row" onClick={openAuth}>
+                <span>{isZh ? "登录账号" : "Sign in"}</span>
+                <ChevronRight size={20} />
               </button>
             ) : (
               <>
-                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("profile")}>
-                  <span><Pencil size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "编辑资料" : "Edit profile"}</strong>
-                    <small>{isZh ? "昵称和邮箱会保存到账号" : "Save display name and email"}</small>
+                <button type="button" className="mobile-profile-simple-row" onClick={openMessages}>
+                  <span>{isZh ? "消息通知" : "Notifications"}</span>
+                  <div className="mobile-profile-simple-row-tail">
+                    {unreadMessageCount > 0 && <em className="mobile-profile-badge">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</em>}
+                    <ChevronRight size={20} />
                   </div>
-                  <ChevronRight size={19} />
                 </button>
-                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("phone")}>
-                  <span><UserRound size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "换绑手机号" : "Change phone"}</strong>
-                    <small>{authUser.phone || (isZh ? "绑定手机号" : "Bind phone number")}</small>
+                <button type="button" className="mobile-profile-simple-row" onClick={() => openProfileSection("phone")}>
+                  <span>{isZh ? "换绑手机号" : "Change phone"}</span>
+                  <div className="mobile-profile-simple-row-tail">
+                    <small>{authUser.phone || (isZh ? "未绑定" : "Not bound")}</small>
+                    <ChevronRight size={20} />
                   </div>
-                  <ChevronRight size={19} />
                 </button>
-                <button type="button" className="mobile-profile-row" onClick={() => openProfileSection("password")}>
-                  <span><LockKeyhole size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "修改密码" : "Change password"}</strong>
-                    <small>{isZh ? "需要输入当前密码" : "Current password required"}</small>
-                  </div>
-                  <ChevronRight size={19} />
+                <button type="button" className="mobile-profile-simple-row" onClick={() => openProfileSection("password")}>
+                  <span>{isZh ? "修改密码" : "Change password"}</span>
+                  <ChevronRight size={20} />
                 </button>
-                <button type="button" className="mobile-profile-row" onClick={openSubscribe}>
-                  <span><BadgeCheck size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "订阅与套餐" : "Subscription"}</strong>
-                    <small>{isZh ? `当前套餐：${planName}` : `Current plan: ${planName}`}</small>
-                  </div>
-                  <ChevronRight size={19} />
-                </button>
-                <button type="button" className="mobile-profile-row" onClick={openOrders}>
-                  <span><Receipt size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "我的订单" : "My orders"}</strong>
-                    <small>{isZh ? "查看支付购买记录" : "View payment history"}</small>
-                  </div>
-                  <ChevronRight size={19} />
+                <button type="button" className="mobile-profile-simple-row" onClick={openOrders}>
+                  <span>{isZh ? "我的订单" : "My orders"}</span>
+                  <ChevronRight size={20} />
                 </button>
                 <button
                   type="button"
-                  className="mobile-profile-row danger"
+                  className="mobile-profile-simple-row danger"
                   onClick={() => {
                     onClose()
                     void logout()
                   }}
                 >
-                  <span><LogOut size={19} /></span>
-                  <div>
-                    <strong>{isZh ? "退出账号" : "Sign out"}</strong>
-                    <small>{isZh ? "退出当前登录状态" : "End current session"}</small>
-                  </div>
-                  <ChevronRight size={19} />
+                  <span>{isZh ? "退出账号" : "Sign out"}</span>
+                  <ChevronRight size={20} />
                 </button>
               </>
             )}
