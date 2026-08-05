@@ -60,8 +60,6 @@ import type {
   WorkflowConfig,
   WorkflowMode,
   WorkflowNodeConfig,
-  CostByUserItem,
-  CostByCategoryItem,
   OrderStatusCount,
   RenewalRatePoint,
   BalanceDistributionResponse,
@@ -220,6 +218,7 @@ function initSchema(conn: DatabaseSync) {
       active INTEGER NOT NULL DEFAULT 0,
       api_key_cipher TEXT,
       api_key_masked TEXT,
+      console_url TEXT NOT NULL DEFAULT '',
       updated_at INTEGER NOT NULL
     );
 
@@ -552,6 +551,9 @@ function migrateSchema(conn: DatabaseSync) {
   }
   if (!providerColumns.some((column) => column.name === "capabilities_json")) {
     conn.exec("ALTER TABLE provider_configs ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '[\"image_generation\"]'")
+  }
+  if (!providerColumns.some((column) => column.name === "console_url")) {
+    conn.exec("ALTER TABLE provider_configs ADD COLUMN console_url TEXT NOT NULL DEFAULT ''")
   }
   const assetColumns = conn.prepare("PRAGMA table_info(part_assets)").all() as Array<{ name: string }>
   if (!assetColumns.some((column) => column.name === "brand_id")) {
@@ -913,16 +915,17 @@ function seedAvatarPresets(conn: DatabaseSync, now: number) {
 function seedProviderConfigs(conn: DatabaseSync, now: number) {
   const providerStatement = conn.prepare(`
     INSERT INTO provider_configs
-    (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       label = excluded.label,
       base_url = excluded.base_url,
       model_name = excluded.model_name,
-      capabilities_json = excluded.capabilities_json
+      capabilities_json = excluded.capabilities_json,
+      console_url = excluded.console_url
   `)
   for (const provider of providerSeed) {
-    providerStatement.run(provider.id, provider.label, provider.baseUrl, provider.modelName, JSON.stringify(provider.capabilities), provider.enabled ? 1 : 0, provider.id === "mock" ? 1 : 0, "", "", now)
+    providerStatement.run(provider.id, provider.label, provider.baseUrl, provider.modelName, JSON.stringify(provider.capabilities), provider.enabled ? 1 : 0, provider.id === "mock" ? 1 : 0, "", "", provider.consoleUrl, now)
   }
   conn.prepare("UPDATE provider_configs SET active = 1 WHERE id = 'mock' AND NOT EXISTS (SELECT 1 FROM provider_configs WHERE active = 1)").run()
   const activeProviders = conn.prepare("SELECT id FROM provider_configs WHERE active = 1 ORDER BY updated_at DESC").all() as Row[]
@@ -2447,13 +2450,12 @@ export function createGeneration(input: {
   retryCount?: number
   failureReason?: string
   status?: GenerationJob["status"]
-  costCents?: number
   badCaseTags?: string[]
   usageUnits?: number
 }) {
   const generationId = `gen_${crypto.randomUUID().slice(0, 8)}`
   const units = input.usageUnits ?? (input.provider === "mock" ? 1 : 4)
-  const costCents = input.costCents ?? (input.provider === "mock" ? 0 : 90)
+  const costCents = 0
   const status = input.status ?? (input.failureReason ? "failed" : "succeeded")
   const resultImageUrl = status === "failed" ? input.resultImageUrl ?? "" : input.resultImageUrl ?? input.sourceImageUrl
   const now = nowMs()
@@ -2669,21 +2671,6 @@ export function getAdminSummary(): AdminSummary {
   const userById = userLabelMap(userRows)
   const quotaAdjustmentRows = database().prepare("SELECT * FROM quota_adjustments ORDER BY created_at DESC LIMIT 100").all() as Row[]
   const smsRows = database().prepare("SELECT * FROM verification_codes ORDER BY created_at DESC LIMIT 100").all() as Row[]
-  const providerCostRows = database()
-    .prepare(`
-      SELECT usage_ledger.provider AS provider,
-             COUNT(*) AS request_count,
-             SUM(CASE WHEN generation_jobs.status = 'succeeded' THEN 1 ELSE 0 END) AS success_count,
-             SUM(CASE WHEN generation_jobs.status = 'failed' THEN 1 ELSE 0 END) AS failure_count,
-             COALESCE(SUM(usage_ledger.usage_units), 0) AS usage_units,
-             COALESCE(SUM(usage_ledger.cost_cents), 0) AS cost_cents,
-             MAX(usage_ledger.created_at) AS last_request_at
-      FROM usage_ledger
-      LEFT JOIN generation_jobs ON generation_jobs.id = usage_ledger.generation_id
-      GROUP BY usage_ledger.provider
-      ORDER BY cost_cents DESC, request_count DESC
-    `)
-    .all() as Row[]
   const failureRows = database()
     .prepare(`
       SELECT *
@@ -2701,7 +2688,6 @@ export function getAdminSummary(): AdminSummary {
       generations: scalar("SELECT COUNT(*) AS value FROM generation_jobs"),
       failedGenerations: scalar("SELECT COUNT(*) AS value FROM generation_jobs WHERE status = 'failed' OR trim(failure_reason) != ''"),
       usageUnits: scalar("SELECT COALESCE(SUM(usage_units), 0) AS value FROM usage_ledger"),
-      totalCostCents: scalar("SELECT COALESCE(SUM(cost_cents), 0) AS value FROM usage_ledger"),
     },
     categories: categories(),
     brands: brands(),
@@ -2718,15 +2704,6 @@ export function getAdminSummary(): AdminSummary {
     auditLogs: auditLogs(),
     badCases: listBadCases(),
     quotaAdjustments: quotaAdjustmentRows.map(mapQuotaAdjustment),
-    providerCosts: providerCostRows.map((row) => ({
-      provider: row.provider as ProviderId,
-      requestCount: Number(row.request_count || 0),
-      successCount: Number(row.success_count || 0),
-      failureCount: Number(row.failure_count || 0),
-      usageUnits: Number(row.usage_units || 0),
-      costCents: Number(row.cost_cents || 0),
-      lastRequestAt: Number(row.last_request_at || 0),
-    })),
     generationFailures: failureRows.map((row) => ({
       generationId: String(row.id),
       userId: String(row.user_id),
@@ -2736,7 +2713,6 @@ export function getAdminSummary(): AdminSummary {
       failureReason: String(row.failure_reason || ""),
       badCaseTags: safeJson<string[]>(String(row.bad_case_tags_json || "[]"), []),
       retryCount: Number(row.retry_count || 0),
-      costCents: Number(row.cost_cents || 0),
       createdAt: Number(row.created_at || 0),
     })),
     behaviorEvents: adminBehaviorEvents(userById),
@@ -2769,7 +2745,6 @@ export function getAdminSummary(): AdminSummary {
       generationId: String(row.generation_id),
       provider: row.provider as ProviderId,
       usageUnits: Number(row.usage_units),
-      costCents: Number(row.cost_cents),
       createdAt: Number(row.created_at),
     })),
   }
@@ -2894,7 +2869,6 @@ function adminUserProfiles(userRows: Row[]): AdminSummary["userProfiles"] {
       totalGenerations: 0,
       succeededGenerations: 0,
       failedGenerations: 0,
-      totalCostCents: 0,
       lastActiveAt: Number(row.created_at || 0),
       topVehicles: new Map(),
       topParts: new Map(),
@@ -2904,7 +2878,7 @@ function adminUserProfiles(userRows: Row[]): AdminSummary["userProfiles"] {
   }
 
   const rows = database()
-    .prepare("SELECT user_id, status, cost_cents, standard_json, paint_id, created_at FROM generation_jobs ORDER BY created_at DESC LIMIT 2000")
+    .prepare("SELECT user_id, status, standard_json, paint_id, created_at FROM generation_jobs ORDER BY created_at DESC LIMIT 2000")
     .all() as Row[]
   for (const row of rows) {
     const userId = String(row.user_id)
@@ -2916,7 +2890,6 @@ function adminUserProfiles(userRows: Row[]): AdminSummary["userProfiles"] {
         totalGenerations: 0,
         succeededGenerations: 0,
         failedGenerations: 0,
-        totalCostCents: 0,
         lastActiveAt: 0,
         topVehicles: new Map(),
         topParts: new Map(),
@@ -2932,7 +2905,6 @@ function adminUserProfiles(userRows: Row[]): AdminSummary["userProfiles"] {
     profile.totalGenerations += 1
     profile.succeededGenerations += status === "succeeded" ? 1 : 0
     profile.failedGenerations += status === "failed" ? 1 : 0
-    profile.totalCostCents += Number(row.cost_cents || 0)
     profile.lastActiveAt = Math.max(profile.lastActiveAt, createdAt)
 
     bumpCount(profile.topVehicles, standard?.vehicle?.model)
@@ -3225,7 +3197,7 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
   return assets().find((asset) => asset.id === id) as PartAsset
 }
 
-export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string }) {
+export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string; consoleUrl?: string }) {
   const providerId = input.id || `provider_${crypto.randomUUID().slice(0, 8)}`
   const stored = database().prepare("SELECT id FROM provider_configs WHERE id = ? LIMIT 1").get(providerId) as Row | undefined
   const current = providers().find((provider) => provider.id === providerId)
@@ -3240,6 +3212,7 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     active: false,
     hasApiKey: false,
     maskedKey: "",
+    consoleUrl: "",
     updatedAt: nowMs(),
   }
   const apiKey = input.apiKey ?? ""
@@ -3254,8 +3227,8 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     database()
       .prepare(`
         INSERT INTO provider_configs
-        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         providerId,
@@ -3267,13 +3240,14 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
         nextActive ? 1 : 0,
         cipher ?? "",
         masked,
+        input.consoleUrl ?? baseProvider.consoleUrl,
         nowMs(),
       )
   } else {
     database()
       .prepare(`
         UPDATE provider_configs
-        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, updated_at = ?
+        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, console_url = ?, updated_at = ?
         WHERE id = ?
       `)
       .run(
@@ -3285,6 +3259,7 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
         nextActive ? 1 : 0,
         cipher,
         masked,
+        input.consoleUrl ?? baseProvider.consoleUrl,
         nowMs(),
         providerId,
       )
@@ -3705,6 +3680,7 @@ function mapProviderRow(row?: Row, fallback?: ProviderConfig): ProviderConfig {
     active: Boolean(row.active),
     hasApiKey: Boolean(row.api_key_masked),
     maskedKey: String(row.api_key_masked ?? ""),
+    consoleUrl: String(row.console_url ?? fallback?.consoleUrl ?? ""),
     updatedAt: Number(row.updated_at || fallback?.updatedAt || 0),
   }
 }
@@ -4351,7 +4327,6 @@ function mapGeneration(row: Row): GenerationJob {
     resultCheck: safeJson<ResultCheckResult | null>(String(row.result_check_json || "null"), null),
     retryCount: Number(row.retry_count || 0),
     failureReason: String(row.failure_reason || ""),
-    costCents: Number(row.cost_cents || 0),
     badCaseTags: safeJson<string[]>(String(row.bad_case_tags_json || "[]"), []),
     usageUnits: Number(row.usage_units),
     createdAt: Number(row.created_at),
@@ -4520,7 +4495,7 @@ export type GenerationListFilter = {
   providerId?: string
   userQuery?: string
   partCategory?: string
-  sortBy: "created_at" | "cost_credits" | "duration"
+  sortBy: "created_at" | "duration"
   sortOrder: "asc" | "desc"
 }
 
@@ -4543,7 +4518,6 @@ export function getGenerationList(filter: GenerationListFilter): {
     status: string
     provider: string
     displayVehicleModel: string
-    costCents: number
     durationMs: number | null
     createdAt: number
     completedAt: number | null
@@ -4552,7 +4526,7 @@ export function getGenerationList(filter: GenerationListFilter): {
   total: number
   page: number
   pageSize: number
-  stats: { totalCount: number; successRate: number; avgDurationMs: number | null; avgCostCents: number }
+  stats: { totalCount: number; successRate: number; avgDurationMs: number | null }
 } {
   const conditions: string[] = []
   const params: Array<string | number> = []
@@ -4593,7 +4567,6 @@ export function getGenerationList(filter: GenerationListFilter): {
 
   // Sort mapping
   let orderColumn = "g.created_at"
-  if (filter.sortBy === "cost_credits") orderColumn = "g.cost_cents"
   if (filter.sortBy === "duration") orderColumn = "duration_ms"
   const orderDirection = filter.sortOrder === "asc" ? "ASC" : "DESC"
 
@@ -4609,14 +4582,12 @@ export function getGenerationList(filter: GenerationListFilter): {
   const statsSql = `SELECT
     COUNT(*) AS total_count,
     SUM(CASE WHEN g.status = 'succeeded' THEN 1 ELSE 0 END) AS success_count,
-    AVG(CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END) AS avg_duration,
-    AVG(g.cost_cents) AS avg_cost
+    AVG(CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END) AS avg_duration
   FROM generation_jobs g LEFT JOIN users u ON u.id = g.user_id ${whereClause}`
   const statsRow = database().prepare(statsSql).get(...params) as Row
   const totalCount = Number(statsRow?.total_count ?? 0)
   const successCount = Number(statsRow?.success_count ?? 0)
   const avgDuration = statsRow?.avg_duration !== null && statsRow?.avg_duration !== undefined ? Number(statsRow.avg_duration) : null
-  const avgCost = Number(statsRow?.avg_cost ?? 0)
 
   // Query page items
   const offset = (filter.page - 1) * filter.pageSize
@@ -4624,7 +4595,6 @@ export function getGenerationList(filter: GenerationListFilter): {
     g.id AS id, g.user_id AS user_id, u.username AS username,
     g.mode AS mode, g.status AS status, g.provider AS provider,
     g.display_vehicle_model AS display_vehicle_model,
-    g.cost_cents AS cost_cents,
     ${durationExpr} AS duration_ms,
     g.created_at AS created_at, g.failure_reason AS failure_reason
   FROM generation_jobs g
@@ -4642,7 +4612,6 @@ export function getGenerationList(filter: GenerationListFilter): {
     status: String(row.status ?? ""),
     provider: String(row.provider ?? ""),
     displayVehicleModel: String(row.display_vehicle_model ?? ""),
-    costCents: Number(row.cost_cents ?? 0),
     durationMs: row.duration_ms !== null && row.duration_ms !== undefined ? Number(row.duration_ms) : null,
     createdAt: Number(row.created_at ?? 0),
     completedAt: null,
@@ -4658,7 +4627,6 @@ export function getGenerationList(filter: GenerationListFilter): {
       totalCount,
       successRate: totalCount > 0 ? (successCount / totalCount) * 100 : 0,
       avgDurationMs: avgDuration,
-      avgCostCents: avgCost,
     },
   }
 }
@@ -4683,7 +4651,6 @@ export function getGenerationDetail(jobId: string): {
   vehicleInfo: unknown
   progressSteps: Array<{ step: string; label: string; status: string; timestamp: number | null; durationMs: number | null }>
   failureReason: string
-  costCents: number
   usageUnits: number
   createdAt: number
   completedAt: number | null
@@ -4745,7 +4712,6 @@ export function getGenerationDetail(jobId: string): {
     vehicleInfo,
     progressSteps,
     failureReason: String(row.failure_reason ?? ""),
-    costCents: Number(row.cost_cents ?? 0),
     usageUnits: Number(row.usage_units ?? 0),
     createdAt,
     completedAt,
@@ -4775,7 +4741,7 @@ export function getUserDetail(userId: string): {
   billing: ReturnType<typeof getBillingStatus>
   tags: { auto: { plan: string; activity: string; payment: string; value: string }; manual: string[] }
   usageTimeline: Array<{ id: string; type: "consumption" | "adjustment"; amount: number; description: string; createdAt: number }>
-  generations: Array<{ id: string; userId: string; username: string; mode: string; status: string; provider: string; displayVehicleModel: string; costCents: number; durationMs: number | null; createdAt: number; completedAt: number | null; failureReason: string }>
+  generations: Array<{ id: string; userId: string; username: string; mode: string; status: string; provider: string; displayVehicleModel: string; durationMs: number | null; createdAt: number; completedAt: number | null; failureReason: string }>
   generationTotal: number
   preferences: {
     topVehicles: Array<{ label: string; count: number }>
@@ -4799,15 +4765,15 @@ export function getUserDetail(userId: string): {
   const subRow = database().prepare("SELECT status FROM subscriptions WHERE user_id = ? AND status = 'active' LIMIT 1").get(userId) as Row | undefined
   const paymentTag = subRow ? "paid" : "unpaid"
 
-  // Value tag: based on total cost ranking
-  const allCostsRows = database().prepare(`
-    SELECT user_id, SUM(cost_cents) AS total_cost
+  // Value tag: based on total generation count ranking
+  const allGenCountRows = database().prepare(`
+    SELECT user_id, COUNT(*) AS total_count
     FROM generation_jobs
     GROUP BY user_id
-    ORDER BY total_cost DESC
+    ORDER BY total_count DESC
   `).all() as Row[]
-  const userCount = allCostsRows.length
-  const userRank = allCostsRows.findIndex((r) => String(r.user_id) === userId)
+  const userCount = allGenCountRows.length
+  const userRank = allGenCountRows.findIndex((r) => String(r.user_id) === userId)
   let valueTag = "low"
   if (userRank >= 0 && userCount > 0) {
     const percentile = (userRank / userCount) * 100
@@ -4819,7 +4785,7 @@ export function getUserDetail(userId: string): {
 
   // Usage timeline: merge usage_ledger + quota_adjustments
   const usageRows = database().prepare(`
-    SELECT id, 'consumption' AS type, cost_cents AS amount, provider AS description, created_at
+    SELECT id, 'consumption' AS type, usage_units AS amount, provider AS description, created_at
     FROM usage_ledger
     WHERE user_id = ?
     UNION ALL
@@ -4842,7 +4808,6 @@ export function getUserDetail(userId: string): {
     SELECT g.id AS id, g.user_id AS user_id, u.username AS username,
       g.mode AS mode, g.status AS status, g.provider AS provider,
       g.display_vehicle_model AS display_vehicle_model,
-      g.cost_cents AS cost_cents,
       CASE WHEN g.completed_at > 0 AND g.created_at > 0 THEN g.completed_at - g.created_at ELSE NULL END AS duration_ms,
       g.created_at AS created_at, g.failure_reason AS failure_reason
     FROM generation_jobs g
@@ -4859,7 +4824,6 @@ export function getUserDetail(userId: string): {
     status: String(r.status ?? ""),
     provider: String(r.provider ?? ""),
     displayVehicleModel: String(r.display_vehicle_model ?? ""),
-    costCents: Number(r.cost_cents ?? 0),
     durationMs: r.duration_ms !== null && r.duration_ms !== undefined ? Number(r.duration_ms) : null,
     createdAt: Number(r.created_at ?? 0),
     completedAt: null,
@@ -5354,60 +5318,6 @@ export function getProviderFailureRanking(): ProviderFailureRanking[] {
 
     return { provider, requestCount, failureCount, failureRate, topReasons }
   })
-}
-
-/**
- * Get cost by user TOP N.
- */
-export function getCostByUser(limit: number): CostByUserItem[] {
-  const rows = database().prepare(`
-    SELECT usage_ledger.user_id AS user_id,
-           users.username AS username,
-           COALESCE(SUM(usage_ledger.cost_cents), 0) AS total_cost
-    FROM usage_ledger
-    LEFT JOIN users ON users.id = usage_ledger.user_id
-    GROUP BY usage_ledger.user_id
-    ORDER BY total_cost DESC
-    LIMIT ?
-  `).all(limit) as Row[]
-
-  return rows.map((row) => ({
-    userId: String(row.user_id ?? ""),
-    username: String(row.username ?? ""),
-    totalCostCents: Number(row.total_cost ?? 0),
-  }))
-}
-
-/**
- * Get cost by part category by parsing standard_json from generation_jobs.
- */
-export function getCostByCategory(startMs: number, endMs: number): CostByCategoryItem[] {
-  const rows = database().prepare(`
-    SELECT generation_jobs.standard_json AS standard_json,
-           usage_ledger.cost_cents AS cost_cents
-    FROM usage_ledger
-    JOIN generation_jobs ON generation_jobs.id = usage_ledger.generation_id
-    WHERE usage_ledger.created_at >= ? AND usage_ledger.created_at <= ?
-  `).all(startMs, endMs) as Row[]
-
-  const categoryCostMap = new Map<string, number>()
-  for (const row of rows) {
-    const standardJson = safeJson<{ parts?: Array<{ category?: string; categoryLabel?: string }> }>(String(row.standard_json ?? "{}"), {})
-    const costCents = Number(row.cost_cents ?? 0)
-    const parts = standardJson.parts ?? []
-    if (parts.length === 0) {
-      categoryCostMap.set("unknown", (categoryCostMap.get("unknown") ?? 0) + costCents)
-      continue
-    }
-    for (const part of parts) {
-      const category = part.categoryLabel || part.category || "unknown"
-      categoryCostMap.set(category, (categoryCostMap.get(category) ?? 0) + costCents)
-    }
-  }
-
-  return Array.from(categoryCostMap.entries())
-    .map(([category, totalCostCents]) => ({ category, totalCostCents }))
-    .sort((a, b) => b.totalCostCents - a.totalCostCents)
 }
 
 /**

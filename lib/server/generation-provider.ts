@@ -187,7 +187,7 @@ async function invokeOpenAiCompatibleImageEdit(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse(raw),
   }
 }
@@ -250,7 +250,7 @@ async function invokeOpenAiCompatibleImageGeneration(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse({ endpoint, response: raw }),
   }
 }
@@ -292,7 +292,7 @@ async function invokeGeminiGenerateContentImageEdit(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse({ endpoint: requestEndpoint, response: raw }),
   }
 }
@@ -370,7 +370,7 @@ async function invoke302NanoBananaWsEdit(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse({ endpoint: requestEndpoint, configuredEndpoint: endpoint, response: settled }),
   }
 }
@@ -421,7 +421,7 @@ async function invokeYunwuFalNanoBananaEdit(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse({ endpoint, response: settled }),
   }
 }
@@ -487,7 +487,7 @@ async function invokeOpenAiCompatibleChatImage(
     resultImageUrl,
     latencyMs: Date.now() - started,
     usageUnits,
-    costCents: estimateCostCents(input.provider.id, usageUnits),
+    costCents: 0,
     rawResponse: sanitizeRawResponse({ endpoint, response: raw }),
   }
 }
@@ -500,7 +500,7 @@ function mockResponse(input: GenerationProviderRequest, started: number): Genera
     resultImageUrl: FIXED_MOCK_RESULT_URL,
     latencyMs: Date.now() - started,
     usageUnits: nonMockUnits,
-    costCents: input.provider.id === "mock" ? 0 : 90,
+    costCents: 0,
     rawResponse: {
       provider: input.provider.id,
       model: input.provider.modelName,
@@ -723,7 +723,7 @@ async function recover302ImageRecord(
           resultImageUrl,
           latencyMs: Date.now() - started,
           usageUnits,
-          costCents: estimateCostCents(provider.id, usageUnits),
+          costCents: 0,
           rawResponse: sanitizeRawResponse({
             ...context,
             endpoint,
@@ -2033,9 +2033,6 @@ function estimateUsageUnits(raw: Record<string, unknown>) {
   return tokens > 0 ? Math.max(4, Math.ceil(tokens / 1000)) : 4
 }
 
-function estimateCostCents(providerId: ProviderId, usageUnits: number) {
-  return providerId === "mock" ? 0 : Math.max(90, usageUnits * 25)
-}
 
 function extensionFromMime(mime: string) {
   if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg"

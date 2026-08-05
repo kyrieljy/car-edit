@@ -153,7 +153,6 @@ export async function runGenerationWorkflow(input: RunGenerationWorkflowInput): 
     retryCount,
     failureReason,
     status: failureReason ? "failed" : "succeeded",
-    costCents: response.costCents,
     usageUnits: response.usageUnits,
     badCaseTags: resultCheck?.badCaseTags ?? [],
   })

@@ -31,7 +31,6 @@ import GenerationDetail from "@/components/admin/generation-detail"
 import UserAnalytics from "@/components/admin/user-analytics"
 import UserDetail from "@/components/admin/user-detail"
 import FailureAnalytics from "@/components/admin/failure-analytics"
-import CostAnalytics from "@/components/admin/cost-analytics"
 import OrderAnalytics from "@/components/admin/order-analytics"
 import QuotaAnalytics from "@/components/admin/quota-analytics"
 import HealthAnalytics from "@/components/admin/health-analytics"
@@ -62,7 +61,7 @@ import type {
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "usage" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-costs" | "analytics-orders" | "analytics-quota" | "analytics-health" | "analytics-quality" | "ops-messages" | "ops-reports"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "cost-view" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-orders" | "analytics-quota" | "analytics-health" | "analytics-quality" | "ops-messages" | "ops-reports"
 type AdminView = { type: "tab"; tab: AdminTab } | { type: "generation-detail"; jobId: string } | { type: "user-detail"; userId: string }
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
@@ -74,7 +73,7 @@ const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.Re
   { id: "prompts", label: "提示词", sub: "配置 / 对话 / 负面词", icon: <ListPlus size={20} /> },
   { id: "guardrail", label: "风控 SOP", sub: "检测与 Workflow", icon: <ShieldCheck size={20} /> },
   { id: "plans", label: "会员配置", sub: "套餐与额度", icon: <BadgeCheck size={20} /> },
-  { id: "usage", label: "用量统计", sub: "API 消耗", icon: <Eye size={20} /> },
+  { id: "cost-view", label: "成本查看", sub: "供应商后台", icon: <Eye size={20} /> },
   { id: "users", label: "用户管理", sub: "账号与角色", icon: <Users size={20} /> },
   { id: "audit", label: "安全审计", sub: "行为日志", icon: <Activity size={20} /> },
 ]
@@ -88,12 +87,11 @@ const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon
   { id: "workflows", label: "Workflow", sub: "配置 / 对话 / 检查", icon: <Activity size={20} /> },
   { id: "guardrail", label: "风控 SOP", sub: "检测 / 限制 / 追问", icon: <ShieldCheck size={20} /> },
   { id: "plans", label: "会员配置", sub: "套餐 / 额度 / 价格", icon: <BadgeCheck size={20} /> },
-  { id: "usage", label: "用量统计", sub: "API / 成本 / 记录", icon: <Eye size={20} /> },
+  { id: "cost-view", label: "成本查看", sub: "供应商管理后台", icon: <Eye size={20} /> },
   { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
   { id: "analytics-generations", label: "生成记录", sub: "筛选 / 趋势 / 详情", icon: <BarChart3 size={20} /> },
   { id: "analytics-users", label: "用户分析", sub: "注册 / 活跃 / 留存", icon: <TrendingUp size={20} /> },
   { id: "analytics-failures", label: "失败分析", sub: "失败率 / 归因 / 排名", icon: <Activity size={20} /> },
-  { id: "analytics-costs", label: "成本分析", sub: "趋势 / 归因 / 分布", icon: <Eye size={20} /> },
   { id: "analytics-orders", label: "订单分析", sub: "收入 / 转化 / 续费", icon: <Receipt size={20} /> },
   { id: "analytics-quota", label: "额度监控", sub: "消耗 / 余额 / 告警", icon: <Database size={20} /> },
   { id: "analytics-health", label: "系统健康", sub: "成功率 / 延迟 / 队列", icon: <Activity size={20} /> },
@@ -116,12 +114,11 @@ function adminTabTitle(tab: AdminTab) {
     workflows: "Workflow 管理",
     guardrail: "风控 SOP 配置",
     plans: "会员配置",
-    usage: "用量统计",
+    "cost-view": "成本查看",
     badcases: "失败样本记录",
     "analytics-generations": "生成记录分析",
     "analytics-users": "用户分析",
     "analytics-failures": "失败记录分析",
-    "analytics-costs": "Provider 成本分析",
     "analytics-orders": "订单收入分析",
     "analytics-quota": "额度消耗监控",
     "analytics-health": "系统健康监控",
@@ -383,7 +380,7 @@ export function AdminConsole() {
               {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "guardrail" && <GuardrailManager summary={summary} onChanged={() => void loadSummary()} />}
               {tab === "plans" && <PlanManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-              {tab === "usage" && <UsageOpsTable summary={summary} />}
+              {tab === "cost-view" && <CostViewPanel summary={summary} />}
               {tab === "badcases" && <BadCaseOpsTable summary={summary} />}
               {tab === "analytics-generations" && (
                 <GenerationRecords onOpenDetail={openGenerationDetail} />
@@ -392,7 +389,6 @@ export function AdminConsole() {
                 <UserAnalytics onOpenUserDetail={openUserDetail} />
               )}
               {tab === "analytics-failures" && <FailureAnalytics />}
-              {tab === "analytics-costs" && <CostAnalytics />}
               {tab === "analytics-orders" && <OrderAnalytics />}
               {tab === "analytics-quota" && <QuotaAnalytics />}
               {tab === "analytics-health" && <HealthAnalytics />}
@@ -467,7 +463,6 @@ function DashboardPanel({ summary }: { summary: AdminSummary }) {
         <Stat label="用户" value={summary.stats.users} delta="+2" progress={58} />
         <Stat label="启用配件" value={summary.stats.activeAssets} delta="+10" progress={76} />
         <Stat label="生成记录" value={summary.stats.generations} delta="+1" progress={48} />
-        <Stat label="API 用量" value={summary.stats.usageUnits} delta="Mock" progress={68} />
       </div>
       <div className="dashboard-grid">
         <article className="admin-panel dashboard-card">
@@ -2165,7 +2160,7 @@ function ClassicPaintManager({ summary, onChanged, notify }: { summary: AdminSum
   )
 }
 
-type ProviderFormValue = { label: string; baseUrl: string; modelName: string; apiKey: string; enabled: boolean; capabilities: ProviderCapability[] }
+type ProviderFormValue = { label: string; baseUrl: string; modelName: string; apiKey: string; consoleUrl: string; enabled: boolean; capabilities: ProviderCapability[] }
 type PromptTemplateForm = {
   id: string
   scope: PromptTemplateScope
@@ -2187,6 +2182,7 @@ function providerToFormValue(provider: AdminSummary["providers"][number]): Provi
     label: provider.label,
     modelName: provider.modelName,
     apiKey: "",
+    consoleUrl: provider.consoleUrl,
     enabled: provider.enabled,
     capabilities: provider.capabilities.length ? provider.capabilities : ["image_generation"],
   }
@@ -2203,6 +2199,7 @@ function providerPayloadFromForm(form: HTMLFormElement, fallback: ProviderFormVa
     baseUrl: String(data.get("baseUrl") ?? fallback.baseUrl).trim(),
     modelName: String(data.get("modelName") ?? fallback.modelName).trim(),
     apiKey: String(data.get("apiKey") ?? ""),
+    consoleUrl: String(data.get("consoleUrl") ?? fallback.consoleUrl).trim(),
     enabled: data.get("enabled") === "on",
     capabilities,
   }
@@ -2255,6 +2252,7 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
     baseUrl: "",
     modelName: "",
     apiKey: "",
+    consoleUrl: "",
     enabled: true,
     capabilities: ["image_generation"],
   }
@@ -2489,6 +2487,10 @@ function ProviderFields({
       <label>
         API Key
         <input name="apiKey" value={value.apiKey} onChange={(event) => onChange({ apiKey: event.target.value })} placeholder="留空则保持原 Key" />
+      </label>
+      <label>
+        管理后台链接
+        <input name="consoleUrl" value={value.consoleUrl} onChange={(event) => onChange({ consoleUrl: event.target.value })} placeholder="https://console.example.com" />
       </label>
       <div className="provider-capability-list">
         {providerCapabilityGroups.map((capability) => (
@@ -3331,7 +3333,6 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
                 <td className="admin-failure-meta-cell">
                   <div className="admin-failure-meta">
                     {renderAdminTags(row.badCaseTags, "无标签", 2)}
-                    <span>成本 {formatAdminMoney(row.costCents)}</span>
                     <span className="admin-id-chip" title={row.generationId}>
                       {row.generationId}
                     </span>
@@ -3383,124 +3384,57 @@ function BadCaseOpsTable({ summary }: { summary: AdminSummary }) {
   )
 }
 
-function UsageOpsTable({ summary }: { summary: AdminSummary }) {
+const platformLabels: Record<string, string> = {
+  "https://shengsuanyun.com": "胜算云",
+  "https://yunwu.ai": "云雾 AI",
+  "https://app.302.ai": "302.AI",
+  "https://platform.openai.com": "OpenAI 官方",
+}
+
+function CostViewPanel({ summary }: { summary: AdminSummary }) {
+  const externalProviders = summary.providers.filter(
+    (p) => p.consoleUrl && p.id !== "mock" && p.id !== "mock-vision" && p.id !== "mock-llm",
+  )
+  const uniquePlatforms = new Map<string, { label: string; consoleUrl: string; models: string[] }>()
+  for (const provider of externalProviders) {
+    const existing = uniquePlatforms.get(provider.consoleUrl)
+    if (existing) {
+      existing.models.push(provider.modelName)
+    } else {
+      uniquePlatforms.set(provider.consoleUrl, {
+        label: platformLabels[provider.consoleUrl] || provider.label,
+        consoleUrl: provider.consoleUrl,
+        models: [provider.modelName],
+      })
+    }
+  }
+
   return (
     <section className="admin-ops-stack">
       <div className="admin-ops-grid">
-        {summary.providerCosts.map((provider) => (
-          <article key={provider.provider} className="admin-panel admin-metric-card">
-            <span className="admin-provider-stat-name" title={provider.provider}>
-              {provider.provider}
-            </span>
-            <strong>{formatAdminMoney(provider.costCents)}</strong>
-            <small>
-              {provider.requestCount} 次请求 / {provider.usageUnits} units
-            </small>
-            <em>
-              成功 {provider.successCount} / 失败 {provider.failureCount} / 最近 {formatAdminDate(provider.lastRequestAt)}
-            </em>
-          </article>
+        {Array.from(uniquePlatforms.values()).map((platform) => (
+          <a
+            key={platform.consoleUrl}
+            href={platform.consoleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-panel admin-metric-card"
+            style={{ textDecoration: "none", cursor: "pointer" }}
+          >
+            <span className="admin-provider-stat-name">{platform.label}</span>
+            <strong>点击查看</strong>
+            <small>{platform.models.join(", ")}</small>
+            <em>在新标签页中打开管理后台</em>
+          </a>
         ))}
-        {!summary.providerCosts.length && (
+        {!uniquePlatforms.size && (
           <article className="admin-panel admin-metric-card">
-            <span>模型接口成本</span>
-            <strong>{formatAdminMoney(0)}</strong>
-            <small>暂无真实模型接口请求</small>
+            <span>暂无外部供应商</span>
+            <strong>-</strong>
+            <small>请在"模型 API"菜单中配置供应商管理后台链接</small>
           </article>
         )}
       </div>
-
-      <article className="admin-panel data-table admin-usage-panel">
-        <PanelHeading label="生成记录" title="最近生成任务" count={`${summary.generations.length} 条`} />
-        <table className="admin-usage-generation-table">
-          <colgroup>
-            <col className="usage-col-time" />
-            <col className="usage-col-user" />
-            <col className="usage-col-mode" />
-            <col className="usage-col-status" />
-            <col className="usage-col-provider" />
-            <col className="usage-col-vehicle" />
-            <col className="usage-col-units" />
-            <col className="usage-col-cost" />
-            <col className="usage-col-reason" />
-            <col className="usage-col-id" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>用户</th>
-              <th>模式</th>
-              <th>状态</th>
-              <th>模型接口</th>
-              <th>车辆</th>
-              <th>用量</th>
-              <th>成本</th>
-              <th>失败原因</th>
-              <th>记录 ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.generations.map((row) => (
-              <tr key={row.id}>
-                <td>{formatAdminDate(row.createdAt)}</td>
-                <td>{row.userId}</td>
-                <td>{row.mode}</td>
-                <td>{row.status}</td>
-                <td className="admin-provider-cell" title={row.provider}>
-                  {row.provider}
-                </td>
-                <td className="admin-usage-vehicle-cell">{formatAdminGenerationVehicle(row)}</td>
-                <td>{row.usageUnits}</td>
-                <td>{formatAdminMoney(row.costCents)}</td>
-                <td className="admin-wrap-cell admin-usage-failure-cell">{row.failureReason || "-"}</td>
-                <td className="admin-id-chip" title={row.id}>
-                  {row.id}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </article>
-
-      <article className="admin-panel data-table">
-        <PanelHeading label="用量明细" title="模型接口请求成本" count={`${summary.usage.length} 条`} />
-        <table className="admin-usage-ledger-table">
-          <colgroup>
-            <col className="ledger-col-time" />
-            <col className="ledger-col-user" />
-            <col className="ledger-col-provider" />
-            <col className="ledger-col-units" />
-            <col className="ledger-col-cost" />
-            <col className="ledger-col-id" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>用户</th>
-              <th>模型接口</th>
-              <th>用量</th>
-              <th>成本</th>
-              <th>生成记录</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.usage.map((row) => (
-              <tr key={row.id}>
-                <td>{formatAdminDate(row.createdAt)}</td>
-                <td>{row.userId}</td>
-                <td className="admin-provider-cell" title={row.provider}>
-                  {row.provider}
-                </td>
-                <td>{row.usageUnits}</td>
-                <td>{formatAdminMoney(row.costCents)}</td>
-                <td className="admin-id-chip" title={row.generationId}>
-                  {row.generationId}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </article>
     </section>
   )
 }
@@ -3811,7 +3745,6 @@ function UserProfilesOpsTable({ summary }: { summary: AdminSummary }) {
   const profiles = summary.userProfiles
   const activeProfiles = profiles.filter((profile) => profile.totalGenerations > 0)
   const totalGenerations = profiles.reduce((sum, profile) => sum + profile.totalGenerations, 0)
-  const totalCostCents = profiles.reduce((sum, profile) => sum + profile.totalCostCents, 0)
   const totalFailures = profiles.reduce((sum, profile) => sum + profile.failedGenerations, 0)
 
   return (
@@ -3832,11 +3765,6 @@ function UserProfilesOpsTable({ summary }: { summary: AdminSummary }) {
           <strong>{totalFailures}</strong>
           <small>可和失败样本页联动排查</small>
         </article>
-        <article className="admin-panel admin-metric-card">
-          <span>模型接口成本</span>
-          <strong>{formatAdminMoney(totalCostCents)}</strong>
-          <small>按用户生成记录汇总</small>
-        </article>
       </div>
 
       <article className="admin-panel data-table">
@@ -3848,7 +3776,6 @@ function UserProfilesOpsTable({ summary }: { summary: AdminSummary }) {
               <th>最近活跃</th>
               <th>生成</th>
               <th>成功 / 失败</th>
-              <th>成本</th>
               <th>车辆偏好</th>
               <th>配件类型偏好</th>
               <th>具体配件偏好</th>
@@ -3867,7 +3794,6 @@ function UserProfilesOpsTable({ summary }: { summary: AdminSummary }) {
                 <td>
                   {profile.succeededGenerations} / {profile.failedGenerations}
                 </td>
-                <td>{formatAdminMoney(profile.totalCostCents)}</td>
                 <td className="admin-profile-cell">{renderAdminTags(profile.topVehicles.map((item) => `${item.label} x${item.count}`), "暂无车辆偏好")}</td>
                 <td className="admin-profile-cell">{renderAdminTags(profile.topPartCategories.map((item) => `${item.label} x${item.count}`), "暂无配件偏好")}</td>
                 <td className="admin-profile-cell">{renderAdminTags(profile.topParts.map((item) => `${item.label} x${item.count}`), "暂无具体配件")}</td>
@@ -4025,7 +3951,6 @@ function UsageTable({ summary }: { summary: AdminSummary }) {
             <th>用户</th>
             <th>模型接口</th>
             <th>用量</th>
-            <th>成本</th>
             <th>生成记录</th>
           </tr>
         </thead>
@@ -4036,7 +3961,6 @@ function UsageTable({ summary }: { summary: AdminSummary }) {
               <td>{row.userId}</td>
               <td>{row.provider}</td>
               <td>{row.usageUnits}</td>
-              <td>￥{(row.costCents / 100).toFixed(2)}</td>
               <td>{row.generationId}</td>
             </tr>
           ))}

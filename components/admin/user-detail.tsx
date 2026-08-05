@@ -58,13 +58,6 @@ function formatDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatCost(cents: number): string {
-  if (cents > 100) {
-    return `¥${(cents / 100).toFixed(2)}`;
-  }
-  return `${cents} cents`;
-}
-
 function formatQuota(value: number | 'unlimited'): string {
   if (value === 'unlimited') return '无限';
   return String(value);
@@ -547,7 +540,6 @@ export default function UserDetail({
                         <th>任务 ID</th>
                         <th>模式</th>
                         <th>状态</th>
-                        <th>费用</th>
                         <th>创建时间</th>
                         <th>操作</th>
                       </tr>
@@ -566,7 +558,6 @@ export default function UserDetail({
                               {generationStatusLabel(item.status)}
                             </span>
                           </td>
-                          <td>{formatCost(item.costCents)}</td>
                           <td>{formatTimestamp(item.createdAt)}</td>
                           <td>
                             <button

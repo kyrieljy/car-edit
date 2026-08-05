@@ -39,7 +39,6 @@ const PROVIDER_OPTIONS = [
 
 const SORT_COLUMNS = [
   { key: 'created_at', label: '创建时间' },
-  { key: 'cost', label: '费用' },
   { key: 'duration', label: '耗时' },
 ] as const;
 
@@ -58,13 +57,6 @@ function formatTimestamp(ts: number): string {
   const HH = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${yyyy}-${MM}-${dd} ${HH}:${mm}`;
-}
-
-function formatCost(cents: number): string {
-  if (cents > 100) {
-    return `¥${(cents / 100).toFixed(2)}`;
-  }
-  return `${cents} cents`;
 }
 
 function formatDuration(ms: number | null): string {
@@ -337,10 +329,6 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
           label="平均耗时"
           value={stats?.avgDurationMs != null ? formatDuration(stats.avgDurationMs) : '-'}
         />
-        <StatCard
-          label="平均费用"
-          value={stats ? formatCost(stats.avgCostCents) : '-'}
-        />
       </div>
 
       {/* ---- Trend Chart ---- */}
@@ -380,12 +368,6 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
               </th>
               <th
                 className="analytics-sortable"
-                onClick={() => handleSort('cost')}
-              >
-                费用{sortIndicator('cost')}
-              </th>
-              <th
-                className="analytics-sortable"
                 onClick={() => handleSort('created_at')}
               >
                 创建时间{sortIndicator('created_at')}
@@ -396,14 +378,14 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
           <tbody>
             {loading && !data && (
               <tr>
-                <td colSpan={10} className="analytics-table-empty">
+                <td colSpan={9} className="analytics-table-empty">
                   加载中...
                 </td>
               </tr>
             )}
             {!loading && data && data.items.length === 0 && (
               <tr>
-                <td colSpan={10} className="analytics-table-empty">
+                <td colSpan={9} className="analytics-table-empty">
                   暂无数据
                 </td>
               </tr>
@@ -439,7 +421,6 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
                 <td>{item.provider}</td>
                 <td>{item.displayVehicleModel || '-'}</td>
                 <td>{formatDuration(item.durationMs)}</td>
-                <td>{formatCost(item.costCents)}</td>
                 <td>{formatTimestamp(item.createdAt)}</td>
                 <td>
                   <button

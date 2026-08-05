@@ -36,7 +36,6 @@ export async function GET(request: Request) {
         { key: "provider", label: "Provider" },
         { key: "displayVehicleModel", label: "Vehicle" },
         { key: "durationMs", label: "Duration (ms)" },
-        { key: "costCents", label: "Cost (cents)" },
         { key: "createdAt", label: "Created At", format: (row) => new Date(Number(row.createdAt)).toISOString() },
         { key: "failureReason", label: "Failure Reason" },
       ],

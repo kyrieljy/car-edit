@@ -48,14 +48,6 @@ function formatDuration(ms: number | null): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function formatCost(cents: number): string {
-  if (cents === 0) return '¥0.00';
-  if (cents >= 100) {
-    return `¥${(cents / 100).toFixed(2)}`;
-  }
-  return `${cents} cents`;
-}
-
 function computeDuration(createdAt: number, completedAt: number | null): number | null {
   if (completedAt == null) return null;
   return completedAt - createdAt;
@@ -388,10 +380,6 @@ export default function GenerationDetail({ jobId, onBack }: GenerationDetailProp
           <div className="analytics-detail-row">
             <span className="analytics-detail-key">总耗时</span>
             <span>{formatDuration(duration)}</span>
-          </div>
-          <div className="analytics-detail-row">
-            <span className="analytics-detail-key">费用</span>
-            <span>{formatCost(data.costCents)}</span>
           </div>
           <div className="analytics-detail-row">
             <span className="analytics-detail-key">用量单位</span>

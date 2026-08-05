@@ -13,7 +13,6 @@ const SCAN_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 // ---------------------------------------------------------------------------
 
 const HIGH_FREQUENCY_THRESHOLD = 10 // > 10 generations per hour
-const HIGH_COST_THRESHOLD = 100 // > 100 credits (cents) per hour
 
 /**
  * Scan for anomalous consumption patterns in the last hour.
@@ -48,24 +47,6 @@ export function scanAnomalies(): number {
       userId: String(row.user_id),
       alertType: "high_frequency" as AlertType,
       alertValue: Number(row.count),
-      detectedAt: now,
-    })
-  }
-
-  // Detect high-cost users: > 100 credits in the last hour
-  const costRows = db.prepare(`
-    SELECT user_id, SUM(cost_cents) AS total
-    FROM usage_ledger
-    WHERE created_at >= ?
-    GROUP BY user_id
-    HAVING total > ?
-  `).all(oneHourAgo, HIGH_COST_THRESHOLD) as Row[]
-
-  for (const row of costRows) {
-    insertAlert({
-      userId: String(row.user_id),
-      alertType: "high_cost" as AlertType,
-      alertValue: Number(row.total),
       detectedAt: now,
     })
   }

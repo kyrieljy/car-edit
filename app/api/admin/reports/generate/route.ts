@@ -56,11 +56,6 @@ export async function GET(request: Request) {
           label: "Revenue (USD)",
           format: (row) => (row.totalRevenueCents / 100).toFixed(2),
         },
-        {
-          key: "totalCostCents",
-          label: "Cost (USD)",
-          format: (row) => (row.totalCostCents / 100).toFixed(2),
-        },
       ],
       filename,
     )

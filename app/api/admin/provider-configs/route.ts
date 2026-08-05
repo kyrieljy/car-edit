@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
       active: typeof body.active === "boolean" ? body.active : undefined,
       apiKey: body.apiKey ? String(body.apiKey) : undefined,
+      consoleUrl: typeof body.consoleUrl === "string" ? body.consoleUrl.trim() : undefined,
     })
     return NextResponse.json(provider)
   } catch (error) {

@@ -5,8 +5,6 @@ import type {
   AnalyticsGranularity,
   AnalyticsTimeseriesPoint,
   AnalyticsTrendResponse,
-  CostBucket,
-  CostDistributionResponse,
   FailureAttributionItem,
   FailureAttributionResponse,
   FailureTrendPoint,
@@ -524,51 +522,6 @@ export function getFailureRateSeries(options: {
 }
 
 // ---------------------------------------------------------------------------
-// getCostDistribution — histogram + percentiles (DESIGN-20260729-003)
-// ---------------------------------------------------------------------------
-
-/**
- * Query cost distribution from usage_ledger, compute P50/P90/P99 and
- * bucket into predefined ranges for histogram rendering.
- */
-export function getCostDistribution(options: {
-  startMs: number
-  endMs: number
-}): CostDistributionResponse {
-  const { startMs, endMs } = options
-
-  const rows = database()
-    .prepare("SELECT cost_cents FROM usage_ledger WHERE created_at >= ? AND created_at <= ? ORDER BY cost_cents ASC")
-    .all(startMs, endMs) as Row[]
-
-  const costs = rows.map((r) => Number(r.cost_cents ?? 0))
-
-  if (costs.length === 0) {
-    return { buckets: [], p50: 0, p90: 0, p99: 0 }
-  }
-
-  const p50 = computePercentile(costs, 50)
-  const p90 = computePercentile(costs, 90)
-  const p99 = computePercentile(costs, 99)
-
-  // Define histogram buckets (in cents)
-  const bucketDefs = [
-    { range: "0-10", min: 0, max: 10 },
-    { range: "10-20", min: 10, max: 20 },
-    { range: "20-50", min: 20, max: 50 },
-    { range: "50-100", min: 50, max: 100 },
-    { range: "100+", min: 100, max: Infinity },
-  ]
-
-  const buckets: CostBucket[] = bucketDefs.map((b) => ({
-    range: b.range,
-    count: costs.filter((c) => c >= b.min && c < b.max).length,
-  }))
-
-  return { buckets, p50, p90, p99 }
-}
-
-// ---------------------------------------------------------------------------
 // Failure attribution (DESIGN-20260730-001)
 // ---------------------------------------------------------------------------
 
@@ -925,13 +878,7 @@ export function getReportMetrics(options: {
     .all(startMs, endMs) as Array<{ date_bucket: string; total: number }>
   const revenueMap = new Map(revenueRows.map((r) => [r.date_bucket, r.total]))
 
-  // Cost per bucket
-  const costRows = database()
-    .prepare(`SELECT ${bucket} AS date_bucket, COALESCE(SUM(cost_cents), 0) AS total FROM usage_ledger WHERE created_at >= ? AND created_at <= ? GROUP BY ${bucket} ORDER BY ${bucket} ASC`)
-    .all(startMs, endMs) as Array<{ date_bucket: string; total: number }>
-  const costMap = new Map(costRows.map((r) => [r.date_bucket, r.total]))
-
-  const allDates = Array.from(new Set([...userMap.keys(), ...genMap.keys(), ...revenueMap.keys(), ...costMap.keys()])).sort()
+  const allDates = Array.from(new Set([...userMap.keys(), ...genMap.keys(), ...revenueMap.keys()])).sort()
 
   return allDates.map((date) => {
     const totalGen = genMap.get(date) ?? 0
@@ -942,7 +889,6 @@ export function getReportMetrics(options: {
       totalGenerations: totalGen,
       successRate: totalGen > 0 ? Number(((successGen / totalGen) * 100).toFixed(1)) : 0,
       totalRevenueCents: revenueMap.get(date) ?? 0,
-      totalCostCents: costMap.get(date) ?? 0,
     }
   })
 }

@@ -163,6 +163,7 @@ export type ProviderConfig = {
   active: boolean
   hasApiKey: boolean
   maskedKey: string
+  consoleUrl: string
   updatedAt: number
 }
 
@@ -211,7 +212,6 @@ export type GenerationJob = {
   resultCheck: ResultCheckResult | null
   retryCount: number
   failureReason: string
-  costCents: number
   badCaseTags: string[]
   usageUnits: number
   createdAt: number
@@ -564,16 +564,6 @@ export type AdminQuotaAdjustment = {
   createdAt: number
 }
 
-export type AdminProviderCostStat = {
-  provider: ProviderId
-  requestCount: number
-  successCount: number
-  failureCount: number
-  usageUnits: number
-  costCents: number
-  lastRequestAt: number
-}
-
 export type AdminGenerationFailure = {
   generationId: string
   userId: string
@@ -582,7 +572,6 @@ export type AdminGenerationFailure = {
   provider: ProviderId
   failureReason: string
   badCaseTags: string[]
-  costCents: number
   createdAt: number
 }
 
@@ -616,7 +605,6 @@ export type AdminUserProfile = {
   totalGenerations: number
   succeededGenerations: number
   failedGenerations: number
-  totalCostCents: number
   lastActiveAt: number
   topVehicles: Array<{ label: string; count: number }>
   topParts: Array<{ label: string; count: number }>
@@ -660,7 +648,6 @@ export type AdminSummary = {
     generations: number
     failedGenerations: number
     usageUnits: number
-    totalCostCents: number
   }
   categories: PartCategory[]
   brands: PartBrand[]
@@ -677,7 +664,6 @@ export type AdminSummary = {
   auditLogs: AuditLog[]
   badCases: GenerationBadCase[]
   quotaAdjustments: AdminQuotaAdjustment[]
-  providerCosts: AdminProviderCostStat[]
   generationFailures: AdminGenerationFailure[]
   behaviorEvents: AdminBehaviorEvent[]
   smsRecords: AdminSmsRecord[]
@@ -706,7 +692,6 @@ export type AdminSummary = {
     generationId: string
     provider: ProviderId
     usageUnits: number
-    costCents: number
     createdAt: number
   }>
 }
@@ -738,7 +723,6 @@ export type GenerationRecordItem = {
   status: string
   provider: string
   displayVehicleModel: string
-  costCents: number
   durationMs: number | null
   createdAt: number
   completedAt: number | null
@@ -749,7 +733,6 @@ export type GenerationListStats = {
   totalCount: number
   successRate: number
   avgDurationMs: number | null
-  avgCostCents: number
 }
 
 export type GenerationListResponse = {
@@ -785,7 +768,6 @@ export type GenerationDetailResponse = {
   vehicleInfo: unknown
   progressSteps: GenerationProgressStepInfo[]
   failureReason: string
-  costCents: number
   usageUnits: number
   createdAt: number
   completedAt: number | null
@@ -901,43 +883,6 @@ export type ProviderFailureRankingResponse = {
   rankings: ProviderFailureRanking[]
 }
 
-// --- Cost analysis ---
-
-export type CostTrendResponse = {
-  points: AnalyticsTimeseriesPoint[]
-}
-
-export type CostByUserItem = {
-  userId: string
-  username: string
-  totalCostCents: number
-}
-
-export type CostByUserResponse = {
-  items: CostByUserItem[]
-}
-
-export type CostByCategoryItem = {
-  category: string
-  totalCostCents: number
-}
-
-export type CostByCategoryResponse = {
-  items: CostByCategoryItem[]
-}
-
-export type CostBucket = {
-  range: string
-  count: number
-}
-
-export type CostDistributionResponse = {
-  buckets: CostBucket[]
-  p50: number
-  p90: number
-  p99: number
-}
-
 // --- Order analysis ---
 
 export type RevenueTrendResponse = {
@@ -988,7 +933,7 @@ export type BalanceDistributionResponse = {
 
 // --- Alert records ---
 
-export type AlertType = "high_frequency" | "high_cost"
+export type AlertType = "high_frequency"
 export type AlertStatus = "pending" | "confirmed" | "ignored"
 
 export type AlertRecord = {
@@ -1114,5 +1059,4 @@ export type ReportMetrics = {
   totalGenerations: number
   successRate: number
   totalRevenueCents: number
-  totalCostCents: number
 }

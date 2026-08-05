@@ -1347,6 +1347,7 @@ function mockVisionProvider(): ProviderConfig {
     active: false,
     hasApiKey: false,
     maskedKey: "",
+    consoleUrl: "",
     updatedAt: 0,
   }
 }
