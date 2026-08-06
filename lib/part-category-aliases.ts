@@ -1,3 +1,5 @@
+import type { PartCategoryConfigType, SubcategoryGroup } from "./types"
+
 export type PartCategoryAliasSource = {
   id: string
   label?: string
@@ -259,4 +261,75 @@ function uniqueStrings(values: Array<string | undefined>) {
       seen.add(normalized)
       return true
     })
+}
+
+const brandResourceCategoryIds = new Set(["wheels", "calipers"])
+const resourceNoImageCategoryIds = new Set(["front-bumper", "side-skirts"])
+const resourceSubcategoryCategoryIds = new Set(["exhaust"])
+
+export function defaultConfigTypeForCategory(id: string): PartCategoryConfigType {
+  if (resourceSubcategoryCategoryIds.has(id)) return "resource_subcategory"
+  if (brandResourceCategoryIds.has(id)) return "brand_resource"
+  return "resource"
+}
+
+export function defaultAssetImageVisibleForCategory(id: string): boolean {
+  return !resourceNoImageCategoryIds.has(id)
+}
+
+const defaultExhaustSubcategoryConfig: SubcategoryGroup[] = [
+  {
+    id: "single-side-single",
+    labelZh: "单边单出",
+    labelEn: "Single side single",
+    sortOrder: 0,
+    assets: [
+      { assetId: "exhaust-single-left", childLabelZh: "左", childLabelEn: "Left" },
+      { assetId: "exhaust-single-right", childLabelZh: "右", childLabelEn: "Right" },
+    ],
+  },
+  {
+    id: "single-side-dual",
+    labelZh: "单边双出",
+    labelEn: "Single side dual",
+    sortOrder: 1,
+    assets: [
+      { assetId: "exhaust-dual-left", childLabelZh: "左", childLabelEn: "Left" },
+      { assetId: "exhaust-dual-right", childLabelZh: "右", childLabelEn: "Right" },
+    ],
+  },
+  {
+    id: "dual-side-quad",
+    labelZh: "双边双出",
+    labelEn: "Dual side dual",
+    sortOrder: 2,
+    assets: [
+      { assetId: "exhaust-quad" },
+    ],
+  },
+  {
+    id: "dual-side-single",
+    labelZh: "双边单出",
+    labelEn: "Dual side single",
+    sortOrder: 3,
+    assets: [
+      { assetId: "exhaust-dual-single" },
+    ],
+  },
+  {
+    id: "center-exit",
+    labelZh: "居中",
+    labelEn: "Center exit",
+    sortOrder: 4,
+    assets: [
+      { assetId: "exhaust-center-single", childLabelZh: "1 根", childLabelEn: "1 pipe" },
+      { assetId: "exhaust-center-dual", childLabelZh: "2 根", childLabelEn: "2 pipes" },
+      { assetId: "exhaust-center-quad", childLabelZh: "4 根", childLabelEn: "4 pipes" },
+    ],
+  },
+]
+
+export function defaultSubcategoryConfigForCategory(id: string): SubcategoryGroup[] {
+  if (id === "exhaust") return defaultExhaustSubcategoryConfig
+  return []
 }

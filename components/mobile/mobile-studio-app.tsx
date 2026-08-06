@@ -77,6 +77,7 @@ import type {
   PartSelectionOptions,
   PaymentOrder,
   SelectionMap,
+  SubcategoryGroup,
 } from "@/lib/types"
 
 type Language = "en" | "zh"
@@ -248,15 +249,36 @@ type MobileStudioAppProps = {
 const paintEffects: PaintFinishEffect[] = ["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"]
 const mobileCustomPaintSwatches = ["#2F6BFF", "#0F6B55", "#243B53", "#7B1E3B", "#FFD21F", "#7A4DF3", "#D96C2C", "#E8E1D4", "#5D676F", "#101114"]
 const mobileStyleSurfaceCategoryIds = new Set(["rear-wing", "side-skirts", "front-bumper"])
-const mobileInstallToggleSurfaceCategoryIds = new Set(["side-skirts", "front-bumper"])
-const mobileFixedStyleSurfaceAssetIds: Record<string, string> = {
-  "front-bumper": "front-splitter-style",
-  "side-skirts": "side-skirts-style",
-}
-const mobileBrandFilteredCategoryIds = new Set(["wheels", "calipers"])
 
-function isMobileConfigAssetVisible(asset: PartAsset) {
-  const fixedStyleAssetId = mobileFixedStyleSurfaceAssetIds[asset.categoryId]
+function isMobileBrandResourceCategory(category: PartCategory | undefined): boolean {
+  return (category?.configType ?? "brand_resource") === "brand_resource"
+}
+
+function isMobileResourceNoImageCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource" && category.assetImageVisible === false
+}
+
+function isMobileResourceSubcategoryCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource_subcategory"
+}
+
+function isMobileResourceWithImageCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource" && category.assetImageVisible !== false
+}
+
+function buildMobileFixedStyleAssetIdMap(categories: PartCategory[], assets: PartAsset[]): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const category of categories) {
+    if (isMobileResourceNoImageCategory(category)) {
+      const sorted = assets.filter((a) => a.categoryId === category.id).sort((a, b) => a.sortOrder - b.sortOrder)
+      if (sorted[0]) map[category.id] = sorted[0].id
+    }
+  }
+  return map
+}
+
+function isMobileConfigAssetVisible(asset: PartAsset, fixedAssetIdByCategory: Record<string, string>): boolean {
+  const fixedStyleAssetId = fixedAssetIdByCategory[asset.categoryId]
   return !fixedStyleAssetId || asset.id === fixedStyleAssetId
 }
 const mobileWingStyleInfoById: Record<string, { zh: string; en: string; description: string }> = {
@@ -286,60 +308,49 @@ const mobileWingStyleInfoById: Record<string, { zh: string; en: string; descript
     description: "有主翼加副翼，或者上下两层，常见于赛车、Time Attack 改装。下压力更强，但也更夸张。",
   },
 }
-const mobileExhaustLayoutGroups = [
-  {
-    id: "single-side-single",
-    label: { zh: "单边单出", en: "Single side single" },
-    assetIds: ["exhaust-single-left", "exhaust-single-right"],
-    childLabels: {
-      "exhaust-single-left": { zh: "左", en: "Left" },
-      "exhaust-single-right": { zh: "右", en: "Right" },
-    },
-  },
-  {
-    id: "single-side-dual",
-    label: { zh: "单边双出", en: "Single side dual" },
-    assetIds: ["exhaust-dual-left", "exhaust-dual-right"],
-    childLabels: {
-      "exhaust-dual-left": { zh: "左", en: "Left" },
-      "exhaust-dual-right": { zh: "右", en: "Right" },
-    },
-  },
-  {
-    id: "dual-side-quad",
-    label: { zh: "双边双出", en: "Dual side dual" },
-    assetIds: ["exhaust-quad"],
-    childLabels: {},
-  },
-  {
-    id: "dual-side-single",
-    label: { zh: "双边单出", en: "Dual side single" },
-    assetIds: ["exhaust-dual-single"],
-    childLabels: {},
-  },
-  {
-    id: "center-exit",
-    label: { zh: "居中", en: "Center exit" },
-    assetIds: ["exhaust-center-single", "exhaust-center-dual", "exhaust-center-quad"],
-    childLabels: {
-      "exhaust-center-single": { zh: "1 根", en: "1 pipe" },
-      "exhaust-center-dual": { zh: "2 根", en: "2 pipes" },
-      "exhaust-center-quad": { zh: "4 根", en: "4 pipes" },
-    },
-  },
-] as const
 
-const mobileExhaustLayoutLabelsById: Record<string, { zh: string; en: string }> = {
-  "exhaust-single-left": { zh: "单边单出（左）", en: "Single side single (left)" },
-  "exhaust-single-right": { zh: "单边单出（右）", en: "Single side single (right)" },
-  "exhaust-dual-left": { zh: "单边双出（左）", en: "Single side dual (left)" },
-  "exhaust-dual-right": { zh: "单边双出（右）", en: "Single side dual (right)" },
-  "exhaust-quad": { zh: "双边双出", en: "Dual side dual" },
-  "exhaust-dual-single": { zh: "双边单出", en: "Dual side single" },
-  "exhaust-center-single": { zh: "居中 1 根", en: "Center 1 pipe" },
-  "exhaust-center-dual": { zh: "居中 2 根", en: "Center 2 pipes" },
-  "exhaust-center-quad": { zh: "居中 4 根", en: "Center 4 pipes" },
+type MobileExhaustLayoutGroup = {
+  id: string
+  label: { zh: string; en: string }
+  assetIds: string[]
+  childLabels: Record<string, { zh: string; en: string }>
 }
+
+function mobileSubcategoryConfigToLayoutGroups(subcategoryConfig: SubcategoryGroup[] | undefined): MobileExhaustLayoutGroup[] {
+  if (!subcategoryConfig?.length) return []
+  return [...subcategoryConfig]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((group) => ({
+      id: group.id,
+      label: { zh: group.labelZh, en: group.labelEn || group.labelZh },
+      assetIds: group.assets.map((asset) => asset.assetId),
+      childLabels: Object.fromEntries(
+        group.assets
+          .filter((asset) => asset.childLabelZh)
+          .map((asset) => [asset.assetId, { zh: asset.childLabelZh!, en: asset.childLabelEn || asset.childLabelZh! }]),
+      ),
+    }))
+}
+
+function buildMobileExhaustLayoutLabels(groups: MobileExhaustLayoutGroup[]): Record<string, { zh: string; en: string }> {
+  const labels: Record<string, { zh: string; en: string }> = {}
+  for (const group of groups) {
+    const hasChildren = group.assetIds.length > 1
+    for (const assetId of group.assetIds) {
+      const childLabel = group.childLabels[assetId]
+      if (childLabel && hasChildren) {
+        const useSpace = /^\d/.test(childLabel.zh)
+        labels[assetId] = useSpace
+          ? { zh: `${group.label.zh} ${childLabel.zh}`, en: `${group.label.en} ${childLabel.en}` }
+          : { zh: `${group.label.zh}（${childLabel.zh}）`, en: `${group.label.en} (${childLabel.en})` }
+      } else {
+        labels[assetId] = { zh: group.label.zh, en: group.label.en }
+      }
+    }
+  }
+  return labels
+}
+
 const mobileDryCarbonCategoryId = "dry-carbon-parts"
 const mobileDryCarbonParts = [
   { id: "hood", assetId: "dry-carbon-hood", label: { zh: "机盖", en: "Hood" } },
@@ -380,8 +391,8 @@ function mobileRgbFromHex(hex: string): CustomRgb {
   }
 }
 
-function mobileDisplayAssetTitle(asset: PartAsset) {
-  if (asset.categoryId === "exhaust") return mobileDisplayExhaustLayoutLeafLabel(asset, "zh")
+function mobileDisplayAssetTitle(asset: PartAsset, layoutLabels?: Record<string, { zh: string; en: string }>) {
+  if (asset.categoryId === "exhaust") return mobileDisplayExhaustLayoutLeafLabel(asset, "zh", layoutLabels)
   if (mobileStyleSurfaceCategoryIds.has(asset.categoryId)) return asset.variant || asset.model
   if (asset.id.startsWith("dry-carbon-")) return asset.variant || asset.model
   return `${asset.brand} ${asset.model}`.trim()
@@ -402,8 +413,8 @@ function mobileInferDefaultCaliperColor(asset: PartAsset) {
   return "red"
 }
 
-function mobileDisplaySelectedAssetSummary(asset: PartAsset, language: Language = "zh") {
-  const title = asset.categoryId === "exhaust" ? mobileDisplayExhaustLayoutLeafLabel(asset, language) : mobileDisplayAssetTitle(asset)
+function mobileDisplaySelectedAssetSummary(asset: PartAsset, language: Language = "zh", layoutLabels?: Record<string, { zh: string; en: string }>) {
+  const title = asset.categoryId === "exhaust" ? mobileDisplayExhaustLayoutLeafLabel(asset, language, layoutLabels) : mobileDisplayAssetTitle(asset, layoutLabels)
   if (asset.categoryId !== "wheels") return title
   const details = [mobileDisplayAssetSubtitle(asset), asset.color, asset.finish]
     .map((value) => value.trim())
@@ -412,9 +423,9 @@ function mobileDisplaySelectedAssetSummary(asset: PartAsset, language: Language 
   return details.length ? `${title} (${details.join(" / ")})` : title
 }
 
-function mobileDisplayCategorySelectionStatus(language: Language, asset?: PartAsset) {
+function mobileDisplayCategorySelectionStatus(language: Language, asset?: PartAsset, layoutLabels?: Record<string, { zh: string; en: string }>) {
   if (!asset) return language === "zh" ? "未选择" : "Not selected"
-  return language === "zh" ? `已选择：${mobileDisplaySelectedAssetSummary(asset, language)}` : `Selected: ${mobileDisplaySelectedAssetSummary(asset, language)}`
+  return language === "zh" ? `已选择：${mobileDisplaySelectedAssetSummary(asset, language, layoutLabels)}` : `Selected: ${mobileDisplaySelectedAssetSummary(asset, language, layoutLabels)}`
 }
 
 function mobileInferDefaultSurfaceColor(asset: PartAsset): "black" | "exposed_carbon" | "body_color" {
@@ -472,18 +483,17 @@ function mobileDryCarbonPartMatchesSearch(part: (typeof mobileDryCarbonParts)[nu
   return text.includes(search)
 }
 
-function mobileDisplayExhaustLayoutLeafLabel(asset: PartAsset, language: Language) {
-  const label = mobileExhaustLayoutLabelsById[asset.id]
+function mobileDisplayExhaustLayoutLeafLabel(asset: PartAsset, language: Language, layoutLabels?: Record<string, { zh: string; en: string }>) {
+  const label = layoutLabels?.[asset.id]
   if (label) return language === "zh" ? label.zh : label.en
   return asset.variant || asset.model
 }
 
-function mobileChildExhaustLayoutLabel(group: (typeof mobileExhaustLayoutGroups)[number], assetId: string, language: Language) {
-  const childLabels = group.childLabels as Record<string, { zh: string; en: string }>
+function mobileChildExhaustLayoutLabel(group: MobileExhaustLayoutGroup, assetId: string, language: Language) {
+  const childLabels = group.childLabels
   const label = childLabels[assetId]
   if (label) return language === "zh" ? label.zh : label.en
-  const assetLabel = mobileExhaustLayoutLabelsById[assetId]
-  return assetLabel ? (language === "zh" ? assetLabel.zh : assetLabel.en) : assetId
+  return assetId
 }
 
 function mobileIsHexColorValue(value: string | undefined) {
@@ -932,6 +942,8 @@ function MobileConfigMode(props: MobileStudioAppProps) {
   const [sheet, setSheet] = useState<MobileSheet>(null)
   const [isDockAtPageBottom, setIsDockAtPageBottom] = useState(false)
   const [mediaChromeHidden, setMediaChromeHidden] = useState(false)
+  const mobileExhaustCategory = props.catalog?.categories.find((category) => category.id === "exhaust")
+  const mobileExhaustLayoutLabels = useMemo(() => buildMobileExhaustLayoutLabels(mobileSubcategoryConfigToLayoutGroups(mobileExhaustCategory?.subcategoryConfig)), [mobileExhaustCategory?.subcategoryConfig])
   const isLoginBlocked = mobileAccessKind === "login"
   const isGenerateBlocked = mobileAccessKind === "login" || mobileAccessKind === "config_quota"
   const generatedResultUrl = job?.status === "succeeded" ? job.resultImageUrl : ""
@@ -945,7 +957,7 @@ function MobileConfigMode(props: MobileStudioAppProps) {
     canToggleMediaChrome ? "can-toggle-chrome" : "",
     mediaChromeHidden ? "chrome-hidden" : "",
   ].filter(Boolean).join(" ")
-  const summaryText = selectedAssets.map((asset) => mobileDisplaySelectedAssetSummary(asset, language)).join(" / ") || selectedPaintLabel
+  const summaryText = selectedAssets.map((asset) => mobileDisplaySelectedAssetSummary(asset, language, mobileExhaustLayoutLabels)).join(" / ") || selectedPaintLabel
   const progressText = generationProgress?.message || t.running
   const completedElapsed = hasGenerated && generationDurationSeconds !== null && !isGenerating ? generationDurationSeconds : null
   const isDockExpanded = isDockAtPageBottom
@@ -1239,6 +1251,11 @@ function MobilePartsSheet({
   const search = assetSearch.trim().toLowerCase()
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
+  const mobileCategoryById = useMemo(() => new Map(catalog?.categories.map((category) => [category.id, category]) ?? []), [catalog])
+  const mobileFixedStyleAssetIdByCategory = useMemo(() => (catalog ? buildMobileFixedStyleAssetIdMap(catalog.categories, catalog.assets) : {}), [catalog])
+  const mobileExhaustCategory = catalog?.categories.find((category) => category.id === "exhaust")
+  const mobileExhaustLayoutGroups = useMemo(() => mobileSubcategoryConfigToLayoutGroups(mobileExhaustCategory?.subcategoryConfig), [mobileExhaustCategory?.subcategoryConfig])
+  const mobileExhaustLayoutLabels = useMemo(() => buildMobileExhaustLayoutLabels(mobileExhaustLayoutGroups), [mobileExhaustLayoutGroups])
   const toggleCategory = (categoryId: string, isOpen: boolean) => {
     setExpandedCategory(isOpen ? "" : categoryId)
     if (!isOpen) {
@@ -1265,7 +1282,7 @@ function MobilePartsSheet({
               {assetSuggestions.map(({ asset, categoryLabel }) => (
                 <button key={asset.id} type="button" onClick={() => revealAsset(asset)}>
                   <span>{categoryLabel}</span>
-                  <strong>{mobileDisplayAssetTitle(asset)}</strong>
+                  <strong>{mobileDisplayAssetTitle(asset, mobileExhaustLayoutLabels)}</strong>
                   <em>{mobileDisplayAssetSubtitle(asset)}</em>
                 </button>
               ))}
@@ -1275,11 +1292,11 @@ function MobilePartsSheet({
             {categories.map((category) => {
               const isOpen = expandedCategory === category.id
               const isDryCarbonCategory = category.id === mobileDryCarbonCategoryId
-              const categoryBrands = mobileBrandFilteredCategoryIds.has(category.id) ? catalog.brands.filter((brand) => brand.categoryId === category.id) : []
+              const categoryBrands = isMobileBrandResourceCategory(category) ? catalog.brands.filter((brand) => brand.categoryId === category.id) : []
               const activeBrandId = brandFilters[category.id] || categoryBrands[0]?.id || ""
               const categoryAssets = catalog.assets.filter((asset) => {
                 if (asset.categoryId !== category.id) return false
-                if (!isMobileConfigAssetVisible(asset)) return false
+                if (!isMobileConfigAssetVisible(asset, mobileFixedStyleAssetIdByCategory)) return false
                 if (activeBrandId && categoryBrands.length && asset.brandId !== activeBrandId) return false
                 if (!search) return true
                 return [asset.brand, asset.model, asset.variant, asset.color, asset.finish, category.label].some((value) =>
@@ -1301,7 +1318,7 @@ function MobilePartsSheet({
                     <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
                     <span className="accordion-copy">
                       <strong>{category.label}</strong>
-                      <small>{isDryCarbonCategory ? mobileDisplayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : mobileDisplayCategorySelectionStatus(language, selectedAsset)}</small>
+                      <small>{isDryCarbonCategory ? mobileDisplayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : mobileDisplayCategorySelectionStatus(language, selectedAsset, mobileExhaustLayoutLabels)}</small>
                     </span>
                     {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
                   </button>
@@ -1327,7 +1344,17 @@ function MobilePartsSheet({
                             toggleDryCarbonPart={toggleDryCarbonPart}
                           />
                         ) : categoryAssets.length ? (
-                          category.id === "calipers" ? (
+                          isMobileResourceSubcategoryCategory(category) ? (
+                            <MobileExhaustLayoutList
+                              language={language}
+                              assets={categoryAssets}
+                              selectedAssetId={selections[category.id]}
+                              focusedAssetId={focusedAssetId}
+                              selectAsset={selectAsset}
+                              layoutGroups={mobileExhaustLayoutGroups}
+                              layoutLabels={mobileExhaustLayoutLabels}
+                            />
+                          ) : isMobileBrandResourceCategory(category) && category.id === "calipers" ? (
                             <MobileCaliperCaseList
                               language={language}
                               assets={categoryAssets}
@@ -1339,7 +1366,7 @@ function MobilePartsSheet({
                               setExpandedAssetId={setExpandedCaliperAssetId}
                               updatePartSelectionOption={updatePartSelectionOption}
                             />
-                          ) : category.id === "rear-wing" ? (
+                          ) : isMobileResourceWithImageCategory(category) ? (
                             <MobileWingStyleList
                               language={language}
                               assets={categoryAssets}
@@ -1349,15 +1376,7 @@ function MobilePartsSheet({
                               selectAsset={selectAsset}
                               updatePartSelectionOption={updatePartSelectionOption}
                             />
-                          ) : category.id === "exhaust" ? (
-                            <MobileExhaustLayoutList
-                              language={language}
-                              assets={categoryAssets}
-                              selectedAssetId={selections[category.id]}
-                              focusedAssetId={focusedAssetId}
-                              selectAsset={selectAsset}
-                            />
-                          ) : mobileInstallToggleSurfaceCategoryIds.has(category.id) ? (
+                          ) : isMobileResourceNoImageCategory(category) ? (
                             <MobileSurfaceInstallControl
                               language={language}
                               asset={categoryAssets[0]}
@@ -1379,8 +1398,8 @@ function MobilePartsSheet({
                                     className={`${isAssetSelected ? "asset-card selected" : "asset-card"} ${focusedAssetId === asset.id ? "spotlight" : ""}`.trim()}
                                     onClick={() => selectAsset(asset)}
                                   >
-                                    <img src={asset.imageUrl} alt={`${mobileDisplayAssetTitle(asset)} ${mobileDisplayAssetSubtitle(asset)}`} style={{ objectPosition: asset.imageCrop || "center" }} />
-                                    <strong>{mobileDisplayAssetTitle(asset)}</strong>
+                                    <img src={asset.imageUrl} alt={`${mobileDisplayAssetTitle(asset, mobileExhaustLayoutLabels)} ${mobileDisplayAssetSubtitle(asset)}`} style={{ objectPosition: asset.imageCrop || "center" }} />
+                                    <strong>{mobileDisplayAssetTitle(asset, mobileExhaustLayoutLabels)}</strong>
                                     <span>{mobileDisplayAssetSubtitle(asset)}</span>
                                     <small>{asset.finish}</small>
                                   </button>
@@ -1663,19 +1682,23 @@ function MobileExhaustLayoutList({
   selectedAssetId,
   focusedAssetId,
   selectAsset,
+  layoutGroups,
+  layoutLabels,
 }: {
   language: Language
   assets: PartAsset[]
   selectedAssetId?: string
   focusedAssetId: string
   selectAsset: (asset: PartAsset) => void
+  layoutGroups: MobileExhaustLayoutGroup[]
+  layoutLabels: Record<string, { zh: string; en: string }>
 }) {
   const [expandedGroupId, setExpandedGroupId] = useState("")
   const assetById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets])
 
   return (
     <div className="wing-style-list exhaust-layout-list">
-      {mobileExhaustLayoutGroups.map((group) => {
+      {layoutGroups.map((group) => {
         const groupAssets = group.assetIds.map((assetId) => assetById.get(assetId)).filter((asset): asset is PartAsset => Boolean(asset))
         if (!groupAssets.length) return null
         const selectedAsset = selectedAssetId ? groupAssets.find((asset) => asset.id === selectedAssetId) : undefined
@@ -1686,8 +1709,8 @@ function MobileExhaustLayoutList({
         const groupLabel = language === "zh" ? group.label.zh : group.label.en
         const status = selectedAsset
           ? language === "zh"
-            ? `已选择：${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language)}`
-            : `Selected: ${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language)}`
+            ? `已选择：${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language, layoutLabels)}`
+            : `Selected: ${mobileDisplayExhaustLayoutLeafLabel(selectedAsset, language, layoutLabels)}`
           : language === "zh"
             ? "未选择"
             : "Not selected"

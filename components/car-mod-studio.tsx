@@ -55,9 +55,11 @@ import type {
   PaintFinishEffect,
   PaintOption,
   PartAsset,
+  PartCategory,
   PartColorPolicy,
   PartSelectionOptions,
   SelectionMap,
+  SubcategoryGroup,
 } from "@/lib/types"
 
 type Language = "en" | "zh"
@@ -443,12 +445,38 @@ const dryCarbonCategory = {
   sortOrder: 70,
 }
 const styleSurfaceCategoryIds = new Set(["rear-wing", "side-skirts", "front-bumper"])
-const installToggleSurfaceCategoryIds = new Set(["side-skirts", "front-bumper"])
-const fixedStyleSurfaceAssetIds: Record<string, string> = {
-  "front-bumper": "front-splitter-style",
-  "side-skirts": "side-skirts-style",
+
+function isBrandResourceCategory(category: PartCategory | undefined): boolean {
+  return (category?.configType ?? "brand_resource") === "brand_resource"
 }
-const brandFilteredCategoryIds = new Set(["wheels", "calipers"])
+
+function isResourceNoImageCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource" && category.assetImageVisible === false
+}
+
+function isResourceSubcategoryCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource_subcategory"
+}
+
+function isResourceWithImageCategory(category: PartCategory | undefined): boolean {
+  return category?.configType === "resource" && category.assetImageVisible !== false
+}
+
+function buildFixedStyleAssetIdMap(categories: PartCategory[], assets: PartAsset[]): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const category of categories) {
+    if (isResourceNoImageCategory(category)) {
+      const sorted = assets.filter((a) => a.categoryId === category.id).sort((a, b) => a.sortOrder - b.sortOrder)
+      if (sorted[0]) map[category.id] = sorted[0].id
+    }
+  }
+  return map
+}
+
+function isFrontConfigAssetVisible(asset: PartAsset, fixedAssetIdByCategory: Record<string, string>): boolean {
+  const fixedStyleAssetId = fixedAssetIdByCategory[asset.categoryId]
+  return !fixedStyleAssetId || asset.id === fixedStyleAssetId
+}
 
 function ExhaustPipeIcon({ size = 17, strokeWidth = 2.2 }: { size?: number; strokeWidth?: number }) {
   return <Car size={size} strokeWidth={strokeWidth} aria-hidden="true" focusable="false" />
@@ -479,11 +507,6 @@ function scheduleAccordionCardScroll(card: HTMLElement | null, container: HTMLEl
   window.setTimeout(align, 360)
 }
 
-function isFrontConfigAssetVisible(asset: PartAsset) {
-  const fixedStyleAssetId = fixedStyleSurfaceAssetIds[asset.categoryId]
-  return !fixedStyleAssetId || asset.id === fixedStyleAssetId
-}
-
 const wingStyleInfoById: Record<string, { zh: string; en: string; description: string }> = {
   "wing-ducktail": {
     zh: "鸭尾",
@@ -512,59 +535,46 @@ const wingStyleInfoById: Record<string, { zh: string; en: string; description: s
   },
 }
 
-const exhaustLayoutGroups = [
-  {
-    id: "single-side-single",
-    label: { zh: "单边单出", en: "Single side single" },
-    assetIds: ["exhaust-single-left", "exhaust-single-right"],
-    childLabels: {
-      "exhaust-single-left": { zh: "左", en: "Left" },
-      "exhaust-single-right": { zh: "右", en: "Right" },
-    },
-  },
-  {
-    id: "single-side-dual",
-    label: { zh: "单边双出", en: "Single side dual" },
-    assetIds: ["exhaust-dual-left", "exhaust-dual-right"],
-    childLabels: {
-      "exhaust-dual-left": { zh: "左", en: "Left" },
-      "exhaust-dual-right": { zh: "右", en: "Right" },
-    },
-  },
-  {
-    id: "dual-side-quad",
-    label: { zh: "双边双出", en: "Dual side dual" },
-    assetIds: ["exhaust-quad"],
-    childLabels: {},
-  },
-  {
-    id: "dual-side-single",
-    label: { zh: "双边单出", en: "Dual side single" },
-    assetIds: ["exhaust-dual-single"],
-    childLabels: {},
-  },
-  {
-    id: "center-exit",
-    label: { zh: "居中", en: "Center exit" },
-    assetIds: ["exhaust-center-single", "exhaust-center-dual", "exhaust-center-quad"],
-    childLabels: {
-      "exhaust-center-single": { zh: "1 根", en: "1 pipe" },
-      "exhaust-center-dual": { zh: "2 根", en: "2 pipes" },
-      "exhaust-center-quad": { zh: "4 根", en: "4 pipes" },
-    },
-  },
-] as const
+type ExhaustLayoutGroup = {
+  id: string
+  label: { zh: string; en: string }
+  assetIds: string[]
+  childLabels: Record<string, { zh: string; en: string }>
+}
 
-const exhaustLayoutLabelsById: Record<string, { zh: string; en: string }> = {
-  "exhaust-single-left": { zh: "单边单出（左）", en: "Single side single (left)" },
-  "exhaust-single-right": { zh: "单边单出（右）", en: "Single side single (right)" },
-  "exhaust-dual-left": { zh: "单边双出（左）", en: "Single side dual (left)" },
-  "exhaust-dual-right": { zh: "单边双出（右）", en: "Single side dual (right)" },
-  "exhaust-quad": { zh: "双边双出", en: "Dual side dual" },
-  "exhaust-dual-single": { zh: "双边单出", en: "Dual side single" },
-  "exhaust-center-single": { zh: "居中 1 根", en: "Center 1 pipe" },
-  "exhaust-center-dual": { zh: "居中 2 根", en: "Center 2 pipes" },
-  "exhaust-center-quad": { zh: "居中 4 根", en: "Center 4 pipes" },
+function subcategoryConfigToLayoutGroups(subcategoryConfig: SubcategoryGroup[] | undefined): ExhaustLayoutGroup[] {
+  if (!subcategoryConfig?.length) return []
+  return [...subcategoryConfig]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((group) => ({
+      id: group.id,
+      label: { zh: group.labelZh, en: group.labelEn || group.labelZh },
+      assetIds: group.assets.map((asset) => asset.assetId),
+      childLabels: Object.fromEntries(
+        group.assets
+          .filter((asset) => asset.childLabelZh)
+          .map((asset) => [asset.assetId, { zh: asset.childLabelZh!, en: asset.childLabelEn || asset.childLabelZh! }]),
+      ),
+    }))
+}
+
+function buildExhaustLayoutLabels(groups: ExhaustLayoutGroup[]): Record<string, { zh: string; en: string }> {
+  const labels: Record<string, { zh: string; en: string }> = {}
+  for (const group of groups) {
+    const hasChildren = group.assetIds.length > 1
+    for (const assetId of group.assetIds) {
+      const childLabel = group.childLabels[assetId]
+      if (childLabel && hasChildren) {
+        const useSpace = /^\d/.test(childLabel.zh)
+        labels[assetId] = useSpace
+          ? { zh: `${group.label.zh} ${childLabel.zh}`, en: `${group.label.en} ${childLabel.en}` }
+          : { zh: `${group.label.zh}（${childLabel.zh}）`, en: `${group.label.en} (${childLabel.en})` }
+      } else {
+        labels[assetId] = { zh: group.label.zh, en: group.label.en }
+      }
+    }
+  }
+  return labels
 }
 
 const dryCarbonParts = [
@@ -903,6 +913,12 @@ export function CarModStudio() {
       : frontCategories
   }, [catalog, language])
 
+  const categoryById = useMemo(() => new Map(catalog?.categories.map((category) => [category.id, category]) ?? []), [catalog])
+  const fixedStyleAssetIdByCategory = useMemo(() => (catalog ? buildFixedStyleAssetIdMap(catalog.categories, catalog.assets) : {}), [catalog])
+  const exhaustCategory = catalog?.categories.find((category) => category.id === "exhaust")
+  const exhaustLayoutGroups = useMemo(() => subcategoryConfigToLayoutGroups(exhaustCategory?.subcategoryConfig), [exhaustCategory?.subcategoryConfig])
+  const exhaustLayoutLabels = useMemo(() => buildExhaustLayoutLabels(exhaustLayoutGroups), [exhaustLayoutGroups])
+
   const selectedAssets = useMemo(() => {
     if (!catalog) return []
     return Object.values(selections)
@@ -924,7 +940,7 @@ export function CarModStudio() {
     const search = assetSearch.trim().toLowerCase()
     if (!search) return []
     return catalog.assets
-      .filter(isFrontConfigAssetVisible)
+      .filter((asset) => isFrontConfigAssetVisible(asset, fixedStyleAssetIdByCategory))
       .map((asset) => {
         const category =
           categories.find((item) => item.id === asset.categoryId) ||
@@ -934,7 +950,7 @@ export function CarModStudio() {
       })
       .filter((item) => item.searchable.includes(search))
       .slice(0, 8)
-  }, [assetSearch, catalog, categories])
+  }, [assetSearch, catalog, categories, fixedStyleAssetIdByCategory])
 
   const customPaintOption = useMemo(() => buildCustomPaintOption(customPaintHex, customPaintRgb), [customPaintHex, customPaintRgb])
   const activeCustomPaintOption = useMemo(() => buildCustomPaintOption(activeCustomPaintHex, rgbStringsFromHex(activeCustomPaintHex)), [activeCustomPaintHex])
@@ -1233,7 +1249,7 @@ export function CarModStudio() {
     const revealCategoryId = dryCarbonParts.some((part) => part.assetId === asset.id) ? dryCarbonCategoryId : asset.categoryId
     setPartsOpen(true)
     setExpandedCategory(revealCategoryId)
-    if (brandFilteredCategoryIds.has(asset.categoryId)) {
+    if (isBrandResourceCategory(categoryById.get(asset.categoryId))) {
       setBrandFilters((current) => ({ ...current, [asset.categoryId]: asset.brandId }))
     }
     setFocusedAssetId(asset.id)
@@ -1817,7 +1833,7 @@ export function CarModStudio() {
                                 {assetSuggestions.map(({ asset, categoryLabel }) => (
                                   <button key={asset.id} type="button" onClick={() => revealAsset(asset)}>
                                     <span>{categoryLabel}</span>
-                                    <strong>{displayAssetTitle(asset)}</strong>
+                                    <strong>{displayAssetTitle(asset, exhaustLayoutLabels)}</strong>
                                     <em>{displayAssetSubtitle(asset)}</em>
                                   </button>
                                 ))}
@@ -1827,12 +1843,12 @@ export function CarModStudio() {
                               {categories.map((category) => {
                                 const isOpen = expandedCategory === category.id
                                 const isDryCarbonCategory = category.id === dryCarbonCategoryId
-                                const categoryBrands = brandFilteredCategoryIds.has(category.id) ? catalog.brands.filter((brand) => brand.categoryId === category.id) : []
+                                const categoryBrands = isBrandResourceCategory(category) ? catalog.brands.filter((brand) => brand.categoryId === category.id) : []
                                 const activeBrandId = brandFilters[category.id] || categoryBrands[0]?.id || ""
                                 const search = assetSearch.trim().toLowerCase()
                                 const categoryAssets = catalog.assets.filter((asset) => {
                                   if (asset.categoryId !== category.id) return false
-                                  if (!isFrontConfigAssetVisible(asset)) return false
+                                  if (!isFrontConfigAssetVisible(asset, fixedStyleAssetIdByCategory)) return false
                                   if (activeBrandId && categoryBrands.length && asset.brandId !== activeBrandId) return false
                                   if (!search) return true
                                   return [asset.brand, asset.model, asset.variant, asset.color, asset.finish, category.label].some((value) =>
@@ -1854,7 +1870,7 @@ export function CarModStudio() {
                                       <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
                                       <span className="accordion-copy">
                                         <strong>{category.label}</strong>
-                                        <small>{isDryCarbonCategory ? displayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : displayCategorySelectionStatus(language, selectedAsset)}</small>
+                                        <small>{isDryCarbonCategory ? displayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : displayCategorySelectionStatus(language, selectedAsset, exhaustLayoutLabels)}</small>
                                       </span>
                                       {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
                                     </button>
@@ -1882,7 +1898,18 @@ export function CarModStudio() {
                                                 toggleDryCarbonPart={toggleDryCarbonPart}
                                               />
                                             ) : categoryAssets.length ? (
-                                              category.id === "calipers" ? (
+                                              isResourceSubcategoryCategory(category) ? (
+                                                <ExhaustLayoutList
+                                                  language={language}
+                                                  assets={categoryAssets}
+                                                  selectedAssetId={selections[category.id]}
+                                                  focusedAssetId={focusedAssetId}
+                                                  assetRefs={assetRefs}
+                                                  selectAsset={selectAsset}
+                                                  layoutGroups={exhaustLayoutGroups}
+                                                  layoutLabels={exhaustLayoutLabels}
+                                                />
+                                              ) : isBrandResourceCategory(category) && category.id === "calipers" ? (
                                                 <CaliperCaseList
                                                   language={language}
                                                   assets={categoryAssets}
@@ -1895,7 +1922,7 @@ export function CarModStudio() {
                                                   setExpandedAssetId={setExpandedCaliperAssetId}
                                                   updatePartSelectionOption={updatePartSelectionOption}
                                                 />
-                                              ) : category.id === "rear-wing" ? (
+                                              ) : isResourceWithImageCategory(category) ? (
                                                 <WingStyleList
                                                   language={language}
                                                   assets={categoryAssets}
@@ -1906,16 +1933,7 @@ export function CarModStudio() {
                                                   selectAsset={selectAsset}
                                                   updatePartSelectionOption={updatePartSelectionOption}
                                                 />
-                                              ) : category.id === "exhaust" ? (
-                                                <ExhaustLayoutList
-                                                  language={language}
-                                                  assets={categoryAssets}
-                                                  selectedAssetId={selections[category.id]}
-                                                  focusedAssetId={focusedAssetId}
-                                                  assetRefs={assetRefs}
-                                                  selectAsset={selectAsset}
-                                                />
-                                              ) : installToggleSurfaceCategoryIds.has(category.id) ? (
+                                              ) : isResourceNoImageCategory(category) ? (
                                                 <SurfaceInstallControl
                                                   language={language}
                                                   asset={categoryAssets[0]}
@@ -2391,7 +2409,7 @@ export function CarModStudio() {
                 <div className="mobile-selected-summary">
                   <Layers3 size={17} />
                   <span>{selectedAssets.length ? `${selectedAssets.length} ${selectedAssets.length === 1 ? t.partSelected : t.partsSelected}` : t.noParts}</span>
-                  <strong>{selectedAssets.map((asset) => displaySelectedAssetSummary(asset)).join(" / ") || selectedPaintLabel}</strong>
+                  <strong>{selectedAssets.map((asset) => displaySelectedAssetSummary(asset, "zh", exhaustLayoutLabels)).join(" / ") || selectedPaintLabel}</strong>
                 </div>
 
                 {isGenerating && (
@@ -2859,6 +2877,8 @@ function ExhaustLayoutList({
   focusedAssetId,
   assetRefs,
   selectAsset,
+  layoutGroups,
+  layoutLabels,
 }: {
   language: Language
   assets: PartAsset[]
@@ -2866,6 +2886,8 @@ function ExhaustLayoutList({
   focusedAssetId: string
   assetRefs: { current: Record<string, HTMLButtonElement | null> }
   selectAsset: (asset: PartAsset) => void
+  layoutGroups: ExhaustLayoutGroup[]
+  layoutLabels: Record<string, { zh: string; en: string }>
 }) {
   const [expandedGroupId, setExpandedGroupId] = useState("")
   const [previewAssetId, setPreviewAssetId] = useState("")
@@ -2873,7 +2895,7 @@ function ExhaustLayoutList({
 
   return (
     <div className="wing-style-list exhaust-layout-list">
-      {exhaustLayoutGroups.map((group) => {
+      {layoutGroups.map((group) => {
         const groupAssets = group.assetIds.map((assetId) => assetById.get(assetId)).filter((asset): asset is PartAsset => Boolean(asset))
         if (!groupAssets.length) return null
         const selectedAsset = selectedAssetId ? groupAssets.find((asset) => asset.id === selectedAssetId) : undefined
@@ -2885,8 +2907,8 @@ function ExhaustLayoutList({
         const groupLabel = language === "zh" ? group.label.zh : group.label.en
         const status = selectedAsset
           ? language === "zh"
-            ? `已选择：${displayExhaustLayoutLeafLabel(selectedAsset, language)}`
-            : `Selected: ${displayExhaustLayoutLeafLabel(selectedAsset, language)}`
+            ? `已选择：${displayExhaustLayoutLeafLabel(selectedAsset, language, layoutLabels)}`
+            : `Selected: ${displayExhaustLayoutLeafLabel(selectedAsset, language, layoutLabels)}`
           : language === "zh"
             ? "未选择"
             : "Not selected"
@@ -3556,26 +3578,25 @@ function inferDefaultSurfaceColor(asset: PartAsset): "black" | "exposed_carbon" 
   return "black"
 }
 
-function displayExhaustLayoutLeafLabel(asset: PartAsset, language: Language) {
-  const label = exhaustLayoutLabelsById[asset.id]
+function displayExhaustLayoutLeafLabel(asset: PartAsset, language: Language, layoutLabels?: Record<string, { zh: string; en: string }>) {
+  const label = layoutLabels?.[asset.id]
   if (label) return language === "zh" ? label.zh : label.en
   return asset.variant || asset.model
 }
 
-function childExhaustLayoutLabel(group: (typeof exhaustLayoutGroups)[number], assetId: string, language: Language) {
-  const childLabels = group.childLabels as Record<string, { zh: string; en: string }>
+function childExhaustLayoutLabel(group: ExhaustLayoutGroup, assetId: string, language: Language) {
+  const childLabels = group.childLabels
   const label = childLabels[assetId]
   if (label) return language === "zh" ? label.zh : label.en
-  const assetLabel = exhaustLayoutLabelsById[assetId]
-  return assetLabel ? (language === "zh" ? assetLabel.zh : assetLabel.en) : assetId
+  return assetId
 }
 
 function isHexColorValue(value: string | undefined) {
   return /^#[0-9a-fA-F]{6}$/.test((value || "").trim())
 }
 
-function displayAssetTitle(asset: PartAsset) {
-  if (asset.categoryId === "exhaust") return displayExhaustLayoutLeafLabel(asset, "zh")
+function displayAssetTitle(asset: PartAsset, layoutLabels?: Record<string, { zh: string; en: string }>) {
+  if (asset.categoryId === "exhaust") return displayExhaustLayoutLeafLabel(asset, "zh", layoutLabels)
   if (styleSurfaceCategoryIds.has(asset.categoryId)) return asset.variant || asset.model
   if (asset.id.startsWith("dry-carbon-")) return asset.variant || asset.model
   return `${asset.brand} ${asset.model}`.trim()
@@ -3587,8 +3608,8 @@ function displayAssetSubtitle(asset: PartAsset) {
   return asset.variant
 }
 
-function displaySelectedAssetSummary(asset: PartAsset, language: Language = "zh") {
-  const title = asset.categoryId === "exhaust" ? displayExhaustLayoutLeafLabel(asset, language) : displayAssetTitle(asset)
+function displaySelectedAssetSummary(asset: PartAsset, language: Language = "zh", layoutLabels?: Record<string, { zh: string; en: string }>) {
+  const title = asset.categoryId === "exhaust" ? displayExhaustLayoutLeafLabel(asset, language, layoutLabels) : displayAssetTitle(asset, layoutLabels)
   if (asset.categoryId !== "wheels") return title
   const details = [displayAssetSubtitle(asset), asset.color, asset.finish]
     .map((value) => value.trim())
@@ -3597,9 +3618,9 @@ function displaySelectedAssetSummary(asset: PartAsset, language: Language = "zh"
   return details.length ? `${title} (${details.join(" / ")})` : title
 }
 
-function displayCategorySelectionStatus(language: Language, asset?: PartAsset) {
+function displayCategorySelectionStatus(language: Language, asset?: PartAsset, layoutLabels?: Record<string, { zh: string; en: string }>) {
   if (!asset) return language === "zh" ? "未选择" : "Not selected"
-  return language === "zh" ? `已选择：${displaySelectedAssetSummary(asset, language)}` : `Selected: ${displaySelectedAssetSummary(asset, language)}`
+  return language === "zh" ? `已选择：${displaySelectedAssetSummary(asset, language, layoutLabels)}` : `Selected: ${displaySelectedAssetSummary(asset, language, layoutLabels)}`
 }
 
 function isInternalVehicleModel(value: unknown) {

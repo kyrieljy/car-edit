@@ -15753,6 +15753,155 @@ a {
   background: var(--clinical-teal);
 }
 
+.admin-clinical .config-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--clinical-teal);
+  background: rgba(103, 255, 202, 0.1);
+  border: 1px solid rgba(103, 255, 202, 0.2);
+  white-space: nowrap;
+}
+
+.admin-clinical .admin-form-hint {
+  display: block;
+  color: var(--clinical-muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-clinical .subcategory-config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.admin-clinical .subcategory-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--clinical-panel-low);
+  border: 1px solid var(--clinical-line-soft);
+  border-radius: 8px;
+}
+
+.admin-clinical .subcategory-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-clinical .subcategory-group-header input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-clinical .subcategory-group-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.admin-clinical .subcategory-group-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--clinical-line);
+  background: var(--clinical-panel);
+  color: var(--clinical-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.admin-clinical .subcategory-group-actions button:hover:not(:disabled) {
+  color: var(--clinical-teal);
+  background: rgba(103, 255, 202, 0.08);
+}
+
+.admin-clinical .subcategory-group-actions button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.admin-clinical .subcategory-group-actions button.icon-danger:hover:not(:disabled) {
+  color: var(--red, #ff5a5a);
+  background: rgba(255, 90, 90, 0.08);
+}
+
+.admin-clinical .subcategory-group-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.admin-clinical .subcategory-assets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-clinical .subcategory-asset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 30px;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-clinical .subcategory-asset-row select,
+.admin-clinical .subcategory-asset-row input {
+  min-width: 0;
+  width: 100%;
+}
+
+.admin-clinical .subcategory-asset-row button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--clinical-line);
+  background: var(--clinical-panel);
+  color: var(--clinical-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.admin-clinical .subcategory-asset-row button.icon-danger:hover {
+  color: var(--red, #ff5a5a);
+  background: rgba(255, 90, 90, 0.08);
+}
+
+.admin-clinical .subcategory-add-asset,
+.admin-clinical .subcategory-add-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px dashed var(--clinical-line);
+  background: transparent;
+  color: var(--clinical-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.admin-clinical .subcategory-add-asset:hover,
+.admin-clinical .subcategory-add-group:hover {
+  color: var(--clinical-teal);
+  border-color: var(--clinical-teal);
+  background: rgba(103, 255, 202, 0.06);
+}
+
 .provider-sections {
   display: grid;
   gap: 28px;

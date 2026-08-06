@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
   BadgeCheck,
   BarChart3,
   ChevronsUpDown,
@@ -15,6 +17,7 @@ import {
   KeyRound,
   ListPlus,
   LogOut,
+  Plus,
   Receipt,
   RefreshCw,
   ServerCog,
@@ -130,6 +133,103 @@ function adminTabTitle(tab: AdminTab) {
     orders: "订单管理",
     audit: "审计日志",
   }[tab]
+}
+
+type SubcategoryConfigEntry = {
+  id: string
+  labelZh: string
+  labelEn: string
+  sortOrder: number
+  assets: Array<{ assetId: string; childLabelZh: string; childLabelEn: string }>
+}
+
+function SubcategoryConfigEditor({ config, onChange, categoryAssets }: {
+  config: SubcategoryConfigEntry[]
+  onChange: (config: SubcategoryConfigEntry[]) => void
+  categoryAssets: Array<{ id: string; model?: string; brand?: string }>
+}) {
+  const addGroup = () => {
+    onChange([...config, { id: "", labelZh: "", labelEn: "", sortOrder: config.length, assets: [] }])
+  }
+  const updateGroup = (index: number, patch: Partial<SubcategoryConfigEntry>) => {
+    onChange(config.map((group, i) => (i === index ? { ...group, ...patch } : group)))
+  }
+  const removeGroup = (index: number) => {
+    onChange(config.filter((_, i) => i !== index))
+  }
+  const moveGroup = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= config.length) return
+    const next = [...config]
+    const temp = next[index]
+    next[index] = next[target]
+    next[target] = temp
+    onChange(next.map((group, i) => ({ ...group, sortOrder: i })))
+  }
+  const addAsset = (groupIndex: number) => {
+    const firstAsset = categoryAssets[0]
+    onChange(config.map((group, i) => (i === groupIndex ? { ...group, assets: [...group.assets, { assetId: firstAsset?.id ?? "", childLabelZh: "", childLabelEn: "" }] } : group)))
+  }
+  const updateAsset = (groupIndex: number, assetIndex: number, patch: Partial<{ assetId: string; childLabelZh: string; childLabelEn: string }>) => {
+    onChange(config.map((group, i) => (i === groupIndex ? { ...group, assets: group.assets.map((asset, j) => (j === assetIndex ? { ...asset, ...patch } : asset)) } : group)))
+  }
+  const removeAsset = (groupIndex: number, assetIndex: number) => {
+    onChange(config.map((group, i) => (i === groupIndex ? { ...group, assets: group.assets.filter((_, j) => j !== assetIndex) } : group)))
+  }
+
+  return (
+    <div className="subcategory-config-editor">
+      <small className="admin-form-hint">细分类选项：定义分组及其关联配件</small>
+      {config.map((group, groupIndex) => (
+        <div key={groupIndex} className="subcategory-group-card">
+          <div className="subcategory-group-header">
+            <input value={group.labelZh} onChange={(event) => updateGroup(groupIndex, { labelZh: event.target.value })} placeholder="组中文名（如：单边单出）" />
+            <div className="subcategory-group-actions">
+              <button type="button" onClick={() => moveGroup(groupIndex, -1)} disabled={groupIndex === 0} aria-label="上移">
+                <ArrowUp size={14} />
+              </button>
+              <button type="button" onClick={() => moveGroup(groupIndex, 1)} disabled={groupIndex === config.length - 1} aria-label="下移">
+                <ArrowDown size={14} />
+              </button>
+              <button type="button" className="icon-danger" onClick={() => removeGroup(groupIndex)} aria-label="删除分组">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="subcategory-group-fields">
+            <input value={group.id} onChange={(event) => updateGroup(groupIndex, { id: event.target.value })} placeholder="组 ID（如：single-side-single）" />
+            <input value={group.labelEn} onChange={(event) => updateGroup(groupIndex, { labelEn: event.target.value })} placeholder="组英文名（如：Single side single）" />
+          </div>
+          <div className="subcategory-assets">
+            {group.assets.map((asset, assetIndex) => (
+              <div key={assetIndex} className="subcategory-asset-row">
+                <select value={asset.assetId} onChange={(event) => updateAsset(groupIndex, assetIndex, { assetId: event.target.value })}>
+                  {categoryAssets.map((catAsset) => (
+                    <option key={catAsset.id} value={catAsset.id}>
+                      {catAsset.id}{catAsset.brand || catAsset.model ? ` (${[catAsset.brand, catAsset.model].filter(Boolean).join(" ")})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <input value={asset.childLabelZh} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelZh: event.target.value })} placeholder="子标签中文（如：左）" />
+                <input value={asset.childLabelEn} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelEn: event.target.value })} placeholder="子标签英文（如：Left）" />
+                <button type="button" className="icon-danger" onClick={() => removeAsset(groupIndex, assetIndex)} aria-label="删除配件">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="subcategory-add-asset" onClick={() => addAsset(groupIndex)}>
+              <Plus size={14} />
+              添加配件
+            </button>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="subcategory-add-group" onClick={addGroup}>
+        <Plus size={14} />
+        添加分组
+      </button>
+    </div>
+  )
 }
 
 export function AdminConsole() {
@@ -732,7 +832,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
   const [brandSearch, setBrandSearch] = useState("")
   const [assetSearch, setAssetSearch] = useState("")
   const [editingCategoryId, setEditingCategoryId] = useState("")
-  const [categoryForm, setCategoryForm] = useState({ id: "", labelZh: "", labelEn: "", description: "", sortOrder: "10", aliases: "", chatEnabled: true, referenceHighRisk: false })
+  const [categoryForm, setCategoryForm] = useState({ id: "", labelZh: "", labelEn: "", description: "", sortOrder: "10", aliases: "", chatEnabled: true, referenceHighRisk: false, configType: "brand_resource" as "brand_resource" | "resource" | "resource_subcategory", assetImageVisible: true, subcategoryConfig: [] as Array<{ id: string; labelZh: string; labelEn: string; sortOrder: number; assets: Array<{ assetId: string; childLabelZh: string; childLabelEn: string }> }> })
   const [editingBrandId, setEditingBrandId] = useState("")
   const [brandForm, setBrandForm] = useState({ id: "", categoryId, label: "", sortOrder: "10", active: true })
   const [assetBrandId, setAssetBrandId] = useState("")
@@ -768,6 +868,9 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
 
   const categoryBrands = useMemo(() => summary.brands.filter((brand) => brand.categoryId === categoryId), [summary.brands, categoryId])
   const categoryById = useMemo(() => new Map(summary.categories.map((category) => [category.id, category])), [summary.categories])
+  const selectedCategory = categoryById.get(categoryId)
+  const selectedCategoryConfigType = selectedCategory?.configType ?? "brand_resource"
+  const brandResourceCategories = useMemo(() => summary.categories.filter((category) => (category.configType ?? "brand_resource") === "brand_resource"), [summary.categories])
   const activeCategoryBrands = useMemo(() => categoryBrands.filter((brand) => brand.active), [categoryBrands])
   const assetFormBrands = useMemo(() => (editingAssetId ? categoryBrands : activeCategoryBrands), [activeCategoryBrands, categoryBrands, editingAssetId])
   const visibleAssets = useMemo(() => summary.assets.filter((asset) => asset.categoryId === categoryId), [summary.assets, categoryId])
@@ -1108,7 +1211,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
 
   const resetCategoryForm = () => {
     setEditingCategoryId("")
-    setCategoryForm({ id: "", labelZh: "", labelEn: "", description: "", sortOrder: "10", aliases: "", chatEnabled: true, referenceHighRisk: false })
+    setCategoryForm({ id: "", labelZh: "", labelEn: "", description: "", sortOrder: "10", aliases: "", chatEnabled: true, referenceHighRisk: false, configType: "brand_resource", assetImageVisible: true, subcategoryConfig: [] })
   }
 
   const editCategory = (category: PartCategory) => {
@@ -1123,6 +1226,15 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
       aliases: (category.aliases ?? []).join(", "),
       chatEnabled: category.chatEnabled ?? true,
       referenceHighRisk: category.referenceHighRisk ?? false,
+      configType: category.configType ?? "brand_resource",
+      assetImageVisible: category.assetImageVisible ?? true,
+      subcategoryConfig: (category.subcategoryConfig ?? []).map((group) => ({
+        id: group.id,
+        labelZh: group.labelZh,
+        labelEn: group.labelEn ?? "",
+        sortOrder: group.sortOrder,
+        assets: (group.assets ?? []).map((asset) => ({ assetId: asset.assetId, childLabelZh: asset.childLabelZh ?? "", childLabelEn: asset.childLabelEn ?? "" })),
+      })),
     })
   }
 
@@ -1139,6 +1251,9 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
         aliases: categoryForm.aliases.split(/[\n,，、;；]/).map((item) => item.trim()).filter(Boolean),
         chatEnabled: categoryForm.chatEnabled,
         referenceHighRisk: categoryForm.referenceHighRisk,
+        configType: categoryForm.configType,
+        assetImageVisible: categoryForm.assetImageVisible,
+        subcategoryConfig: categoryForm.subcategoryConfig,
       }),
     })
     if (!response.ok) {
@@ -1396,6 +1511,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
                     <strong>{category.labelZh}</strong>
                     <span>{category.labelEn} / {category.id}</span>
                     <small>{brandCount} 品牌 / {assetCount} 配件</small>
+                    <small className="config-type-badge">{category.configType === "resource_subcategory" ? "资源-细分类" : category.configType === "resource" ? "资源" : "品牌-资源"}</small>
                   </button>
                   <button type="button" className="icon-danger" onClick={() => void removeCategory(category)} aria-label="删除类型">
                     <Trash2 size={15} />
@@ -1437,6 +1553,27 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               <input type="checkbox" checked={categoryForm.referenceHighRisk} onChange={(event) => setCategoryForm((current) => ({ ...current, referenceHighRisk: event.target.checked }))} />
               高风险参考图
             </label>
+            <label>
+              配置类型
+              <select value={categoryForm.configType} onChange={(event) => setCategoryForm((current) => ({ ...current, configType: event.target.value as "brand_resource" | "resource" | "resource_subcategory" }))}>
+                <option value="brand_resource">品牌-资源</option>
+                <option value="resource">资源</option>
+                <option value="resource_subcategory">资源-细分类</option>
+              </select>
+            </label>
+            {categoryForm.configType === "resource" && (
+              <label className="inline-check">
+                <input type="checkbox" checked={categoryForm.assetImageVisible} onChange={(event) => setCategoryForm((current) => ({ ...current, assetImageVisible: event.target.checked }))} />
+                是否显示图片
+              </label>
+            )}
+            {categoryForm.configType === "resource_subcategory" && (
+              <SubcategoryConfigEditor
+                config={categoryForm.subcategoryConfig}
+                onChange={(subcategoryConfig) => setCategoryForm((current) => ({ ...current, subcategoryConfig }))}
+                categoryAssets={summary.assets.filter((asset) => asset.categoryId === (editingCategoryId || categoryForm.id))}
+              />
+            )}
             <div className="taxonomy-actions">
               <button type="submit">{editingCategoryId ? "保存类型" : "新增类型"}</button>
               <button type="button" onClick={resetCategoryForm}>
@@ -1447,11 +1584,12 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
           </form>
         </div>
 
+        {selectedCategoryConfigType === "brand_resource" && (
         <div className="taxonomy-card">
           <PanelHeading label="资源流程" title="品牌管理" count={`${categoryBrands.length} 个品牌`} />
           <div className="admin-toolbar">
             <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-              {summary.categories.map((category) => (
+              {brandResourceCategories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.labelZh || category.labelEn || category.label}
                 </option>
@@ -1495,7 +1633,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
             <label>
               所属类型
               <select value={brandForm.categoryId} onChange={(event) => setBrandForm((current) => ({ ...current, categoryId: event.target.value }))}>
-                {summary.categories.map((category) => (
+                {brandResourceCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.labelZh || category.labelEn || category.label}
                   </option>
@@ -1523,6 +1661,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
             </div>
           </form>
         </div>
+        )}
       </section>
 
       <section className="admin-panel two-column-panel">
@@ -1545,6 +1684,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               ))}
             </select>
           </div>
+          {selectedCategoryConfigType === "brand_resource" && (
           <div className="brand-tags">
             <button type="button" className={!assetBrandFilterId ? "selected" : ""} onClick={() => setAssetBrandFilterId("")}>
               显示全部
@@ -1555,6 +1695,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               </button>
             ))}
           </div>
+          )}
           <div className={dragState?.kind === "asset" ? "asset-table drag-active" : "asset-table"}>
             {displayedAssets.map((asset) => (
               <AssetRow
@@ -1582,11 +1723,12 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               onClick={() => setAssetPanelsOpen((current) => ({ ...current, basic: !current.basic }))}
             >
               <span>基础设置</span>
-              <small>品牌、型号、展示图、Prompt Hint、参考图</small>
+              <small>{selectedCategoryConfigType === "brand_resource" ? "品牌、型号、展示图、Prompt Hint、参考图" : "型号、展示图、Prompt Hint、参考图"}</small>
             </button>
             <div className="asset-optional-content">
               <div className="asset-optional-content-inner">
                 <div className="asset-basic-panel-body">
+          {selectedCategoryConfigType === "brand_resource" && (
           <label>
             所属品牌
             <select value={assetBrandId} onChange={(event) => setAssetBrandId(event.target.value)}>
@@ -1597,6 +1739,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               ))}
             </select>
           </label>
+          )}
           <label>
             型号
             <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="LM-R / GT Wing" />

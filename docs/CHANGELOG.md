@@ -2,6 +2,38 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-08-06
+
+### 管理员分类属性配置与用户界面数据驱动 (DESIGN-20260806-003)
+
+#### 新增
+- [新增] `lib/types.ts` 新增 `PartCategoryConfigType` 联合类型（`brand_resource` / `resource` / `resource_subcategory`）、`SubcategoryGroupAsset` 类型、`SubcategoryGroup` 类型 (关联方案ID: DESIGN-20260806-003)
+- [新增] `lib/part-category-aliases.ts` 新增 `defaultConfigTypeForCategory`、`defaultAssetImageVisibleForCategory`、`defaultSubcategoryConfigForCategory` 三个默认值函数，含排气 5 个布局组默认数据 (关联方案ID: DESIGN-20260806-003)
+- [新增] `components/admin-console.tsx` 新增 `SubcategoryConfigEditor` 子组件，支持细分类分组的增删改排序及组内关联配件的增删改 (关联方案ID: DESIGN-20260806-003)
+- [新增] `app/globals.css` 新增 `.config-type-badge`、`.subcategory-config-editor`、`.subcategory-group-card` 等管理端样式 (关联方案ID: DESIGN-20260806-003)
+
+#### 修改
+- [修改] `lib/server/db.ts` `asset_categories` 表新增 `config_type`、`asset_image_visible`、`subcategory_config_json` 三列，含迁移函数与数据填充；`mapCategoryRow`/`createCategory`/`updateCategory`/`seedCategory` 读写新字段 (关联方案ID: DESIGN-20260806-003)
+- [修改] `lib/catalog.ts` `categoriesSeed` 派生逻辑新增 configType/assetImageVisible/subcategoryConfig 默认值 (关联方案ID: DESIGN-20260806-003)
+- [修改] `app/api/admin/categories/route.ts` POST 处理器新增解析 configType/assetImageVisible/subcategoryConfig (关联方案ID: DESIGN-20260806-003)
+- [修改] `app/api/admin/categories/[id]/route.ts` PATCH 处理器新增解析 configType/assetImageVisible/subcategoryConfig (关联方案ID: DESIGN-20260806-003)
+- [修改] `components/admin-console.tsx` categoryForm 扩展三个新字段；新增配置类型下拉框、是否显示图片子设置；品牌管理/配件管理面板按 configType 条件渲染；类型列表添加配置类型徽章 (关联方案ID: DESIGN-20260806-003)
+- [修改] `components/car-mod-studio.tsx` 移除 `brandFilteredCategoryIds`/`installToggleSurfaceCategoryIds`/`fixedStyleSurfaceAssetIds`/`exhaustLayoutGroups`/`exhaustLayoutLabelsById` 硬编码常量，替换为 configType/assetImageVisible/subcategoryConfig 数据驱动逻辑；`ExhaustLayoutList` 组件接收 `layoutGroups`/`layoutLabels` props (关联方案ID: DESIGN-20260806-003)
+- [修改] `components/mobile/mobile-studio-app.tsx` 同 PC 端替换策略，移除所有 `mobile*` 硬编码常量，替换为 configType 驱动逻辑 (关联方案ID: DESIGN-20260806-003)
+
+#### 文档
+- [文档] `docs/DB_SCHEMA.md` 更新 `asset_categories` 表字段说明，新增三列 (关联方案ID: DESIGN-20260806-003)
+- [文档] `docs/API_REFERENCE.md` 更新管理端分类 CRUD 接口字段说明及目录 API 响应字段 (关联方案ID: DESIGN-20260806-003)
+- [文档] `docs/BUSINESS_DOMAIN.md` 更新术语表"配件分类"条目，补充配置类型概念 (关联方案ID: DESIGN-20260806-003)
+
+#### 影响范围
+- 管理端类型管理表单新增"配置类型"属性（品牌-资源/资源/资源-细分类），不同类型显示不同配置面板
+- 管理端"资源"类型下可配置是否显示图片；"资源-细分类"类型下可配置细分类选项
+- 用户端 PC/移动端渲染逻辑从硬编码 categoryId 集合改为 configType 数据驱动，视觉效果不变
+- 排气布局组数据从硬编码改为从 `category.subcategoryConfig` 读取
+- 生图 prompt 生成不受影响（提示词引擎不读取新字段）
+- 用户操作习惯不变
+
 ## 2026-07-31
 
 ### PC端个人中心弹窗重构 (DESIGN-20260731-001)

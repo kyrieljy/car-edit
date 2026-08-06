@@ -1,3 +1,19 @@
+export type PartCategoryConfigType = 'brand_resource' | 'resource' | 'resource_subcategory'
+
+export type SubcategoryGroupAsset = {
+  assetId: string
+  childLabelZh?: string
+  childLabelEn?: string
+}
+
+export type SubcategoryGroup = {
+  id: string
+  labelZh: string
+  labelEn?: string
+  sortOrder: number
+  assets: SubcategoryGroupAsset[]
+}
+
 export type PartCategory = {
   id: string
   label: string
@@ -8,6 +24,9 @@ export type PartCategory = {
   aliases?: string[]
   chatEnabled?: boolean
   referenceHighRisk?: boolean
+  configType?: PartCategoryConfigType
+  assetImageVisible?: boolean
+  subcategoryConfig?: SubcategoryGroup[]
 }
 
 export type PartBrand = {

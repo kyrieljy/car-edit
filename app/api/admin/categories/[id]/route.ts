@@ -17,6 +17,9 @@ export async function PATCH(request: Request, context: { params: { id: string } 
       aliases: Array.isArray(body.aliases) ? body.aliases.map((item: unknown) => String(item)) : undefined,
       chatEnabled: body.chatEnabled === undefined ? undefined : Boolean(body.chatEnabled),
       referenceHighRisk: body.referenceHighRisk === undefined ? undefined : Boolean(body.referenceHighRisk),
+      configType: typeof body.configType === "string" && ["brand_resource", "resource", "resource_subcategory"].includes(body.configType) ? body.configType as "brand_resource" | "resource" | "resource_subcategory" : undefined,
+      assetImageVisible: body.assetImageVisible === undefined ? undefined : Boolean(body.assetImageVisible),
+      subcategoryConfig: Array.isArray(body.subcategoryConfig) ? body.subcategoryConfig : undefined,
     })
     return NextResponse.json(category)
   } catch (error) {

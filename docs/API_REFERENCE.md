@@ -1236,7 +1236,7 @@ http://127.0.0.1:3000  （开发环境）
 
   | 字段 | 类型 | 描述 |
   |------|------|------|
-  | categories | PartCategory[] | 配件分类列表 |
+  | categories | PartCategory[] | 配件分类列表（每个对象包含 configType、assetImageVisible、subcategoryConfig 字段，DESIGN-20260806-003 新增） |
   | brands | PartBrand[] | 品牌列表 |
   | assets | PartAsset[] | 配件资产列表 |
   | paints | PaintOption[] | 可选车漆列表 |
@@ -1570,6 +1570,65 @@ http://127.0.0.1:3000  （开发环境）
 | `PATCH` | `/api/admin/categories` | 批量排序分类 |
 | `PATCH` | `/api/admin/categories/[id]` | 更新指定分类 |
 | `DELETE` | `/api/admin/categories/[id]` | 删除指定分类 |
+
+##### 创建配件分类
+
+- **路径**：`POST /api/admin/categories`
+- **描述**：创建新的配件分类，支持配置类型、图片显示、细分类选项等属性。需要管理员权限。
+- **请求参数**（JSON Body）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 分类唯一标识 |
+  | label | string | 是 | 分类显示名称 |
+  | labelEn | string | 否 | 分类英文名称 |
+  | labelZh | string | 否 | 分类中文名称 |
+  | description | string | 否 | 分类描述 |
+  | sortOrder | number | 否 | 排序序号 |
+  | aliases | string[] | 否 | 分类别名列表 |
+  | chatEnabled | boolean | 否 | 是否在聊天模式中可用（默认 true） |
+  | referenceHighRisk | boolean | 否 | 是否为高风险参考分类（默认 false） |
+  | configType | string | 否 | 配置类型：`brand_resource` / `resource` / `resource_subcategory`（默认 `brand_resource`）（已更新 2026-08-06） |
+  | assetImageVisible | boolean | 否 | 资源类型下是否显示图片（默认 true），仅 `configType='resource'` 时生效（已更新 2026-08-06） |
+  | subcategoryConfig | SubcategoryGroup[] | 否 | 细分类配置，仅 `configType='resource_subcategory'` 时生效（已更新 2026-08-06） |
+
+- **关联数据表**：`asset_categories`
+
+##### 更新指定分类
+
+- **路径**：`PATCH /api/admin/categories/[id]`
+- **描述**：更新指定分类的属性，包括配置类型、图片显示、细分类选项等。需要管理员权限。
+- **请求参数**（JSON Body）：与创建接口相同，所有字段均为可选。
+- **关联数据表**：`asset_categories`
+
+**SubcategoryGroup 结构说明**（DESIGN-20260806-003 新增）：
+
+```json
+{
+  "id": "single-side-single",
+  "labelZh": "单边单出",
+  "labelEn": "Single side single",
+  "sortOrder": 1,
+  "assets": [
+    {
+      "assetId": "asset_exhaust_001",
+      "childLabelZh": "左",
+      "childLabelEn": "Left"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 描述 |
+  |------|------|------|
+  | id | string | 细分类组唯一标识 |
+  | labelZh | string | 细分类组中文名称 |
+  | labelEn | string | 细分类组英文名称 |
+  | sortOrder | number | 排序序号 |
+  | assets | SubcategoryGroupAsset[] | 关联配件列表 |
+  | assets[].assetId | string | 关联配件 ID |
+  | assets[].childLabelZh | string | 子标签中文（如"左"、"1 根"） |
+  | assets[].childLabelEn | string | 子标签英文 |
 
 ---
 
@@ -3041,5 +3100,5 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
-> 最后更新时间：2026-07-31
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002、DESIGN-20260731-001
+> 最后更新时间：2026-08-06
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002、DESIGN-20260731-001、DESIGN-20260806-003

@@ -13,7 +13,7 @@ import type {
   WorkflowEdgeConfig,
   WorkflowNodeConfig,
 } from "./types"
-import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory } from "./part-category-aliases"
+import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory, defaultConfigTypeForCategory, defaultAssetImageVisibleForCategory, defaultSubcategoryConfigForCategory } from "./part-category-aliases"
 
 const categorySeedBase: PartCategory[] = [
   { id: "wheels", label: "Wheels", labelEn: "Wheels", labelZh: "轮毂", description: "Forged wheels, colors, offsets and fitment.", sortOrder: 10 },
@@ -91,6 +91,9 @@ export const categoriesSeed: PartCategory[] = v2CategorySeedBase.map((category) 
   aliases: defaultAliasesForCategory(category.id),
   chatEnabled: defaultChatEnabledForCategory(category.id),
   referenceHighRisk: defaultReferenceHighRiskForCategory(category.id),
+  configType: defaultConfigTypeForCategory(category.id),
+  assetImageVisible: defaultAssetImageVisibleForCategory(category.id),
+  subcategoryConfig: defaultSubcategoryConfigForCategory(category.id),
 }))
 
 export const brandsSeed: PartBrand[] = [

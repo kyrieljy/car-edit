@@ -10,7 +10,8 @@
 |------|------|------|
 | 车辆图（Vehicle Image） | 用户上传的待改装车辆原始照片 | 支持 JPEG/PNG/WebP，最大 20MB |
 | 改装配件（Part Asset） | 可安装到车辆上的改装部件，包含品牌、型号、颜色、涂装、参考图等属性 | 存储于 part_assets 表 |
-| 配件分类（Part Category） | 改装配件的类型分组 | 12 类：wheels、calipers、rear-wing、front-bumper、side-skirts、diffuser、exhaust、hood、lights、wrap、mirrors、grille |
+| 配件分类（Part Category） | 改装配件的类型分组 | 每个分类具有配置类型（configType），决定管理端配置面板和用户端渲染方式（已更新 2026-08-06） |
+| 配置类型（Config Type） | 配件分类的配置模式，决定管理端和用户端的渲染逻辑 | 三种枚举值：`brand_resource`（品牌-资源，需先选品牌再选资源）、`resource`（资源，直接选择资源，可配置是否有图）、`resource_subcategory`（资源-细分类，选择资源后需进一步选细分类）。DESIGN-20260806-003 新增 |
 | 配件品牌（Part Brand） | 改装配件的生产厂商品牌 | 如 BBS、Brembo、Akrapovic、APR 等 |
 | 参考图（Reference Image） | 配件的实物照片，用于 AI 生成时参考外观 | 角色：shape（形状）、material（材质）、color（颜色）、install（安装效果）、full（完整参考）、avoid（避免） |
 | 车漆（Paint Option） | 车身涂装颜色选项 | 包含 hex 值和 prompt 描述 |
@@ -277,5 +278,5 @@ erDiagram
 
 ---
 
-> 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003
+> 最后更新时间：2026-08-06
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003

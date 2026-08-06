@@ -103,22 +103,35 @@
 
 ### asset_categories（`asset_categories`）
 
-- **用途**：改装配件分类定义（如轮毂、包围、尾翼等 12 个分类）
+- **用途**：改装配件分类定义（如轮毂、包围、尾翼等分类）
 - **字段**：
 
   | 字段名 | 类型 | 是否必填 | 默认值 | 描述 |
   |--------|------|----------|--------|------|
   | id | TEXT | 是 | - | 分类唯一标识（主键） |
-  | name | TEXT | 是 | - | 分类名称 |
-  | icon | TEXT | 否 | - | 分类图标标识 |
-  | sort_order | INTEGER | 否 | 0 | 排序序号 |
-  | active | INTEGER | 是 | 1 | 是否启用 |
-  | created_at | TEXT | 是 | - | 创建时间 |
-  | updated_at | TEXT | 是 | - | 最后更新时间 |
+  | label | TEXT | 是 | - | 分类显示名称 |
+  | label_en | TEXT | 是 | `''` | 分类英文名称 |
+  | label_zh | TEXT | 是 | `''` | 分类中文名称 |
+  | description | TEXT | 是 | - | 分类描述 |
+  | sort_order | INTEGER | 是 | - | 排序序号 |
+  | aliases_json | TEXT | 是 | `'[]'` | 分类别名列表（JSON 数组字符串），用于意图解析匹配 |
+  | chat_enabled | INTEGER | 是 | 1 | 是否在聊天模式中可用 |
+  | reference_high_risk | INTEGER | 是 | 0 | 是否为高风险参考分类（上传照片可能影响生成） |
+  | config_type | TEXT | 是 | `'brand_resource'` | 配置类型：`brand_resource`（品牌-资源）/ `resource`（资源）/ `resource_subcategory`（资源-细分类）（已更新 2026-08-06） |
+  | asset_image_visible | INTEGER | 是 | 1 | 资源类型下是否显示图片（1=显示，0=不显示），仅 `config_type='resource'` 时生效（已更新 2026-08-06） |
+  | subcategory_config_json | TEXT | 是 | `'[]'` | 细分类配置（JSON 数组字符串），仅 `config_type='resource_subcategory'` 时生效，结构为 `SubcategoryGroup[]`（已更新 2026-08-06） |
 
 - **索引**：无额外索引
 - **约束**：PRIMARY KEY: `id`
 - **关联表**：part_assets（通过 id）
+
+**config_type 取值说明**（DESIGN-20260806-003 新增）：
+
+| 取值 | 含义 | 管理端配置面板 | 用户端渲染方式 |
+  |------|------|---------------|---------------|
+  | `brand_resource` | 品牌-资源 | 显示品牌管理面板、品牌筛选标签、配件品牌字段 | 品牌筛选 + 资源网格/列表 |
+  | `resource` | 资源 | 隐藏品牌相关面板；显示"是否显示图片"子设置 | 有图：图片卡片；无图：安装开关 + 颜色材质 |
+  | `resource_subcategory` | 资源-细分类 | 隐藏品牌相关面板；显示细分类选项编辑器 | 布局分组 + 子选项选择 |
 
 ---
 
@@ -866,5 +879,5 @@
 
 ---
 
-> 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003
+> 最后更新时间：2026-08-06
+> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003

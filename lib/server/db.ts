@@ -17,7 +17,7 @@ import {
   v2FrontCatalogBrandIds,
   workflowSeed,
 } from "../catalog"
-import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory } from "../part-category-aliases"
+import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory, defaultConfigTypeForCategory, defaultAssetImageVisibleForCategory, defaultSubcategoryConfigForCategory } from "../part-category-aliases"
 import type {
   AdminSummary,
   AccountMessage,
@@ -43,6 +43,7 @@ import type {
   PartAssetReference,
   PartBrand,
   PartCategory,
+  PartCategoryConfigType,
   PartColorPolicy,
   AdminPaymentOrder,
   PartPromptTestStatus,
@@ -57,6 +58,7 @@ import type {
   ResultCheckResult,
   SelectionMap,
   Subscription,
+  SubcategoryGroup,
   WorkflowConfig,
   WorkflowMode,
   WorkflowNodeConfig,
@@ -150,7 +152,10 @@ function initSchema(conn: DatabaseSync) {
       sort_order INTEGER NOT NULL,
       aliases_json TEXT NOT NULL DEFAULT '[]',
       chat_enabled INTEGER NOT NULL DEFAULT 1,
-      reference_high_risk INTEGER NOT NULL DEFAULT 0
+      reference_high_risk INTEGER NOT NULL DEFAULT 0,
+      config_type TEXT NOT NULL DEFAULT 'brand_resource',
+      asset_image_visible INTEGER NOT NULL DEFAULT 1,
+      subcategory_config_json TEXT NOT NULL DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS asset_brands (
@@ -672,6 +677,33 @@ function migrateSchema(conn: DatabaseSync) {
   if (addedCategoryReferenceHighRisk) {
     const updateReferenceHighRisk = conn.prepare("UPDATE asset_categories SET reference_high_risk = ? WHERE id = ?")
     for (const category of categoriesSeed) updateReferenceHighRisk.run((category.referenceHighRisk ?? defaultReferenceHighRiskForCategory(category.id)) ? 1 : 0, category.id)
+  }
+  const addedCategoryConfigType = !categoryColumns.some((column) => column.name === "config_type")
+  const addedCategoryAssetImageVisible = !categoryColumns.some((column) => column.name === "asset_image_visible")
+  const addedCategorySubcategoryConfig = !categoryColumns.some((column) => column.name === "subcategory_config_json")
+  if (addedCategoryConfigType) {
+    conn.exec("ALTER TABLE asset_categories ADD COLUMN config_type TEXT NOT NULL DEFAULT 'brand_resource'")
+  }
+  if (addedCategoryAssetImageVisible) {
+    conn.exec("ALTER TABLE asset_categories ADD COLUMN asset_image_visible INTEGER NOT NULL DEFAULT 1")
+  }
+  if (addedCategorySubcategoryConfig) {
+    conn.exec("ALTER TABLE asset_categories ADD COLUMN subcategory_config_json TEXT NOT NULL DEFAULT '[]'")
+  }
+  if (addedCategoryConfigType) {
+    const updateConfigType = conn.prepare("UPDATE asset_categories SET config_type = ? WHERE id = ?")
+    for (const category of categoriesSeed) updateConfigType.run(category.configType ?? defaultConfigTypeForCategory(category.id), category.id)
+  }
+  if (addedCategoryAssetImageVisible) {
+    const updateAssetImageVisible = conn.prepare("UPDATE asset_categories SET asset_image_visible = ? WHERE id = ?")
+    for (const category of categoriesSeed) updateAssetImageVisible.run((category.assetImageVisible ?? defaultAssetImageVisibleForCategory(category.id)) ? 1 : 0, category.id)
+  }
+  if (addedCategorySubcategoryConfig) {
+    const updateSubcategoryConfig = conn.prepare("UPDATE asset_categories SET subcategory_config_json = ? WHERE id = ?")
+    for (const category of categoriesSeed) {
+      const config = category.subcategoryConfig ?? defaultSubcategoryConfigForCategory(category.id)
+      if (config.length > 0) updateSubcategoryConfig.run(JSON.stringify(config), category.id)
+    }
   }
   const guardrailColumns = conn.prepare("PRAGMA table_info(guardrail_configs)").all() as Array<{ name: string }>
   if (!guardrailColumns.some((column) => column.name === "recommended_prompts")) {
@@ -3001,9 +3033,12 @@ export function createCategory(input: Partial<PartCategory> & { labelEn: string;
   const aliases = normalizeCategoryAliases(input.aliases ?? defaultAliasesForCategory(id))
   const chatEnabled = input.chatEnabled ?? defaultChatEnabledForCategory(id)
   const referenceHighRisk = input.referenceHighRisk ?? defaultReferenceHighRiskForCategory(id)
+  const configType = input.configType ?? defaultConfigTypeForCategory(id)
+  const assetImageVisible = input.assetImageVisible ?? defaultAssetImageVisibleForCategory(id)
+  const subcategoryConfig = input.subcategoryConfig ?? defaultSubcategoryConfigForCategory(id)
   database()
-    .prepare("INSERT INTO asset_categories (id, label, label_en, label_zh, description, sort_order, aliases_json, chat_enabled, reference_high_risk) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(id, label, labelEn, labelZh, input.description?.trim() || "", sortOrder, JSON.stringify(aliases), chatEnabled ? 1 : 0, referenceHighRisk ? 1 : 0)
+    .prepare("INSERT INTO asset_categories (id, label, label_en, label_zh, description, sort_order, aliases_json, chat_enabled, reference_high_risk, config_type, asset_image_visible, subcategory_config_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, label, labelEn, labelZh, input.description?.trim() || "", sortOrder, JSON.stringify(aliases), chatEnabled ? 1 : 0, referenceHighRisk ? 1 : 0, configType, assetImageVisible ? 1 : 0, JSON.stringify(subcategoryConfig))
   writeAudit("", "admin.category.create", { id, labelEn, labelZh })
   return categories().find((category) => category.id === id) as PartCategory
 }
@@ -3024,9 +3059,12 @@ export function updateCategory(id: string, patch: Partial<PartCategory>) {
     aliases: patch.aliases === undefined ? current.aliases ?? [] : normalizeCategoryAliases(patch.aliases),
     chatEnabled: patch.chatEnabled === undefined ? current.chatEnabled ?? true : Boolean(patch.chatEnabled),
     referenceHighRisk: patch.referenceHighRisk === undefined ? current.referenceHighRisk ?? false : Boolean(patch.referenceHighRisk),
+    configType: patch.configType === undefined ? current.configType ?? defaultConfigTypeForCategory(id) : patch.configType,
+    assetImageVisible: patch.assetImageVisible === undefined ? current.assetImageVisible ?? defaultAssetImageVisibleForCategory(id) : Boolean(patch.assetImageVisible),
+    subcategoryConfig: patch.subcategoryConfig === undefined ? current.subcategoryConfig ?? defaultSubcategoryConfigForCategory(id) : patch.subcategoryConfig,
   }
   database()
-    .prepare("UPDATE asset_categories SET label = ?, label_en = ?, label_zh = ?, description = ?, sort_order = ?, aliases_json = ?, chat_enabled = ?, reference_high_risk = ? WHERE id = ?")
+    .prepare("UPDATE asset_categories SET label = ?, label_en = ?, label_zh = ?, description = ?, sort_order = ?, aliases_json = ?, chat_enabled = ?, reference_high_risk = ?, config_type = ?, asset_image_visible = ?, subcategory_config_json = ? WHERE id = ?")
     .run(
       next.label,
       next.labelEn,
@@ -3036,6 +3074,9 @@ export function updateCategory(id: string, patch: Partial<PartCategory>) {
       JSON.stringify(next.aliases),
       next.chatEnabled ? 1 : 0,
       next.referenceHighRisk ? 1 : 0,
+      next.configType ?? "brand_resource",
+      next.assetImageVisible ? 1 : 0,
+      JSON.stringify(next.subcategoryConfig ?? []),
       id,
     )
   writeAudit("", "admin.category.update", { id, labelEn: next.labelEn, labelZh: next.labelZh })
@@ -3554,6 +3595,9 @@ function seedCategory(category: PartCategory, row?: Row): PartCategory {
     aliases: normalizeCategoryAliases(category.aliases ?? defaultAliasesForCategory(category.id)),
     chatEnabled: category.chatEnabled ?? defaultChatEnabledForCategory(category.id),
     referenceHighRisk: category.referenceHighRisk ?? defaultReferenceHighRiskForCategory(category.id),
+    configType: category.configType ?? defaultConfigTypeForCategory(category.id),
+    assetImageVisible: category.assetImageVisible ?? defaultAssetImageVisibleForCategory(category.id),
+    subcategoryConfig: category.subcategoryConfig ?? defaultSubcategoryConfigForCategory(category.id),
   }
 }
 
@@ -3569,6 +3613,9 @@ function mapCategoryRow(row: Row): PartCategory {
     aliases: normalizeCategoryAliases(safeJson<string[]>(String(row.aliases_json || "[]"), [])),
     chatEnabled: row.chat_enabled === undefined ? true : Number(row.chat_enabled) !== 0,
     referenceHighRisk: row.reference_high_risk === undefined ? defaultReferenceHighRiskForCategory(id) : Number(row.reference_high_risk) !== 0,
+    configType: row.config_type === undefined ? defaultConfigTypeForCategory(id) : (["brand_resource", "resource", "resource_subcategory"].includes(String(row.config_type)) ? String(row.config_type) as PartCategoryConfigType : defaultConfigTypeForCategory(id)),
+    assetImageVisible: row.asset_image_visible === undefined ? defaultAssetImageVisibleForCategory(id) : Number(row.asset_image_visible) !== 0,
+    subcategoryConfig: safeJson<SubcategoryGroup[]>(String(row.subcategory_config_json || "[]"), []),
   }
 }
 
