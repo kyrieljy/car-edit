@@ -584,6 +584,14 @@ const dryCarbonParts = [
   { id: "trunk-lid", assetId: "dry-carbon-trunk-lid", label: { zh: "后备箱盖", en: "Trunk lid" } },
 ] as const
 
+const riskInfoCategoryIds = new Set(["hood", "front-bumper", "trunk-lid", "rear-wing", "exhaust"])
+
+function riskTooltipText(language: Language) {
+  return language === "zh"
+    ? "该配件受上传照片影响，可能不生成"
+    : "This part is affected by the uploaded photo and may not be generated."
+}
+
 const surfaceColorOptions = [
   { id: "black", swatch: "#050506", label: { zh: "黑色", en: "Black" } },
   { id: "exposed_carbon", swatch: "#202226", label: { zh: "碳纤维", en: "Carbon fiber" } },
@@ -785,9 +793,29 @@ export function CarModStudio() {
   const [dryRun, setDryRun] = useState(false)
   const [activeMenu, setActiveMenu] = useState<AppMenu>("edit")
   const [menuCollapsed, setMenuCollapsed] = useState(false)
+  const [riskPopup, setRiskPopup] = useState<{ id: string; top: number; left: number; width: number } | null>(null)
 
   const t = cleanStudioCopy[language]
   const authUserId = authUser?.id ?? ""
+
+  useEffect(() => {
+    if (!riskPopup) return
+    const close = () => setRiskPopup(null)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    return () => {
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+    }
+  }, [riskPopup])
+
+  const showRiskPopup = (element: HTMLElement, id: string) => {
+    const rect = element.getBoundingClientRect()
+    const width = Math.min(320, window.innerWidth - 24)
+    const left = Math.min(window.innerWidth - width - 12, Math.max(12, rect.left))
+    const top = Math.min(window.innerHeight - 80, Math.max(12, rect.bottom + 8))
+    setRiskPopup({ id, top, left, width })
+  }
 
   const setVehicleNoteEdited = (value: boolean) => {
     vehicleNoteEditedRef.current = value
@@ -1869,7 +1897,28 @@ export function CarModStudio() {
                                     <button type="button" className="accordion-trigger" onClick={() => toggleExpandedCategory(category.id, isOpen)}>
                                       <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
                                       <span className="accordion-copy">
-                                        <strong>{category.label}</strong>
+                                        <span className="accordion-label-row">
+                                          <strong>{category.label}</strong>
+                                          {riskInfoCategoryIds.has(category.id) && (
+                                            <span
+                                              role="button"
+                                              tabIndex={0}
+                                              className={`accordion-risk-icon${riskPopup?.id === category.id ? " active" : ""}`}
+                                              aria-label={language === "zh" ? "风险提示" : "Risk notice"}
+                                              onClick={(event) => {
+                                                event.stopPropagation()
+                                                if (riskPopup?.id === category.id) setRiskPopup(null)
+                                                else showRiskPopup(event.currentTarget, category.id)
+                                              }}
+                                              onFocus={(event) => showRiskPopup(event.currentTarget, category.id)}
+                                              onBlur={() => setRiskPopup(null)}
+                                              onMouseEnter={(event) => showRiskPopup(event.currentTarget, category.id)}
+                                              onMouseLeave={() => setRiskPopup(null)}
+                                            >
+                                              <CircleHelp size={16} />
+                                            </span>
+                                          )}
+                                        </span>
                                         <small>{isDryCarbonCategory ? displayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : displayCategorySelectionStatus(language, selectedAsset, exhaustLayoutLabels)}</small>
                                       </span>
                                       {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
@@ -2512,6 +2561,17 @@ export function CarModStudio() {
           onLogout={logout}
         />
       </div>
+      {riskPopup &&
+        createPortal(
+          <div
+            className="wing-style-popover wing-style-popover-hover"
+            style={{ top: riskPopup.top, left: riskPopup.left, "--wing-style-popover-width": `${riskPopup.width}px` } as CSSProperties}
+            role="tooltip"
+          >
+            <p>{riskTooltipText(language)}</p>
+          </div>,
+          document.body,
+        )}
     </main>
   )
 }
@@ -2710,12 +2770,33 @@ function DryCarbonPartsList({
 }) {
   const assetsById = useMemo(() => new Map(catalog.assets.map((asset) => [asset.id, asset])), [catalog.assets])
   const visibleParts = dryCarbonParts.filter((part) => dryCarbonPartMatchesSearch(part, assetsById.get(part.assetId), search, language))
+  const [riskPopup, setRiskPopup] = useState<{ id: string; top: number; left: number; width: number } | null>(null)
+
+  useEffect(() => {
+    if (!riskPopup) return
+    const close = () => setRiskPopup(null)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    return () => {
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+    }
+  }, [riskPopup])
+
+  const showRiskPopup = (element: HTMLElement, id: string) => {
+    const rect = element.getBoundingClientRect()
+    const width = Math.min(320, window.innerWidth - 24)
+    const left = Math.min(window.innerWidth - width - 12, Math.max(12, rect.left))
+    const top = Math.min(window.innerHeight - 80, Math.max(12, rect.bottom + 8))
+    setRiskPopup({ id, top, left, width })
+  }
 
   if (!visibleParts.length) {
     return <div className="empty-category">{language === "zh" ? "没有匹配的干碳纤维部件" : "No matching dry carbon parts"}</div>
   }
 
   return (
+    <>
     <div className="wing-style-list dry-carbon-list">
       {visibleParts.map((part) => {
         const asset = assetsById.get(part.assetId)
@@ -2743,11 +2824,41 @@ function DryCarbonPartsList({
                 </span>
                 {selected && <BadgeCheck className="wing-style-selected-mark" size={17} />}
               </button>
+              {riskInfoCategoryIds.has(part.id) && (
+                <button
+                  type="button"
+                  className={`wing-style-info-button${riskPopup?.id === part.id ? " active" : ""}`}
+                  aria-label={language === "zh" ? `${part.label[language]}风险提示` : `${part.label[language]} risk notice`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (riskPopup?.id === part.id) setRiskPopup(null)
+                    else showRiskPopup(event.currentTarget, part.id)
+                  }}
+                  onFocus={(event) => showRiskPopup(event.currentTarget, part.id)}
+                  onBlur={() => setRiskPopup(null)}
+                  onMouseEnter={(event) => showRiskPopup(event.currentTarget, part.id)}
+                  onMouseLeave={() => setRiskPopup(null)}
+                >
+                  <CircleHelp size={17} />
+                </button>
+              )}
             </div>
           </article>
         )
       })}
     </div>
+    {riskPopup &&
+      createPortal(
+        <div
+          className="wing-style-popover wing-style-popover-hover"
+          style={{ top: riskPopup.top, left: riskPopup.left, "--wing-style-popover-width": `${riskPopup.width}px` } as CSSProperties}
+          role="tooltip"
+        >
+          <p>{riskTooltipText(language)}</p>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

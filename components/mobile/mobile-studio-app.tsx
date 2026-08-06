@@ -358,6 +358,14 @@ const mobileDryCarbonParts = [
   { id: "fenders", assetId: "dry-carbon-fenders", label: { zh: "叶子板", en: "Fenders" } },
   { id: "trunk-lid", assetId: "dry-carbon-trunk-lid", label: { zh: "后备箱盖", en: "Trunk lid" } },
 ] as const
+
+const riskInfoCategoryIds = new Set(["hood", "front-bumper", "trunk-lid", "rear-wing", "exhaust"])
+
+function riskTooltipText(language: Language) {
+  return language === "zh"
+    ? "该配件受上传照片影响，可能不生成"
+    : "This part is affected by the uploaded photo and may not be generated."
+}
 const mobileSurfaceColorOptions = [
   { id: "black", swatch: "#050506", label: { zh: "黑色", en: "Black" } },
   { id: "exposed_carbon", swatch: "#202226", label: { zh: "碳纤维", en: "Carbon fiber" } },
@@ -1251,6 +1259,27 @@ function MobilePartsSheet({
   const search = assetSearch.trim().toLowerCase()
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [riskPopup, setRiskPopup] = useState<{ id: string; top: number; left: number; width: number } | null>(null)
+
+  useEffect(() => {
+    if (!riskPopup) return
+    const close = () => setRiskPopup(null)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    return () => {
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+    }
+  }, [riskPopup])
+
+  const showRiskPopup = (element: HTMLElement, id: string) => {
+    const rect = element.getBoundingClientRect()
+    const width = Math.min(280, window.innerWidth - 24)
+    const left = Math.min(window.innerWidth - width - 12, Math.max(12, rect.right - width))
+    const top = Math.min(window.innerHeight - 100, Math.max(12, rect.bottom + 8))
+    setRiskPopup({ id, top, left, width })
+  }
+
   const mobileCategoryById = useMemo(() => new Map(catalog?.categories.map((category) => [category.id, category]) ?? []), [catalog])
   const mobileFixedStyleAssetIdByCategory = useMemo(() => (catalog ? buildMobileFixedStyleAssetIdMap(catalog.categories, catalog.assets) : {}), [catalog])
   const mobileExhaustCategory = catalog?.categories.find((category) => category.id === "exhaust")
@@ -1317,7 +1346,24 @@ function MobilePartsSheet({
                   <button type="button" className="accordion-trigger" onClick={() => toggleCategory(category.id, isOpen)}>
                     <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
                     <span className="accordion-copy">
-                      <strong>{category.label}</strong>
+                      <span className="accordion-label-row">
+                        <strong>{category.label}</strong>
+                        {riskInfoCategoryIds.has(category.id) && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className={`accordion-risk-icon${riskPopup?.id === category.id ? " active" : ""}`}
+                            aria-label={language === "zh" ? "风险提示" : "Risk notice"}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (riskPopup?.id === category.id) setRiskPopup(null)
+                              else showRiskPopup(event.currentTarget, category.id)
+                            }}
+                          >
+                            <CircleHelp size={14} />
+                          </span>
+                        )}
+                      </span>
                       <small>{isDryCarbonCategory ? mobileDisplayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : mobileDisplayCategorySelectionStatus(language, selectedAsset, mobileExhaustLayoutLabels)}</small>
                     </span>
                     {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
@@ -1424,6 +1470,17 @@ function MobilePartsSheet({
           />
         </div>
       </div>
+      {riskPopup &&
+        createPortal(
+          <div
+            className="wing-style-popover wing-style-popover-tap"
+            style={{ top: riskPopup.top, left: riskPopup.left, "--wing-style-popover-width": `${riskPopup.width}px` } as CSSProperties}
+            role="dialog"
+          >
+            <p>{riskTooltipText(language)}</p>
+          </div>,
+          document.body,
+        )}
     </section>
   )
 }
@@ -1521,12 +1578,33 @@ function MobileDryCarbonPartsList({
 }) {
   const assetsById = useMemo(() => new Map(catalog.assets.map((asset) => [asset.id, asset])), [catalog.assets])
   const visibleParts = mobileDryCarbonParts.filter((part) => mobileDryCarbonPartMatchesSearch(part, assetsById.get(part.assetId), search, language))
+  const [riskPopup, setRiskPopup] = useState<{ id: string; top: number; left: number; width: number } | null>(null)
+
+  useEffect(() => {
+    if (!riskPopup) return
+    const close = () => setRiskPopup(null)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    return () => {
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+    }
+  }, [riskPopup])
+
+  const showRiskPopup = (element: HTMLElement, id: string) => {
+    const rect = element.getBoundingClientRect()
+    const width = Math.min(280, window.innerWidth - 24)
+    const left = Math.min(window.innerWidth - width - 12, Math.max(12, rect.right - width))
+    const top = Math.min(window.innerHeight - 100, Math.max(12, rect.bottom + 8))
+    setRiskPopup({ id, top, left, width })
+  }
 
   if (!visibleParts.length) {
     return <div className="empty-category">{language === "zh" ? "没有匹配的干碳纤维部件" : "No matching dry carbon parts"}</div>
   }
 
   return (
+    <>
     <div className="wing-style-list dry-carbon-list">
       {visibleParts.map((part) => {
         const asset = assetsById.get(part.assetId)
@@ -1545,11 +1623,37 @@ function MobileDryCarbonPartsList({
                 </span>
                 {selected && <BadgeCheck className="wing-style-selected-mark" size={16} />}
               </button>
+              {riskInfoCategoryIds.has(part.id) && (
+                <button
+                  type="button"
+                  className={`wing-style-info-button${riskPopup?.id === part.id ? " active" : ""}`}
+                  aria-label={language === "zh" ? `${part.label[language]}风险提示` : `${part.label[language]} risk notice`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (riskPopup?.id === part.id) setRiskPopup(null)
+                    else showRiskPopup(event.currentTarget, part.id)
+                  }}
+                >
+                  <CircleHelp size={16} />
+                </button>
+              )}
             </div>
           </article>
         )
       })}
     </div>
+    {riskPopup &&
+      createPortal(
+        <div
+          className="wing-style-popover wing-style-popover-tap"
+          style={{ top: riskPopup.top, left: riskPopup.left, "--wing-style-popover-width": `${riskPopup.width}px` } as CSSProperties}
+          role="dialog"
+        >
+          <p>{riskTooltipText(language)}</p>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

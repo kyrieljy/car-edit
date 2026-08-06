@@ -1676,6 +1676,50 @@ http://127.0.0.1:3000  （开发环境）
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `POST` | `/api/admin/provider-configs` | 更新 AI 提供商配置（API Key、模型、启用状态等） |
+| `POST` | `/api/admin/provider-configs/test-all` | 并发测试所有 Provider 可用性 |
+
+---
+
+#### 一键测试所有模型可用性
+
+- **路径**：`POST /api/admin/provider-configs/test-all`
+- **描述**：并发向所有已配置的 Provider 发送最小化测试请求（省略图片数据 + max_tokens=1），验证 API 连通性和鉴权是否正常。
+- **鉴权**：需要管理员权限（Cookie session）。
+- **请求参数**：无（自动读取数据库中所有 Provider 配置）。
+- **响应格式**：
+  ```json
+  {
+    "results": [
+      {
+        "id": "provider_80fce082",
+        "label": "302-GPT Image 2",
+        "modelName": "gpt-image-2",
+        "capabilities": ["image_generation"],
+        "status": "available",
+        "latencyMs": 342,
+        "detail": "HTTP 400 — 参数缺失（连通性和鉴权正常）"
+      }
+    ]
+  }
+  ```
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | `results` | array | 测试结果数组，按状态排序（不可用 → 可用 → 跳过） |
+  | `results[].id` | string | Provider ID |
+  | `results[].label` | string | 模型备注名称 |
+  | `results[].modelName` | string | 模型名称 |
+  | `results[].capabilities` | string[] | 能力标签列表 |
+  | `results[].status` | string | 测试状态：`available` / `unavailable` / `skipped` |
+  | `results[].latencyMs` | number | 请求耗时（毫秒），跳过的为 0 |
+  | `results[].detail` | string | 成功/失败/跳过的具体原因 |
+
+- **测试规则**：
+  - 跳过条件：mock/local Provider、已停用（`enabled=false`）、未配置 API Key
+  - 判定可用：HTTP 2xx、400/422（参数缺失）、429（限流）
+  - 判定不可用：HTTP 401/403（鉴权失败）、404（URL 错误）、5xx（服务端错误）、连接超时（15s）
+- **关联数据表**：`provider_configs`
 
 ---
 

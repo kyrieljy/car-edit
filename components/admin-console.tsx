@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { motion } from "framer-motion"
+import { createPortal } from "react-dom"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   Activity,
   ArrowDown,
@@ -27,6 +28,8 @@ import {
   UploadCloud,
   Users,
   X,
+  Zap,
+  Loader2,
 } from "lucide-react"
 import { WorkflowDesigner } from "@/components/workflow-designer"
 import GenerationRecords from "@/components/admin/generation-records"
@@ -2304,6 +2307,15 @@ function ClassicPaintManager({ summary, onChanged, notify }: { summary: AdminSum
 }
 
 type ProviderFormValue = { label: string; baseUrl: string; modelName: string; apiKey: string; consoleUrl: string; enabled: boolean; capabilities: ProviderCapability[] }
+type ProviderTestResult = {
+  id: string
+  label: string
+  modelName: string
+  capabilities: ProviderCapability[]
+  status: 'available' | 'unavailable' | 'skipped'
+  latencyMs: number
+  detail: string
+}
 type PromptTemplateForm = {
   id: string
   scope: PromptTemplateScope
@@ -2403,6 +2415,8 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
   const [showCreate, setShowCreate] = useState(false)
   const [newProvider, setNewProvider] = useState<ProviderFormValue>(emptyProviderForm)
   const [editingProviderId, setEditingProviderId] = useState<ProviderId | null>(null)
+  const [testResults, setTestResults] = useState<ProviderTestResult[] | null>(null)
+  const [testLoading, setTestLoading] = useState(false)
 
   useEffect(() => {
     setForm(buildProviderForm(summary.providers))
@@ -2505,12 +2519,33 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
     onChanged()
   }
 
+  const runProviderTest = async () => {
+    setTestLoading(true)
+    try {
+      const response = await fetch("/api/admin/provider-configs/test-all", { method: "POST" })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        notify("error", body.error || "测试请求失败。")
+        return
+      }
+      setTestResults(body.results ?? [])
+    } catch {
+      notify("error", "测试请求失败，请检查网络连接。")
+    } finally {
+      setTestLoading(false)
+    }
+  }
+
   return (
     <section className="admin-panel provider-manager">
       <div className="provider-create-row">
         <button type="button" onClick={() => setShowCreate((current) => !current)}>
           <ListPlus size={16} />
           新增模型 API
+        </button>
+        <button type="button" className="provider-test-button" onClick={() => void runProviderTest()} disabled={testLoading}>
+          {testLoading ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+          {testLoading ? "测试中..." : "一键测试所有模型"}
         </button>
       </div>
       {showCreate && (
@@ -2600,7 +2635,64 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
           )
         })}
       </div>
+      {testResults && createPortal(<ProviderTestModal results={testResults} onClose={() => setTestResults(null)} />, document.body)}
     </section>
+  )
+}
+
+function ProviderTestModal({ results, onClose }: { results: ProviderTestResult[]; onClose: () => void }) {
+  const availableCount = results.filter((item) => item.status === "available").length
+  const unavailableCount = results.filter((item) => item.status === "unavailable").length
+  const skippedCount = results.filter((item) => item.status === "skipped").length
+  const statusLabel: Record<ProviderTestResult["status"], string> = { available: "可用", unavailable: "不可用", skipped: "跳过" }
+  const statusClass: Record<ProviderTestResult["status"], string> = { available: "provider-test-status-ok", unavailable: "provider-test-status-fail", skipped: "provider-test-status-skip" }
+  return createPortal(
+    <AnimatePresence>
+      <motion.div className="provider-test-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+        <motion.div className="provider-test-modal" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+          <div className="provider-test-modal-header">
+            <div>
+              <h3>模型可用性测试结果</h3>
+              <p className="provider-test-summary">
+                共 {results.length} 个模型 — <span className="provider-test-count-ok">{availableCount} 可用</span>，<span className="provider-test-count-fail">{unavailableCount} 不可用</span>，<span className="provider-test-count-skip">{skippedCount} 跳过</span>
+              </p>
+            </div>
+            <button type="button" className="provider-test-close" onClick={onClose}>
+              <X size={18} />
+            </button>
+          </div>
+          <div className="provider-test-table-wrap">
+            <table className="provider-test-table">
+              <thead>
+                <tr>
+                  <th>模型备注名称</th>
+                  <th>模型名称</th>
+                  <th>能力</th>
+                  <th>状态</th>
+                  <th>耗时</th>
+                  <th>详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.label}</td>
+                    <td>{item.modelName}</td>
+                    <td>{item.capabilities.map((capability) => providerCapabilityShortLabels[capability]).join(" / ")}</td>
+                    <td>
+                      <span className={`provider-test-status ${statusClass[item.status]}`}>{statusLabel[item.status]}</span>
+                    </td>
+                    <td>{item.latencyMs > 0 ? `${item.latencyMs}ms` : "-"}</td>
+                    <td>{item.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
   )
 }
 

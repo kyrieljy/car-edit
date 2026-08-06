@@ -4,6 +4,23 @@
 
 ## 2026-08-06
 
+### 一键测试所有模型可用性 (DESIGN-20260806-004)
+
+#### 新增
+- [新增] `lib/server/provider-test.ts` Provider 测试逻辑模块，按 baseUrl 分流构造最小化测试请求（省略图片数据 + max_tokens=1），判定 API 可用性 (关联方案ID: DESIGN-20260806-004)
+- [新增] `app/api/admin/provider-configs/test-all/route.ts` 并发测试所有 Provider 的 API 端点 (关联方案ID: DESIGN-20260806-004)
+- [新增] `components/admin-console.tsx` 新增 `ProviderTestModal` 弹窗组件，以表格展示测试结果 (关联方案ID: DESIGN-20260806-004)
+- [新增] `app/globals.css` 新增 `.provider-test-button`、`.provider-test-modal`、`.provider-test-table` 等样式 (关联方案ID: DESIGN-20260806-004)
+
+#### 修改
+- [修改] `components/admin-console.tsx` `ProviderManagerV3` 新增"一键测试所有模型"按钮和测试状态管理 (关联方案ID: DESIGN-20260806-004)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 `POST /api/admin/provider-configs/test-all` 接口文档 (关联方案ID: DESIGN-20260806-004)
+
+#### 影响范围
+- 管理后台"模型 API"页面右上角新增测试按钮，不影响用户侧界面和生成流程
+
 ### 管理员分类属性配置与用户界面数据驱动 (DESIGN-20260806-003)
 
 #### 新增
