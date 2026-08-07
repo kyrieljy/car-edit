@@ -50,7 +50,7 @@ import QualityAnalytics from "@/components/admin/quality-analytics"
 import MessageBroadcaster from "@/components/admin/message-broadcaster"
 import ReportGenerator from "@/components/admin/report-generator"
 import { buildGenerationPrompt } from "@/lib/generation-core"
-import { buildDefaultImageParams, IMAGE_PARAM_RESERVE_LABELS, IMAGE_PARAM_VALUE_AUTO, IMAGE_PARAM_VALUE_NONE } from "@/lib/provider-image-params"
+import { buildDefaultImageParams, IMAGE_PARAM_RESERVE_LABELS, IMAGE_PARAM_VALUE_AUTO } from "@/lib/provider-image-params"
 import {
   AssetImage,
   CaliperCaseList,
@@ -359,6 +359,73 @@ export function AdminConsole() {
     setToast({ type, message })
   }, [])
 
+  // 对比测试后台任务：提升到顶层，弹窗关闭 / 切换菜单均不中止；生成结束后全局提醒。
+  const [compareState, setCompareState] = useState<{ providerId: string; paramKey: string } | null>(null)
+  const [compareJobs, setCompareJobs] = useState<Record<string, { rows: ImageParamTestResult[]; status: "running" | "done" }>>({})
+
+  const startCompareTest = useCallback(
+    (providerId: string, paramKey: string) => {
+      const key = `${providerId}::${paramKey}`
+      // 打开弹窗给予即时反馈；弹窗可随时关闭，不影响后台任务
+      setCompareState({ providerId, paramKey })
+      if (compareJobs[key]) return // 已有任务（运行中或已完成），直接展示现有结果，不重复触发
+      setCompareJobs((prev) => ({ ...prev, [key]: { rows: [], status: "running" } }))
+      void (async () => {
+        try {
+          const getRes = await fetch(`/api/admin/provider-configs/compare-test?providerId=${encodeURIComponent(providerId)}&paramKey=${encodeURIComponent(paramKey)}`)
+          const getBody = await getRes.json().catch(() => ({}))
+          if (getRes.ok && (getBody.results ?? []).length > 0) {
+            setCompareJobs((prev) => ({ ...prev, [key]: { rows: getBody.results, status: "done" } }))
+            return
+          }
+          const postRes = await fetch("/api/admin/provider-configs/compare-test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerId, paramKey }),
+          })
+          const postBody = await postRes.json().catch(() => ({}))
+          if (!postRes.ok) {
+            notify("error", postBody.error || "对比测试失败。")
+            setCompareJobs((prev) => ({ ...prev, [key]: { rows: [], status: "done" } }))
+            return
+          }
+          const rows: ImageParamTestResult[] = postBody.results ?? []
+          setCompareJobs((prev) => ({ ...prev, [key]: { rows, status: "done" } }))
+          notify("success", `对比测试已完成（参数 ${paramKey}，共 ${rows.length} 个枚举值）`)
+        } catch {
+          notify("error", "网络错误，请稍后重试。")
+          setCompareJobs((prev) => ({ ...prev, [key]: { rows: [], status: "done" } }))
+        }
+      })()
+    },
+    [compareJobs, notify],
+  )
+
+  const regenerateCompareValue = useCallback(
+    (providerId: string, paramKey: string, value: string) => {
+      const key = `${providerId}::${paramKey}`
+      setCompareJobs((prev) => ({ ...prev, [key]: { rows: prev[key]?.rows ?? [], status: "running" } }))
+      void (async () => {
+        try {
+          const res = await fetch("/api/admin/provider-configs/compare-test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerId, paramKey, regenerateValue: value }),
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            notify("error", body.error || "重新生成失败。")
+            return
+          }
+          setCompareJobs((prev) => ({ ...prev, [key]: { rows: body.results ?? [], status: "done" } }))
+        } catch {
+          notify("error", "网络错误，请稍后重试。")
+        }
+      })()
+    },
+    [notify],
+  )
+
   const loadSummary = useCallback(async () => {
     const response = await fetch("/api/admin/summary")
     if (response.status === 401) {
@@ -612,7 +679,7 @@ export function AdminConsole() {
                 </>
               )}
               {tab === "avatars" && <AvatarPresetManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
-              {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
+              {tab === "providers" && <ProviderManagerV3 summary={summary} onChanged={() => void loadSummary()} notify={notify} onCompareTest={startCompareTest} />}
               {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "guardrail" && <GuardrailManager summary={summary} onChanged={() => void loadSummary()} />}
@@ -647,6 +714,17 @@ export function AdminConsole() {
           )}
         </div>
         {toast && <AdminToastOverlayV2 toast={toast} onClose={() => setToast(null)} />}
+        {compareState &&
+          createPortal(
+            <ImageParamCompareModal
+              paramKey={compareState.paramKey}
+              rows={compareJobs[`${compareState.providerId}::${compareState.paramKey}`]?.rows ?? []}
+              status={compareJobs[`${compareState.providerId}::${compareState.paramKey}`]?.status ?? "running"}
+              onClose={() => setCompareState(null)}
+              onRegenerate={(value) => regenerateCompareValue(compareState.providerId, compareState.paramKey, value)}
+            />,
+            document.body,
+          )}
       </section>
     </main>
   )
@@ -2557,7 +2635,17 @@ function promptTemplateToForm(template: PromptTemplate): PromptTemplateForm {
   }
 }
 
-function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+function ProviderManagerV3({
+  summary,
+  onChanged,
+  notify,
+  onCompareTest,
+}: {
+  summary: AdminSummary
+  onChanged: () => void
+  notify: NotifyAdmin
+  onCompareTest: (providerId: string, paramKey: string) => void
+}) {
   const emptyProviderForm: ProviderFormValue = {
     label: "",
     baseUrl: "",
@@ -2574,8 +2662,6 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
   const [editingProviderId, setEditingProviderId] = useState<ProviderId | null>(null)
   const [testResults, setTestResults] = useState<ProviderTestResult[] | null>(null)
   const [testLoading, setTestLoading] = useState(false)
-  const [compareState, setCompareState] = useState<{ providerId: string; paramKey: string } | null>(null)
-  const openCompareTest = useCallback((providerId: string, paramKey: string) => setCompareState({ providerId, paramKey }), [])
 
   useEffect(() => {
     setForm(buildProviderForm(summary.providers))
@@ -2715,7 +2801,7 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
             onChange={(patch) => setNewProvider((current) => ({ ...current, ...patch }))}
             onToggleCapability={toggleNewCapability}
             providerId={undefined}
-            onCompareTest={openCompareTest}
+            onCompareTest={onCompareTest}
           />
           <button type="button" onClick={() => void createProvider()}>
             <BadgeCheck size={16} />
@@ -2773,7 +2859,7 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
                             onChange={(patch) => updateProviderForm(provider.id, patch)}
                             onToggleCapability={(capability, checked) => toggleCapability(provider.id, capability, checked)}
                             providerId={provider.id}
-                            onCompareTest={openCompareTest}
+                            onCompareTest={onCompareTest}
                           />
                           <div className="provider-card-actions">
                             <button type="submit">
@@ -2800,7 +2886,6 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
       </div>
       <AdminTestConfigPanel notify={notify} />
       {testResults && createPortal(<ProviderTestModal results={testResults} onClose={() => setTestResults(null)} />, document.body)}
-      {compareState && createPortal(<ImageParamCompareModal providerId={compareState.providerId} paramKey={compareState.paramKey} onClose={() => setCompareState(null)} />, document.body)}
     </section>
   )
 }
@@ -2861,77 +2946,30 @@ function ProviderTestModal({ results, onClose }: { results: ProviderTestResult[]
   )
 }
 
-function ImageParamCompareModal({ providerId, paramKey, onClose }: { providerId: string; paramKey: string; onClose: () => void }) {
-  const [rows, setRows] = useState<ImageParamTestResult[]>([])
-  const [loading, setLoading] = useState(true)
+function ImageParamCompareModal({
+  paramKey,
+  rows,
+  status,
+  onClose,
+  onRegenerate,
+}: {
+  paramKey: string
+  rows: ImageParamTestResult[]
+  status: "running" | "done"
+  onClose: () => void
+  onRegenerate: (value: string) => void
+}) {
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const [error, setError] = useState("")
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const valueLabel = (value: string) => (value === IMAGE_PARAM_VALUE_AUTO ? IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_AUTO] : value)
 
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      try {
-        const getRes = await fetch(`/api/admin/provider-configs/compare-test?providerId=${encodeURIComponent(providerId)}&paramKey=${encodeURIComponent(paramKey)}`)
-        const getBody = await getRes.json().catch(() => ({}))
-        if (!getRes.ok) {
-          if (!cancelled) {
-            setError(getBody.error || "加载对比结果失败。")
-            setLoading(false)
-          }
-          return
-        }
-        if ((getBody.results ?? []).length > 0) {
-          if (!cancelled) {
-            setRows(getBody.results)
-            setLoading(false)
-          }
-          return
-        }
-        const postRes = await fetch("/api/admin/provider-configs/compare-test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ providerId, paramKey }),
-        })
-        const postBody = await postRes.json().catch(() => ({}))
-        if (!postRes.ok) {
-          if (!cancelled) {
-            setError(postBody.error || "对比测试失败。")
-            setLoading(false)
-          }
-          return
-        }
-        if (!cancelled) {
-          setRows(postBody.results ?? [])
-          setLoading(false)
-        }
-      } catch {
-        if (!cancelled) {
-          setError("网络错误，请稍后重试。")
-          setLoading(false)
-        }
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [providerId, paramKey])
-
-  const regenerate = async (value: string) => {
+  const regenerate = (value: string) => {
     setRegenerating(value)
+    setError("")
     try {
-      const res = await fetch("/api/admin/provider-configs/compare-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerId, paramKey, regenerateValue: value }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (res.ok) setRows(body.results ?? [])
-      else setError(body.error || "重新生成失败。")
-    } catch {
-      setError("网络错误，请稍后重试。")
+      onRegenerate(value)
     } finally {
       setRegenerating(null)
     }
@@ -2952,11 +2990,24 @@ function ImageParamCompareModal({ providerId, paramKey, onClose }: { providerId:
               <X size={18} />
             </button>
           </div>
+          <p className="provider-test-background-hint">
+            任务已在后台执行，您可<strong>随时关闭本弹窗</strong>；生成结束后会在管理后台任意菜单提醒您。
+          </p>
+          {previewUrl &&
+            createPortal(
+              <div className="image-param-lightbox" onClick={() => setPreviewUrl(null)} role="dialog" aria-modal="true">
+                <img className="image-param-lightbox-img" src={previewUrl} alt="预览大图" onClick={(event: React.MouseEvent) => event.stopPropagation()} />
+                <button type="button" className="image-param-lightbox-close" onClick={() => setPreviewUrl(null)} aria-label="关闭预览">
+                  <X size={20} />
+                </button>
+              </div>,
+              document.body,
+            )}
           {error && <p className="provider-test-error">{error}</p>}
-          {loading ? (
+          {status === "running" ? (
             <div className="provider-test-loading">
               <Loader2 size={20} className="spin" />
-              <span>正在并行生成各枚举值效果图（真实生图，将消耗模型额度）…</span>
+              <span>正在后台并行生成各枚举值效果图（真实生图，将消耗模型额度）…</span>
             </div>
           ) : (
             <div className="provider-test-table-wrap">
@@ -2978,14 +3029,20 @@ function ImageParamCompareModal({ providerId, paramKey, onClose }: { providerId:
                       </td>
                       <td>
                         {row.status === "succeeded" && row.resultImageUrl ? (
-                          <img className="image-param-compare-thumb" src={row.resultImageUrl} alt={valueLabel(row.paramValue)} />
+                          <img
+                            className="image-param-compare-thumb clickable"
+                            src={row.resultImageUrl}
+                            alt={valueLabel(row.paramValue)}
+                            title="点击查看大图"
+                            onClick={() => setPreviewUrl(row.resultImageUrl)}
+                          />
                         ) : (
                           <span className="image-param-compare-error">{row.errorDetail || "生图失败"}</span>
                         )}
                       </td>
                       <td>{row.latencyMs > 0 ? `${row.latencyMs}ms` : "-"}</td>
                       <td>
-                        <button type="button" className="provider-image-param-compare" disabled={regenerating === row.paramValue} onClick={() => void regenerate(row.paramValue)}>
+                        <button type="button" className="provider-image-param-compare" disabled={regenerating === row.paramValue} onClick={() => regenerate(row.paramValue)}>
                           {regenerating === row.paramValue ? <Loader2 size={14} className="spin" /> : "重新生成"}
                         </button>
                       </td>
@@ -3376,7 +3433,6 @@ function ProviderImageParamsEditor({
                   {option === IMAGE_PARAM_VALUE_AUTO ? IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_AUTO] : option}
                 </option>
               ))}
-              <option value={IMAGE_PARAM_VALUE_NONE}>{IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_NONE]}</option>
             </select>
             <button
               type="button"
