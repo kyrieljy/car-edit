@@ -1349,5 +1349,6 @@ function mockVisionProvider(): ProviderConfig {
     maskedKey: "",
     consoleUrl: "",
     updatedAt: 0,
+    options: { imageParams: [] },
   }
 }

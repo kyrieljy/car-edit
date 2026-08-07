@@ -6806,6 +6806,77 @@ a {
   min-height: auto;
 }
 
+.provider-image-params {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.provider-image-params-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.provider-image-params-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-image-params-reset {
+  width: auto;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.provider-image-params-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.provider-image-param-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.provider-image-param-basic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-image-param-remove {
+  width: auto;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.provider-image-param-enum {
+  width: 100%;
+}
+
+.provider-image-params-add {
+  width: auto;
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
 .prompt-panel {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -9284,6 +9355,45 @@ a {
 
 .admin-clinical .provider-manager .provider-card .check-line + .check-line {
   display: none !important;
+}
+
+.admin-clinical .provider-image-params {
+  border: 1px solid var(--clinical-line);
+  border-radius: 0;
+  background: var(--clinical-panel-low);
+}
+
+.admin-clinical .provider-image-params-title {
+  color: var(--clinical-text);
+  font-family: "Space Grotesk", "Courier New", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-clinical .provider-image-params-empty {
+  color: var(--clinical-muted);
+}
+
+.admin-clinical .provider-image-param-row {
+  border: 1px solid var(--clinical-line-soft);
+  border-radius: 0;
+  background: var(--clinical-panel);
+}
+
+.admin-clinical .provider-card .provider-image-params-reset,
+.admin-clinical .provider-card .provider-image-params-add,
+.admin-clinical .provider-card .provider-image-param-remove {
+  width: auto;
+  background: transparent;
+  border: 1px solid var(--clinical-line);
+  color: var(--clinical-teal);
+  border-radius: 0;
+}
+
+.admin-clinical .provider-card .provider-image-param-remove {
+  color: var(--clinical-muted);
 }
 
 .admin-clinical .prompt-panel {

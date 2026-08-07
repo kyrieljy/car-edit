@@ -26,6 +26,8 @@
 | 提示词模板（Prompt Template） | 特定作用域的提示词片段 | 15 种作用域：base/config_base/config_mode/chat_mode/category/part/combo 等 |
 | 工作流（Workflow） | AI 生成的步骤编排 | 包含节点、边、故障策略、重试策略 |
 | Provider | AI 服务提供商 | 能力类型：llm、vision、image_generation、embedding |
+| 画质参数（Image Quality Parameters） | Provider 级可配置的生图参数，决定生成结果的分辨率/清晰度等画质属性 | 每个具备 `image_generation` 能力的 Provider 在管理后台拥有独立「画质参数」分区，参数名（key）与枚举值（options）双可配，平台内置默认模板；DESIGN-20260807-001 新增 |
+| 画质参数保留值（Image Param Reserved Values） | 两个非 API 语义的保留值，表示平台决策而非传给 Provider 的字面量 | `''`（IMAGE_PARAM_VALUE_NONE）表示不传该参数、`'__auto__'`（IMAGE_PARAM_VALUE_AUTO）表示跟随原图/自适应推导；两者均不同于 API 字面量 `auto` |
 | 安全护栏（Guardrail） | 内容安全检查机制 | 检查文件类型、屏蔽词、改装关键词 |
 | 会员计划（Membership Plan） | 用户订阅等级 | free（725积分/月）、pro（2210积分/月）、max（6160积分/月） |
 | 支付订单（Payment Order） | 用户购买会员套餐的交易记录 | 包含支付方式（微信/支付宝）、金额（分）、状态（pending/paid/failed/refunded） |
@@ -231,6 +233,7 @@ flowchart TD
 | BR-015 | 付费转化率 = 有 status=paid 订单的用户数 / 总用户数 * 100%。续费率 = 当月续费订阅数 / 当月到期订阅数 * 100%。ARPU = 总收入 / 付费用户数。 | 运营分析平台订单分析模块 | 当前为模拟支付模式，退款率统计基于 status=refunded 订单 |
 | BR-016 | 额度余额分档：已耗尽 = 剩余额度为 0；即将耗尽 = 剩余额度 < 套餐上限的 20%；充足 = 剩余额度 >= 套餐上限的 20%。 | 运营分析平台额度监控模块 | 内部/内测用户不受此分档限制 |
 | BR-017 | 异常告警触发条件：high_frequency = 用户当日生成次数超过 100 次；high_cost = 用户当日总成本超过 5000 分（50 元）。同一用户同一类型同一小时内仅记录一条告警。 | 运营分析平台告警扫描 | 阈值可通过代码常量调整，当前为硬编码 |
+| BR-018 | 画质参数采用 Provider 级配置，参数名与枚举值双可配，平台内置各 Provider 默认模板；保留值 `''` 表示不传该参数、`'__auto__'` 表示跟随原图/自适应推导，二者均不等同于 API 字面量 `auto`。A 类 Provider（OpenAI 兼容 `/images/edits`、`/images/generations`）使用 `quality` 字段，B 类 Provider（Gemini `/generateContent`、Nano Banana）使用 `imageSize`/`resolution` 并嵌套于 `generationConfig.imageConfig`。 | 管理后台配置具备 image_generation 能力的 Provider 时 | 原环境变量画质参数（YUNWU_IMAGE_QUALITY 等）已废弃，仅在缺失内置模板时作为兜底；首次升级由 backfill 从环境变量有效值回填默认值，保证零行为变化 |
 
 ---
 
@@ -278,5 +281,5 @@ erDiagram
 
 ---
 
-> 最后更新时间：2026-08-06
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003
+> 最后更新时间：2026-08-07
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001

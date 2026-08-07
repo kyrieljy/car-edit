@@ -106,6 +106,20 @@ npm run dev
 | `next.config.mjs` | 图片优化功能已关闭，适用于本项目的图片处理场景 |
 | `tsconfig.json` | 配置路径别名 `@/*`，指向项目根目录下的各模块 |
 
+### 已废弃的环境变量
+
+画质参数已迁移至管理后台的 Provider「画质参数」配置（DESIGN-20260807-001），以下环境变量不再作为首选配置，仅在对应 Provider 缺失内置模板时作为兜底，请勿在新部署中依赖：
+
+| 环境变量 | 原用途 | 替代方式 |
+|----------|--------|----------|
+| `YUNWU_IMAGE_QUALITY` | A 类 Provider 默认 `quality` 值 | 管理后台 Provider 画质参数（内置模板 + 可配置） |
+| `YUNWU_IMAGE_*` 系列 | A 类 Provider 其他硬编码画质参数 | 同上 |
+| `YUNWU_GEMINI_IMAGE_SIZE` | Gemini（B 类）默认 `imageSize` | 同上 |
+| `YUNWU_NANO_RESOLUTION` | Nano Banana（B 类）默认 `resolution` | 同上 |
+| `NANO_BANANA_302_RESOLUTION` | 302 链路 Nano Banana 默认 `resolution` | 同上 |
+
+> 升级时系统会通过 `backfillProviderImageParams()` 从以上环境变量的有效值回填 Provider 画质参数默认值，保证从旧版平滑迁移且零行为变化。
+
 ## 相关文档
 
 - [文档规范](docs/DOCS-SPEC.md)
@@ -117,4 +131,4 @@ npm run dev
 - [变更日志](docs/CHANGELOG.md)
 - [常见问题](docs/faq/)
 
-> 最后更新时间：2026-07-25
+> 最后更新时间：2026-08-07

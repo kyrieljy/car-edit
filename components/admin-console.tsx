@@ -50,6 +50,7 @@ import QualityAnalytics from "@/components/admin/quality-analytics"
 import MessageBroadcaster from "@/components/admin/message-broadcaster"
 import ReportGenerator from "@/components/admin/report-generator"
 import { buildGenerationPrompt } from "@/lib/generation-core"
+import { buildDefaultImageParams, IMAGE_PARAM_RESERVE_LABELS, IMAGE_PARAM_VALUE_AUTO, IMAGE_PARAM_VALUE_NONE } from "@/lib/provider-image-params"
 import type {
   AdminSummary,
   AccountAvatarPreset,
@@ -69,6 +70,7 @@ import type {
   PromptTemplateScope,
   ProviderCapability,
   ProviderId,
+  ProviderImageParam,
   SiteConfig,
   WorkflowConfig,
   WorkflowNodeConfig,
@@ -2414,7 +2416,16 @@ function ClassicPaintManager({ summary, onChanged, notify }: { summary: AdminSum
   )
 }
 
-type ProviderFormValue = { label: string; baseUrl: string; modelName: string; apiKey: string; consoleUrl: string; enabled: boolean; capabilities: ProviderCapability[] }
+type ProviderFormValue = {
+  label: string
+  baseUrl: string
+  modelName: string
+  apiKey: string
+  consoleUrl: string
+  enabled: boolean
+  capabilities: ProviderCapability[]
+  imageParams: ProviderImageParam[]
+}
 type ProviderTestResult = {
   id: string
   label: string
@@ -2448,6 +2459,7 @@ function providerToFormValue(provider: AdminSummary["providers"][number]): Provi
     consoleUrl: provider.consoleUrl,
     enabled: provider.enabled,
     capabilities: provider.capabilities.length ? provider.capabilities : ["image_generation"],
+    imageParams: provider.options?.imageParams ?? [],
   }
 }
 
@@ -2457,6 +2469,16 @@ function providerPayloadFromForm(form: HTMLFormElement, fallback: ProviderFormVa
     .getAll("capabilities")
     .map(String)
     .filter((item): item is ProviderCapability => ["llm", "vision", "image_generation", "embedding"].includes(item))
+  const rawImageParams = data.get("imageParams")
+  let imageParams = fallback.imageParams
+  if (typeof rawImageParams === "string" && rawImageParams.trim()) {
+    try {
+      const parsed = JSON.parse(rawImageParams)
+      if (Array.isArray(parsed)) imageParams = parsed as ProviderImageParam[]
+    } catch {
+      imageParams = fallback.imageParams
+    }
+  }
   return {
     label: String(data.get("label") ?? fallback.label).trim(),
     baseUrl: String(data.get("baseUrl") ?? fallback.baseUrl).trim(),
@@ -2465,6 +2487,7 @@ function providerPayloadFromForm(form: HTMLFormElement, fallback: ProviderFormVa
     consoleUrl: String(data.get("consoleUrl") ?? fallback.consoleUrl).trim(),
     enabled: data.get("enabled") === "on",
     capabilities,
+    imageParams,
   }
 }
 
@@ -2518,6 +2541,7 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
     consoleUrl: "",
     enabled: true,
     capabilities: ["image_generation"],
+    imageParams: [],
   }
   const [form, setForm] = useState<Record<string, ProviderFormValue>>(() => buildProviderForm(summary.providers))
   const [showCreate, setShowCreate] = useState(false)
@@ -2813,6 +2837,15 @@ function ProviderFields({
   onChange: (patch: Partial<ProviderFormValue>) => void
   onToggleCapability: (capability: ProviderCapability, checked: boolean) => void
 }) {
+  const updateBaseUrl = (nextBaseUrl: string) => {
+    const nextImageParams = value.imageParams.length === 0 ? buildDefaultImageParams(nextBaseUrl, value.modelName) : value.imageParams
+    onChange({ baseUrl: nextBaseUrl, imageParams: nextImageParams })
+  }
+  const updateModelName = (nextModelName: string) => {
+    const nextImageParams = value.imageParams.length === 0 ? buildDefaultImageParams(value.baseUrl, nextModelName) : value.imageParams
+    onChange({ modelName: nextModelName, imageParams: nextImageParams })
+  }
+  const updateImageParams = (nextImageParams: ProviderImageParam[]) => onChange({ imageParams: nextImageParams })
   return (
     <>
       <label>
@@ -2821,11 +2854,11 @@ function ProviderFields({
       </label>
       <label>
         API URL
-        <input name="baseUrl" value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} placeholder="https://api.example.com/v1" />
+        <input name="baseUrl" value={value.baseUrl} onChange={(event) => updateBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
       </label>
       <label>
         模型名称
-        <input name="modelName" value={value.modelName} onChange={(event) => onChange({ modelName: event.target.value })} placeholder="gpt-image / vision / llm model" />
+        <input name="modelName" value={value.modelName} onChange={(event) => updateModelName(event.target.value)} placeholder="gpt-image / vision / llm model" />
       </label>
       <label>
         API Key
@@ -2853,7 +2886,80 @@ function ProviderFields({
         <input type="checkbox" name="enabled" checked={value.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
         启用模型接口
       </label>
+      {value.capabilities.includes("image_generation") && (
+        <ProviderImageParamsEditor value={value.imageParams} onChange={updateImageParams} baseUrl={value.baseUrl} modelName={value.modelName} />
+      )}
+      {value.capabilities.includes("image_generation") && <input type="hidden" name="imageParams" value={JSON.stringify(value.imageParams)} />}
     </>
+  )
+}
+
+function ProviderImageParamsEditor({
+  value,
+  onChange,
+  baseUrl,
+  modelName,
+}: {
+  value: ProviderImageParam[]
+  onChange: (params: ProviderImageParam[]) => void
+  baseUrl: string
+  modelName: string
+}) {
+  const resetToTemplate = () => onChange(buildDefaultImageParams(baseUrl, modelName))
+  const updateParam = (index: number, patch: Partial<ProviderImageParam>) => {
+    onChange(value.map((param, i) => (i === index ? { ...param, ...patch } : param)))
+  }
+  const removeParam = (index: number) => onChange(value.filter((_, i) => i !== index))
+  const addParam = () => onChange([...value, { key: "", label: "", options: ["auto", "low", "medium", "high"], value: "" }])
+  return (
+    <div className="provider-image-params">
+      <div className="provider-image-params-header">
+        <span className="provider-image-params-title">画质参数</span>
+        <button type="button" className="provider-image-params-reset" onClick={resetToTemplate}>
+          按端点模板重置
+        </button>
+      </div>
+      {value.length === 0 && <p className="provider-image-params-empty">暂无画质参数，点击下方「添加参数」手动新增，或修改 API URL 自动带出模板。</p>}
+      {value.map((param, index) => (
+        <div className="provider-image-param-row" key={`${param.key || "new"}-${index}`}>
+          <div className="provider-image-param-basic">
+            <input
+              className="provider-image-param-key"
+              value={param.key}
+              placeholder="参数名（如 quality）"
+              onChange={(event) => updateParam(index, { key: event.target.value })}
+            />
+            <select
+              className="provider-image-param-value"
+              value={param.value}
+              onChange={(event) => updateParam(index, { value: event.target.value })}
+            >
+              {param.options.map((option) => (
+                <option key={option} value={option}>
+                  {option === IMAGE_PARAM_VALUE_AUTO ? IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_AUTO] : option}
+                </option>
+              ))}
+              <option value={IMAGE_PARAM_VALUE_NONE}>{IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_NONE]}</option>
+            </select>
+            <button type="button" className="provider-image-param-remove" onClick={() => removeParam(index)}>
+              删除
+            </button>
+          </div>
+          <input
+            className="provider-image-param-enum"
+            value={param.options.join(", ")}
+            placeholder="枚举值，逗号分隔"
+            onChange={(event) => {
+              const options = event.target.value.split(",").map((item) => item.trim()).filter(Boolean)
+              updateParam(index, { options: Array.from(new Set(options)) })
+            }}
+          />
+        </div>
+      ))}
+      <button type="button" className="provider-image-params-add" onClick={addParam}>
+        + 添加参数
+      </button>
+    </div>
   )
 }
 

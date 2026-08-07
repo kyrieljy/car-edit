@@ -4,6 +4,37 @@
 
 ## 2026-08-07
 
+### 模型 API 画质参数可配置化 (DESIGN-20260807-001)
+
+#### 新增
+- [新增] `lib/provider-image-params.ts` 同构模块：端点类型判定纯函数、6 套内置默认画质模板、保留值常量（`__auto__` / 不传）、参数清洗与校验函数 (关联方案ID: DESIGN-20260807-001)
+- [新增] `lib/server/provider-param-injector.ts` 参数注入器：解析生效参数字典（含不传跳过、`__auto__` 自适应推导、`output_compression` 依赖判断）、写入 FormData、按点号路径写入嵌套 JSON payload (关联方案ID: DESIGN-20260807-001)
+
+#### 修改
+- [修改] `lib/types.ts` 新增 `ProviderImageParam` / `ProviderOptions` / `ImageParamTemplateKey` 类型，`ProviderConfig` 新增 `options` 字段 (关联方案ID: DESIGN-20260807-001)
+- [修改] `lib/server/db.ts` `provider_configs` 建表新增 `options_json` 列；`migrateSchema()` 新增列检测与首次迁移回填（`backfillProviderImageParams()`）；`mapProviderRow()` 按 DB 优先方式映射 `options`；`updateProvider()` 支持 `imageParams`；`seedProviderConfigs()` INSERT 纳入新列但排除于 ON CONFLICT (关联方案ID: DESIGN-20260807-001)
+- [修改] `lib/catalog.ts` `providerSeed` 通过模板模块为各条记录生成 `options` 默认值 (关联方案ID: DESIGN-20260807-001)
+- [修改] `lib/server/generation-provider.ts` 移除 6 处硬编码/环境变量画质读取（`fast302ImageOptions()`、`yunwuImageQuality/OutputFormat/OutputCompression()`、`yunwuGeminiImageSize()` 等），改为调用注入器；端点判定谓词改为从同构模块导入；导出 5 个供注入器复用的函数 (关联方案ID: DESIGN-20260807-001)
+- [修改] `lib/server/provider-test.ts` `sendMinimalTestRequest()` 及各端点测试函数携带画质参数；细化 4xx 分类以识别「参数配置错误」 (关联方案ID: DESIGN-20260807-001)
+- [修改] `app/api/admin/provider-configs/route.ts` 请求体白名单新增 `imageParams` 并接入校验 (关联方案ID: DESIGN-20260807-001)
+- [修改] `components/admin-console.tsx` `ProviderFields` 新增「画质参数」分区与 `ProviderImageParamsEditor` 子组件；表单数据流（`providerToFormValue` / `providerPayloadFromForm` / `emptyProviderForm` / 隐藏字段）同步 (关联方案ID: DESIGN-20260807-001)
+- [修改] `app/globals.css` 新增画质参数分区样式（基础 + admin-clinical 主题） (关联方案ID: DESIGN-20260807-001)
+
+#### 影响
+- 管理后台「模型 API」中具备「图片生成」能力的 Provider 可直接编辑各生图接口的画质参数（参数名、枚举、当前值均可编辑），保存后用户下一次生成即按新配置调用 API，无需改代码重新部署
+- 引入两个保留值语义：空串「不传（使用平台默认）」、`__auto__`「跟随原图（自适应推导）」，与 API 原生 `auto`（平台决定）区分
+- `YUNWU_IMAGE_QUALITY` / `YUNWU_IMAGE_OUTPUT_FORMAT` / `YUNWU_IMAGE_OUTPUT_COMPRESSION` / `YUNWU_IMAGE_SIZE` / `YUNWU_GEMINI_IMAGE_SIZE` / `YUNWU_NANO_RESOLUTION` / `NANO_BANANA_302_RESOLUTION` 等环境变量被后台配置取代，标记为废弃
+- 内置默认值严格等于升级前运行时行为，未改配置时出图效果零变化
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 `POST /api/admin/provider-configs` 详细文档（`imageParams` 字段与校验规则）、`test-all` 补充「参数配置错误」语义、catalog/summary 补充 `options` 字段 (关联方案ID: DESIGN-20260807-001)
+- [文档] `docs/DB_SCHEMA.md` `provider_configs` 表新增 `options_json` 列、JSON 结构说明与迁移记录 (关联方案ID: DESIGN-20260807-001)
+- [文档] `docs/ARCHITECTURE.md` 核心模块表补充画质参数配置，新增 ADR-0007 (关联方案ID: DESIGN-20260807-001)
+- [文档] `docs/BUSINESS_DOMAIN.md` 新增「画质参数」业务概念与两类协议差异说明 (关联方案ID: DESIGN-20260807-001)
+- [文档] `README.md` 标注画质相关环境变量已被后台配置取代 (关联方案ID: DESIGN-20260807-001)
+- [文档] `docs/models.md` 各 Provider 表格新增「画质配置」列 (关联方案ID: DESIGN-20260807-001)
+- [文档] `docs/302-image-quality-tuning.md` 补充结论已被后台配置取代的说明 (关联方案ID: DESIGN-20260807-001)
+
 ### 一键测试支持停用模型 (DESIGN-20260806-007)
 
 #### 修改
@@ -475,4 +506,4 @@
 - [文档] docs/DB_SCHEMA.md 数据库设计文档
 - [文档] docs/CHANGELOG.md 变更日志
 
-> 最后更新时间：2026-07-26
+> 最后更新时间：2026-08-07

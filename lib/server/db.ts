@@ -19,6 +19,7 @@ import {
   workflowSeed,
 } from "../catalog"
 import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory, defaultConfigTypeForCategory, defaultAssetImageVisibleForCategory, defaultSubcategoryConfigForCategory } from "../part-category-aliases"
+import { buildDefaultProviderOptions } from "../provider-image-params"
 import type {
   AdminSummary,
   AccountMessage,
@@ -71,6 +72,7 @@ import type {
   AlertType,
   AlertStatus,
 } from "../types"
+import type { ProviderImageParam, ProviderOptions } from "../types"
 
 const DB_PATH = path.join(process.cwd(), "data", "car_mod_effect.sqlite")
 const DEMO_USER_ID = "demo-user"
@@ -226,6 +228,7 @@ function initSchema(conn: DatabaseSync) {
       api_key_cipher TEXT,
       api_key_masked TEXT,
       console_url TEXT NOT NULL DEFAULT '',
+      options_json TEXT NOT NULL DEFAULT '{}',
       updated_at INTEGER NOT NULL
     );
 
@@ -511,6 +514,21 @@ function initSchema(conn: DatabaseSync) {
   migrateSchema(conn)
 }
 
+// One-time backfill: assign the built-in default image-parameter template to every existing
+// provider row when the options_json column is first created.
+function backfillProviderImageParams(conn: DatabaseSync) {
+  const rows = conn.prepare("SELECT id, base_url, model_name FROM provider_configs").all() as Array<{
+    id: string
+    base_url: string
+    model_name: string
+  }>
+  const statement = conn.prepare("UPDATE provider_configs SET options_json = ? WHERE id = ?")
+  for (const row of rows) {
+    const options = buildDefaultProviderOptions(row.base_url, row.model_name)
+    statement.run(JSON.stringify(options), row.id)
+  }
+}
+
 function migrateSchema(conn: DatabaseSync) {
   const userColumns = conn.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>
   if (!userColumns.some((column) => column.name === "username")) {
@@ -567,6 +585,10 @@ function migrateSchema(conn: DatabaseSync) {
   }
   if (!providerColumns.some((column) => column.name === "console_url")) {
     conn.exec("ALTER TABLE provider_configs ADD COLUMN console_url TEXT NOT NULL DEFAULT ''")
+  }
+  if (!providerColumns.some((column) => column.name === "options_json")) {
+    conn.exec("ALTER TABLE provider_configs ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}'")
+    backfillProviderImageParams(conn)
   }
   const assetColumns = conn.prepare("PRAGMA table_info(part_assets)").all() as Array<{ name: string }>
   if (!assetColumns.some((column) => column.name === "brand_id")) {
@@ -957,8 +979,8 @@ function seedAvatarPresets(conn: DatabaseSync, now: number) {
 function seedProviderConfigs(conn: DatabaseSync, now: number) {
   const providerStatement = conn.prepare(`
     INSERT INTO provider_configs
-    (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, options_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       label = excluded.label,
       base_url = excluded.base_url,
@@ -967,7 +989,8 @@ function seedProviderConfigs(conn: DatabaseSync, now: number) {
       console_url = excluded.console_url
   `)
   for (const provider of providerSeed) {
-    providerStatement.run(provider.id, provider.label, provider.baseUrl, provider.modelName, JSON.stringify(provider.capabilities), provider.enabled ? 1 : 0, provider.id === "mock" ? 1 : 0, "", "", provider.consoleUrl, now)
+    const options = provider.options ?? buildDefaultProviderOptions(provider.baseUrl, provider.modelName)
+    providerStatement.run(provider.id, provider.label, provider.baseUrl, provider.modelName, JSON.stringify(provider.capabilities), provider.enabled ? 1 : 0, provider.id === "mock" ? 1 : 0, "", "", provider.consoleUrl, JSON.stringify(options), now)
   }
   conn.prepare("UPDATE provider_configs SET active = 1 WHERE id = 'mock' AND NOT EXISTS (SELECT 1 FROM provider_configs WHERE active = 1)").run()
   const activeProviders = conn.prepare("SELECT id FROM provider_configs WHERE active = 1 ORDER BY updated_at DESC").all() as Row[]
@@ -3262,7 +3285,7 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
   return assets().find((asset) => asset.id === id) as PartAsset
 }
 
-export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string; consoleUrl?: string }) {
+export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string; consoleUrl?: string; imageParams?: ProviderImageParam[] }) {
   const providerId = input.id || `provider_${crypto.randomUUID().slice(0, 8)}`
   const stored = database().prepare("SELECT id FROM provider_configs WHERE id = ? LIMIT 1").get(providerId) as Row | undefined
   const current = providers().find((provider) => provider.id === providerId)
@@ -3278,8 +3301,10 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     hasApiKey: false,
     maskedKey: "",
     consoleUrl: "",
+    options: { imageParams: [] },
     updatedAt: nowMs(),
   }
+  const nextOptions: ProviderOptions = { imageParams: input.imageParams ?? baseProvider.options.imageParams }
   const apiKey = input.apiKey ?? ""
   const masked = apiKey ? maskKey(apiKey) : baseProvider.maskedKey
   const cipher = apiKey ? encryptSecret(apiKey) : null
@@ -3292,8 +3317,8 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     database()
       .prepare(`
         INSERT INTO provider_configs
-        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, options_json, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         providerId,
@@ -3306,13 +3331,14 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
         cipher ?? "",
         masked,
         input.consoleUrl ?? baseProvider.consoleUrl,
+        JSON.stringify(nextOptions),
         nowMs(),
       )
   } else {
     database()
       .prepare(`
         UPDATE provider_configs
-        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, console_url = ?, updated_at = ?
+        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, console_url = ?, options_json = ?, updated_at = ?
         WHERE id = ?
       `)
       .run(
@@ -3325,6 +3351,7 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
         cipher,
         masked,
         input.consoleUrl ?? baseProvider.consoleUrl,
+        JSON.stringify(nextOptions),
         nowMs(),
         providerId,
       )
@@ -3778,6 +3805,7 @@ function mapProviderRow(row?: Row, fallback?: ProviderConfig): ProviderConfig {
     hasApiKey: Boolean(row.api_key_masked),
     maskedKey: String(row.api_key_masked ?? ""),
     consoleUrl: String(row.console_url ?? fallback?.consoleUrl ?? ""),
+    options: safeJson<ProviderOptions>(String(row.options_json || "{}"), fallback?.options ?? { imageParams: [] }),
     updatedAt: Number(row.updated_at || fallback?.updatedAt || 0),
   }
 }

@@ -15,6 +15,7 @@ import type {
   WorkflowNodeConfig,
 } from "./types"
 import { defaultAliasesForCategory, defaultChatEnabledForCategory, defaultReferenceHighRiskForCategory, defaultConfigTypeForCategory, defaultAssetImageVisibleForCategory, defaultSubcategoryConfigForCategory } from "./part-category-aliases"
+import { buildDefaultProviderOptions } from "./provider-image-params"
 
 const categorySeedBase: PartCategory[] = [
   { id: "wheels", label: "Wheels", labelEn: "Wheels", labelZh: "轮毂", description: "Forged wheels, colors, offsets and fitment.", sortOrder: 10 },
@@ -1554,7 +1555,9 @@ export const promptTemplateSeed: Array<Omit<PromptTemplate, "updatedAt">> = [
   },
 ]
 
-export const providerSeed: ProviderConfig[] = [
+type RawProviderSeed = Omit<ProviderConfig, "options">
+
+const rawProviderSeed: RawProviderSeed[] = [
   { id: "mock", label: "Mock Render", baseUrl: "local://mock-render", modelName: "mock-render-v1", capabilities: ["image_generation"], enabled: true, active: true, hasApiKey: false, maskedKey: "", consoleUrl: "", updatedAt: 0 },
   { id: "openai", label: "GPT Image 2", baseUrl: "https://router.shengsuanyun.com/api/v1/images/generations", modelName: "openai/gpt-image-2", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", consoleUrl: "https://shengsuanyun.com", updatedAt: 0 },
   { id: "nano", label: "Nano Banana 2", baseUrl: "https://router.shengsuanyun.com/api/v1/images/edits", modelName: "google/gemini-3.1-flash-image-preview", capabilities: ["image_generation"], enabled: true, active: false, hasApiKey: false, maskedKey: "", consoleUrl: "https://shengsuanyun.com", updatedAt: 0 },
@@ -1568,6 +1571,11 @@ export const providerSeed: ProviderConfig[] = [
   { id: "openai-llm", label: "GPT-5.4-mini", baseUrl: "https://router.shengsuanyun.com/api/v1/chat/completions", modelName: "openai/gpt-5.4-mini", capabilities: ["vision", "llm"], enabled: true, active: false, hasApiKey: false, maskedKey: "", consoleUrl: "https://shengsuanyun.com", updatedAt: 0 },
   { id: "provider_d77cadd5", label: "QWEN-3.6", baseUrl: "https://router.shengsuanyun.com/api/v1/chat/completions", modelName: "ali/qwen3.6-plus", capabilities: ["vision", "llm"], enabled: true, active: false, hasApiKey: false, maskedKey: "", consoleUrl: "https://shengsuanyun.com", updatedAt: 0 },
 ]
+
+export const providerSeed: ProviderConfig[] = rawProviderSeed.map((provider) => ({
+  ...provider,
+  options: buildDefaultProviderOptions(provider.baseUrl, provider.modelName),
+}))
 
 export const guardrailSeed: GuardrailConfig = {
   id: "default",

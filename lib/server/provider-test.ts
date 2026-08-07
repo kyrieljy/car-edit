@@ -1,5 +1,6 @@
 import { getCatalog, getProviderApiKey } from '@/lib/server/db'
 import type { ProviderConfig, ProviderCapability } from '@/lib/types'
+import { applyImageParamsToFormData, applyImageParamsToJson, resolveImageParams } from './provider-param-injector'
 
 /**
  * Provider test result item.
@@ -74,15 +75,18 @@ type TestOutcome = { status: 'available' | 'unavailable'; detail: string }
 /** Determine endpoint type and send the appropriate minimal test request. */
 async function sendMinimalTestRequest(provider: ProviderConfig, apiKey: string): Promise<TestOutcome> {
   const baseUrl = provider.baseUrl.replace(/\/+$/, '')
+  // Resolve configured image params (no source image in a test request, so "__auto__" falls back).
+  const resolvedParams = resolveImageParams(provider)
+  const paramKeys = Object.keys(resolvedParams)
 
   // Gemini generateContent endpoint.
   if (baseUrl.includes(':generateContent')) {
-    return testGeminiEndpoint(baseUrl, provider.modelName, apiKey)
+    return testGeminiEndpoint(baseUrl, provider.modelName, apiKey, resolvedParams, paramKeys)
   }
 
   // 302 nano-banana async edit endpoint.
   if (baseUrl.includes('nano-banana')) {
-    return testNanoBananaEndpoint(baseUrl, provider.modelName, apiKey)
+    return testNanoBananaEndpoint(baseUrl, provider.modelName, apiKey, resolvedParams, paramKeys)
   }
 
   // OpenAI-compatible chat/completions (LLM / Vision / chat-image).
@@ -92,16 +96,16 @@ async function sendMinimalTestRequest(provider: ProviderConfig, apiKey: string):
 
   // OpenAI-compatible images/generations.
   if (baseUrl.endsWith('/images/generations')) {
-    return testImageGenerationEndpoint(baseUrl, provider.modelName, apiKey)
+    return testImageGenerationEndpoint(baseUrl, provider.modelName, apiKey, resolvedParams, paramKeys)
   }
 
   // OpenAI-compatible images/edits (default).
   if (baseUrl.endsWith('/images/edits')) {
-    return testImageEditEndpoint(baseUrl, provider.modelName, apiKey)
+    return testImageEditEndpoint(baseUrl, provider.modelName, apiKey, resolvedParams, paramKeys)
   }
 
   // Fallback: treat unknown URL patterns as image-edit (same as generationEndpoint default).
-  return testImageEditEndpoint(`${baseUrl}/images/edits`, provider.modelName, apiKey)
+  return testImageEditEndpoint(`${baseUrl}/images/edits`, provider.modelName, apiKey, resolvedParams, paramKeys)
 }
 
 /** Chat/completions: send text-only message with max_tokens=1. */
@@ -122,45 +126,48 @@ async function testChatCompletionsEndpoint(url: string, modelName: string, apiKe
 }
 
 /** Gemini generateContent: send text-only contents with maxOutputTokens=1. */
-async function testGeminiEndpoint(url: string, modelName: string, apiKey: string): Promise<TestOutcome> {
+async function testGeminiEndpoint(url: string, modelName: string, apiKey: string, resolvedParams: Record<string, string>, paramKeys: string[]): Promise<TestOutcome> {
   // Some Gemini endpoints embed the model name in the URL path; include modelName in body for safety.
-  const body = JSON.stringify({
+  const body: Record<string, unknown> = {
     contents: [{ parts: [{ text: 'hi' }] }],
     generationConfig: { maxOutputTokens: 1 },
-  })
+  }
+  applyImageParamsToJson(body, resolvedParams)
   return fetchAndClassify(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body,
-  })
+    body: JSON.stringify(body),
+  }, paramKeys)
 }
 
 /** images/generations: send minimal text prompt with n=1 (image param omitted). */
-async function testImageGenerationEndpoint(url: string, modelName: string, apiKey: string): Promise<TestOutcome> {
-  const body = JSON.stringify({
+async function testImageGenerationEndpoint(url: string, modelName: string, apiKey: string, resolvedParams: Record<string, string>, paramKeys: string[]): Promise<TestOutcome> {
+  const body: Record<string, unknown> = {
     model: modelName,
     prompt: 'test',
     n: 1,
-  })
+  }
+  applyImageParamsToJson(body, resolvedParams)
   return fetchAndClassify(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body,
-  })
+    body: JSON.stringify(body),
+  }, paramKeys)
 }
 
 /** nano-banana async: submit minimal request without image, do not poll for results. */
-async function testNanoBananaEndpoint(url: string, modelName: string, apiKey: string): Promise<TestOutcome> {
-  const body = JSON.stringify({
+async function testNanoBananaEndpoint(url: string, modelName: string, apiKey: string, resolvedParams: Record<string, string>, paramKeys: string[]): Promise<TestOutcome> {
+  const body: Record<string, unknown> = {
     model: modelName,
     prompt: 'test',
-  })
+  }
+  applyImageParamsToJson(body, resolvedParams)
   return fetchAndClassify(url, {
     method: 'POST',
     headers: {
@@ -168,12 +175,12 @@ async function testNanoBananaEndpoint(url: string, modelName: string, apiKey: st
       Authorization: `Bearer ${apiKey}`,
       Connection: 'close',
     },
-    body,
-  })
+    body: JSON.stringify(body),
+  }, paramKeys)
 }
 
 /** images/edits: send FormData without image[] field (API will reject with param error, proving connectivity). */
-async function testImageEditEndpoint(url: string, modelName: string, apiKey: string): Promise<TestOutcome> {
+async function testImageEditEndpoint(url: string, modelName: string, apiKey: string, resolvedParams: Record<string, string>, paramKeys: string[]): Promise<TestOutcome> {
   const formData = new FormData()
   formData.set('model', modelName)
   formData.set('prompt', 'test')
@@ -181,27 +188,37 @@ async function testImageEditEndpoint(url: string, modelName: string, apiKey: str
   formData.set('size', '1024x1024')
   // Intentionally omit image[] — the API will return a parameter-missing error,
   // but a successful HTTP round-trip proves the endpoint is reachable and the key is valid.
+  applyImageParamsToFormData(formData, resolvedParams, url)
   return fetchAndClassify(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: formData,
-  })
+  }, paramKeys)
 }
 
 /**
  * Execute a fetch with 15s timeout, classify the HTTP response status.
- * - 2xx / 400 / 422 / 429 -> available (connectivity + auth OK).
+ * - 2xx / 400 / 422 / 429 -> available (connectivity + auth OK), unless the 4xx body references a
+ *   configured param key, in which case it is a parameter-configuration error.
  * - 401 / 403 / 404 / 5xx  -> unavailable (auth failure, wrong URL, or server error).
  * - Network errors / timeout -> unavailable.
  */
-async function fetchAndClassify(url: string, init: RequestInit): Promise<TestOutcome> {
+async function fetchAndClassify(url: string, init: RequestInit, paramKeys: string[] = []): Promise<TestOutcome> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000)
   try {
     const response = await fetch(url, { ...init, signal: controller.signal })
     const status = response.status
+    if (status === 400 || status === 422) {
+      const text = await readErrorText(response).catch(() => '')
+      const matched = paramKeys.find((key) => key && text.toLowerCase().includes(key.toLowerCase()))
+      if (matched) {
+        const excerpt = text.length > 200 ? `${text.slice(0, 200)}…` : text
+        return { status: 'unavailable', detail: `HTTP ${status} — 参数配置错误（"${matched}"）：${excerpt}` }
+      }
+    }
     return classifyHttpStatus(status)
   } catch (error) {
     if ((error as { name?: string }).name === 'AbortError') {
@@ -210,6 +227,14 @@ async function fetchAndClassify(url: string, init: RequestInit): Promise<TestOut
     return { status: 'unavailable', detail: error instanceof Error ? error.message : String(error) }
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+async function readErrorText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch {
+    return ''
   }
 }
 

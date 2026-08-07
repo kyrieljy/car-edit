@@ -297,6 +297,8 @@
   | api_key_encrypted | TEXT | 否 | - | API Key 密文（AES-256-CBC） |
   | is_active | INTEGER | 是 | 1 | 是否启用 |
   | sort_order | INTEGER | 否 | 0 | 排序序号 |
+  | console_url | TEXT | 是 | `''` | Provider 控制台地址 |
+  | options_json | TEXT | 是 | `'{}'` | Provider 级扩展配置（JSON），当前承载生图画质参数 `imageParams`（DESIGN-20260807-001 新增） |
   | created_at | TEXT | 是 | - | 创建时间 |
   | updated_at | TEXT | 是 | - | 最后更新时间 |
 
@@ -317,6 +319,28 @@
 | vision | 视觉识别（车辆/配件识别） |
 | image_generation | 图片生成 |
 | embedding | 向量嵌入 |
+
+**options_json JSON 结构**（DESIGN-20260807-001 新增）：
+
+```json
+{
+  "imageParams": [
+    { "key": "quality", "label": "图片质量", "options": ["auto", "low", "medium", "high"], "value": "high" }
+  ]
+}
+```
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| imageParams | array | 生图画质参数定义数组，仅对具备 `image_generation` 能力的 Provider 生效 |
+| imageParams[].key | string | API 参数名，支持点号路径表示嵌套（如 `generationConfig.imageConfig.imageSize`） |
+| imageParams[].label | string | 后台显示名 |
+| imageParams[].options | string[] | 可选枚举值列表 |
+| imageParams[].value | string | 当前生效值；空串表示「不传」，`__auto__` 表示「跟随原图」（自适应推导） |
+
+> **映射策略**：`mapProviderRow()` 对 `options` 字段采用「数据库值优先、种子值兜底」（与 `console_url` 一致），避免内置种子 Provider 的后台配置被代码值覆盖。`seedProviderConfigs()` 的 `ON CONFLICT DO UPDATE` 列表**不含** `options_json`，防止应用启动时把管理员配置重置回种子值。
+
+> **迁移记录**（DESIGN-20260807-001）：`migrateSchema()` 按 `PRAGMA table_info` 检测后执行 `ALTER TABLE provider_configs ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}'`。首次新增该列时，`backfillProviderImageParams()` 遍历所有存量行，按端点类型（依据 `base_url` / `model_name` 匹配内置模板）回填画质参数默认值；默认值取自当前环境变量的生效值，确保已设置过 `YUNWU_IMAGE_QUALITY` 等变量的部署升级后行为不变。
 
 ---
 
@@ -897,5 +921,5 @@
 
 ---
 
-> 最后更新时间：2026-08-06
-> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003
+> 最后更新时间：2026-08-07
+> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001

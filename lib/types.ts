@@ -184,6 +184,29 @@ export type ProviderConfig = {
   maskedKey: string
   consoleUrl: string
   updatedAt: number
+  options: ProviderOptions
+}
+
+// Image-parameter template keys, classified by the provider API endpoint shape.
+export type ImageParamTemplateKey =
+  | '302-images-edits'
+  | 'yunwu-images-edits'
+  | 'openai-images'
+  | 'gemini-generate-content'
+  | '302-nano-banana-ws'
+  | 'yunwu-fal-nano-banana'
+
+// A single configurable image-generation request parameter.
+export type ProviderImageParam = {
+  key: string
+  label: string
+  options: string[]
+  value: string
+}
+
+// Provider-level extension config stored in the provider_configs.options_json column.
+export type ProviderOptions = {
+  imageParams: ProviderImageParam[]
 }
 
 export type PromptPreset = {

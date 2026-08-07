@@ -1241,7 +1241,7 @@ http://127.0.0.1:3000  （开发环境）
   | assets | PartAsset[] | 配件资产列表 |
   | paints | PaintOption[] | 可选车漆列表 |
   | classicPaints | BrandClassicPaint[] | 经典品牌车漆列表 |
-  | providers | ProviderConfig[] | AI 提供商配置列表 |
+  | providers | ProviderConfig[] | AI 提供商配置列表（每个对象含 `options.imageParams` 画质参数数组，DESIGN-20260807-001 新增；前台不使用该字段，仅类型统一下发） |
   | promptTemplates | PromptTemplate[] | 提示词模板列表 |
   | promptPreset | PromptPreset | 当前活跃的提示词预设 |
 
@@ -1526,7 +1526,7 @@ http://127.0.0.1:3000  （开发环境）
   | categories | PartCategory[] | 配件分类 |
   | brands | PartBrand[] | 品牌 |
   | assets | PartAsset[] | 配件资产 |
-  | providers | ProviderConfig[] | AI 提供商 |
+  | providers | ProviderConfig[] | AI 提供商（每个对象含 `options.imageParams` 画质参数数组，DESIGN-20260807-001 新增） |
   | plans | MembershipPlan[] | 套餐 |
   | workflows | WorkflowConfig[] | 工作流配置 |
   | guardrailConfig | GuardrailConfig | 安全配置 |
@@ -1684,17 +1684,96 @@ http://127.0.0.1:3000  （开发环境）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/admin/provider-configs` | 更新 AI 提供商配置（API Key、模型、启用状态等） |
+| `POST` | `/api/admin/provider-configs` | 更新 AI 提供商配置（API Key、模型、启用状态、画质参数等） |
 | `POST` | `/api/admin/provider-configs/test-all` | 并发测试所有 Provider 可用性 |
+
+##### 更新 AI 提供商配置
+
+- **路径**：`POST /api/admin/provider-configs`
+- **描述**：更新单个 AI 提供商的配置。除基础字段外，具备 `image_generation` 能力的 Provider 可通过 `imageParams` 配置生图画质参数（参数名、可选枚举、当前值均可编辑），保存后用户下一次生成即按此配置调用生图 API。（已更新 2026-08-07）
+- **鉴权**：需要管理员权限（Cookie session）。
+- **请求参数**（JSON Body）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | Provider ID |
+  | label | string | 否 | 备注名称 |
+  | baseUrl | string | 否 | API Base URL |
+  | modelName | string | 否 | 模型名称 |
+  | apiKey | string | 否 | API Key（留空表示不修改） |
+  | capabilities | string[] | 否 | 能力标签：`llm` / `vision` / `image_generation` |
+  | enabled | boolean | 否 | 是否启用 |
+  | consoleUrl | string | 否 | 控制台地址 |
+  | imageParams | ProviderImageParam[] | 否 | 画质参数定义数组（仅对 `image_generation` 能力生效）。省略时保持库中现有配置（已更新 2026-08-07） |
+
+- **ProviderImageParam 结构**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | key | string | API 参数名。支持点号路径表示嵌套位置，如 `generationConfig.imageConfig.imageSize`（Gemini 端点） |
+  | label | string | 后台显示名，如「图片质量」 |
+  | options | string[] | 可选枚举值列表，管理员可编辑 |
+  | value | string | 当前生效值。空串表示「不传（使用平台默认）」；`__auto__` 表示「跟随原图」（走自适应推导） |
+
+- **请求示例**：
+
+  ```json
+  {
+    "id": "provider_80fce082",
+    "imageParams": [
+      { "key": "quality", "label": "图片质量", "options": ["auto", "low", "medium", "high"], "value": "high" },
+      { "key": "size", "label": "输出尺寸", "options": ["__auto__", "1024x1024", "1536x1024", "1024x1536", "auto"], "value": "__auto__" }
+    ]
+  }
+  ```
+
+- **响应格式**：返回更新后的 `ProviderConfig` 对象，其中 `options.imageParams` 为已持久化的画质参数数组。
+
+  ```json
+  {
+    "provider": {
+      "id": "provider_80fce082",
+      "label": "302-GPT Image 2",
+      "baseUrl": "https://api.302.ai/v1/images/edits",
+      "modelName": "gpt-image-2",
+      "capabilities": ["image_generation"],
+      "enabled": true,
+      "active": false,
+      "hasApiKey": true,
+      "maskedKey": "sk-****",
+      "consoleUrl": "",
+      "updatedAt": 1784980000000,
+      "options": {
+        "imageParams": [
+          { "key": "quality", "label": "图片质量", "options": ["auto", "low", "medium", "high"], "value": "high" }
+        ]
+      }
+    }
+  }
+  ```
+
+- **imageParams 校验规则**（校验失败返回 400，`error` 字段汇总所有错误）：
+
+  | 校验项 | 规则 |
+  |--------|------|
+  | 参数名格式 | 匹配标识符及点号路径模式，段间不得为空 |
+  | 参数名唯一 | 同一 Provider 内不重复 |
+  | 枚举列表 | 非空、去空白、去重（自动清洗） |
+  | 当前值合法 | 必须属于枚举列表，或为空串 / `__auto__` |
+  | 参数条数 | 上限 20 条 |
+  | 嵌套路径适用性 | multipart 端点（`/images/edits`）不允许点号路径参数名 |
+
+- **错误码**：400（imageParams 校验失败，`error` 含具体原因）、401（未认证）、403（非管理员）
+- **关联数据表**：`provider_configs`（`options_json` 列）
 
 ---
 
 #### 一键测试所有模型可用性
 
 - **路径**：`POST /api/admin/provider-configs/test-all`
-- **描述**：并发向所有已配置的 Provider 发送最小化测试请求（省略图片数据 + max_tokens=1），验证 API 连通性和鉴权是否正常。
+- **描述**：并发向所有已配置的 Provider 发送最小化测试请求（省略图片数据 + max_tokens=1），验证 API 连通性和鉴权是否正常。生图 Provider 的测试请求会**携带其已配置的画质参数**（`__auto__` 项因测试请求不含真实图片回退到兜底值），便于保存后立即验证参数是否被服务端接受。（已更新 2026-08-07）
 - **鉴权**：需要管理员权限（Cookie session）。
-- **请求参数**：无（自动读取数据库中所有 Provider 配置）。
+- **请求参数**：无（自动读取数据库中所有 Provider 配置，含 `options.imageParams`）。
 - **响应格式**：
   ```json
   {
@@ -1728,6 +1807,7 @@ http://127.0.0.1:3000  （开发环境）
   - 跳过条件：mock/local Provider、已停用（`enabled=false`）、未配置 API Key
   - 判定可用：HTTP 2xx、400/422（参数缺失）、429（限流）
   - 判定不可用：HTTP 401/403（鉴权失败）、404（URL 错误）、5xx（服务端错误）、连接超时（15s）
+  - 判定参数配置错误：携带自定义画质参数的测试请求返回 400/422，且错误响应体中提及某个已配置的参数名时，判为 `unavailable`，`detail` 形如 `HTTP 400 — 参数配置错误（"quality"）`，以区别于普通「参数缺失」（已更新 2026-08-07）
 - **关联数据表**：`provider_configs`
 
 ---
@@ -3153,5 +3233,5 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
-> 最后更新时间：2026-08-06
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002、DESIGN-20260731-001、DESIGN-20260806-003
+> 最后更新时间：2026-08-07
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260730-001、DESIGN-20260730-002、DESIGN-20260731-001、DESIGN-20260806-003、DESIGN-20260807-001

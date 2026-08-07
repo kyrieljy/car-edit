@@ -4,6 +4,22 @@ import { readImageAsset } from "./image-assets"
 import { isPersistentLocalImageUrl, materializeImageUrl } from "./image-materializer"
 import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage, writeVehicleUploadImage } from "./local-images"
 import type { GenerationMode, GenerationStandardJson, ProviderConfig, ProviderId } from "../types"
+import {
+  is302ApiHost,
+  is302GeminiOriginalImageEndpoint,
+  is302ImageEndpoint,
+  is302NanoBananaWsEditEndpoint,
+  isYunwuFalNanoBananaEditEndpoint,
+  isYunwuGeminiGenerateContentEndpoint,
+  isGeminiGenerateContentImageEndpoint,
+  isYunwuImageEndpoint,
+} from "../provider-image-params"
+import {
+  applyImageParamsToFormData,
+  applyImageParamsToJson,
+  buildNestedFromFlat,
+  resolveImageParams,
+} from "./provider-param-injector"
 
 try {
   setDefaultResultOrder("ipv4first")
@@ -129,18 +145,11 @@ async function invokeOpenAiCompatibleImageEdit(
   formData.append("prompt", [input.prompt, input.negativePrompt ? `Negative Prompt:\n${input.negativePrompt}` : ""].filter(Boolean).join("\n\n"))
   formData.append("n", "1")
   formData.append("size", "1024x1024")
-  if (is302ImageEndpoint(endpoint)) {
-    append302FastImageOptions(formData)
-  } else if (isYunwuImageEndpoint(endpoint)) {
-    appendYunwuImageEditOptions(formData)
-  } else if (!isYunwuImageEndpoint(endpoint) && supportsInputFidelity(input.provider.modelName)) {
-    formData.append("input_fidelity", "high")
-  }
 
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("没有可发送给生图 Provider 的车辆图片。")
-  const outputSize = providerOutputImageSize(endpoint, images[0])
-  formData.set("size", outputSize)
+  const resolvedParams = resolveImageParams(input.provider, images[0])
+  applyImageParamsToFormData(formData, resolvedParams, endpoint)
   images.forEach((image) => {
     formData.append("image", new Blob([image.bytes], { type: image.mime }), image.fileName)
   })
@@ -154,7 +163,7 @@ async function invokeOpenAiCompatibleImageEdit(
   const payload = await readProviderPayload(response)
   const raw = payload.raw
   if (!response.ok && isYunwuImageEndpoint(endpoint)) {
-    logYunwuImageSubmitFailure(input.provider.id, endpoint, response, yunwuImageEditRequestShape(images, input.prompt, input.negativePrompt, outputSize), raw)
+    logYunwuImageSubmitFailure(input.provider.id, endpoint, response, yunwuImageEditRequestShape(images, input.prompt, input.negativePrompt, resolvedParams), raw)
   }
   if (!response.ok) {
     Object.assign(raw, {
@@ -210,6 +219,7 @@ async function invokeOpenAiCompatibleImageGeneration(
   const images = await Promise.all([input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).map(readImageSource))
   if (!images.length) throw new Error("没有可发送给生图 Provider 的车辆图片。")
   const imageReferences = images.map(imageDataUrl)
+  const resolvedParams = resolveImageParams(input.provider, images[0])
   const requestEndpoint = is302ImageEndpoint(endpoint) ? withQueryParams(canonical302Endpoint(endpoint), responseFormatParamsFor302Images()) : endpoint
   const response = await fetch(requestEndpoint, {
     method: "POST",
@@ -220,8 +230,8 @@ async function invokeOpenAiCompatibleImageGeneration(
         prompt: input.prompt,
         negativePrompt: input.negativePrompt,
         imageReferences,
-        size: providerOutputImageSize(endpoint, images[0]),
-        fast302: is302ImageEndpoint(endpoint),
+        size: resolvedParams.size || providerOutputImageSize(endpoint, images[0]),
+        resolvedParams,
       }),
     ),
   })
@@ -267,7 +277,7 @@ async function invokeGeminiGenerateContentImageEdit(
   const response = await fetch(requestEndpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, requestEndpoint, { "Content-Type": "application/json" }),
-    body: JSON.stringify(geminiOriginalImageEditPayload(input.prompt, input.negativePrompt, images, geminiImageConfigForEndpoint(requestEndpoint, images[0]))),
+    body: JSON.stringify(geminiOriginalImageEditPayload(input.prompt, input.negativePrompt, images, geminiImageConfigForEndpoint(input.provider, images[0]))),
   })
   const payload = await readProviderPayload(response)
   const raw = payload.raw
@@ -307,7 +317,7 @@ async function invoke302NanoBananaWsEdit(
   const images = await nanoBananaProviderInputImages(imageUrls, input.provider.id)
   if (!images.length) throw new Error("No image was available for Nano-Banana-2 edit.")
   const prompt = nanoBananaSafePrompt(input.prompt)
-  const requestPayload = nanoBananaWsEditPayload(prompt, "", images)
+  const requestPayload = nanoBananaWsEditPayload(prompt, "", images, input.provider)
   const body = JSON.stringify(requestPayload)
   const payloadBytes = Buffer.byteLength(body)
   const imageSummary = images.map((image, index) => `#${index + 1}:${image.mime}:${formatBytes(image.bytes.byteLength)}`).join(", ")
@@ -384,7 +394,7 @@ async function invokeYunwuFalNanoBananaEdit(
   const imageUrls = [input.vehicleImageUrl, ...input.partImageUrls].filter(Boolean).slice(0, MAX_NANO_BANANA_WS_INPUT_IMAGES)
   const images = await nanoBananaProviderInputImages(imageUrls, input.provider.id)
   if (!images.length) throw new Error("No image was available for Yunwu Nano Banana edit.")
-  const requestPayload = yunwuFalNanoBananaPayload(nanoBananaSafePrompt(input.prompt), input.negativePrompt, images)
+  const requestPayload = yunwuFalNanoBananaPayload(nanoBananaSafePrompt(input.prompt), input.negativePrompt, images, input.provider)
   const response = await fetch(endpoint, {
     method: "POST",
     headers: providerRequestHeaders(apiKey, endpoint, { "Content-Type": "application/json" }),
@@ -540,14 +550,14 @@ function providerRequestHeaders(apiKey: string, endpoint: string, extra: Record<
   return headers
 }
 
-function providerGenerationBaseUrl(provider: ProviderConfig) {
+export function providerGenerationBaseUrl(provider: ProviderConfig) {
   if (provider.id === "provider_yunwu_nano2_edit" && isYunwuFalNanoBananaEditEndpoint(provider.baseUrl)) {
     return YUNWU_NANO2_GEMINI_ENDPOINT
   }
   return provider.baseUrl
 }
 
-function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_generation" | "chat_completions"; url: string } {
+export function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_generation" | "chat_completions"; url: string } {
   const normalized = (baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "")
   if (normalized.endsWith("/chat/completions")) return { kind: "chat_completions", url: normalized }
   if (normalized.endsWith("/images/generations")) return { kind: "image_generation", url: normalized }
@@ -558,70 +568,7 @@ function generationEndpoint(baseUrl: string): { kind: "image_edit" | "image_gene
   return { kind: "image_edit", url: `${normalized}/images/edits` }
 }
 
-function is302GeminiOriginalImageEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    const host = url.hostname.toLowerCase()
-    return is302ApiHost(host) && url.pathname.includes("/google/v1/models/gemini-")
-  } catch {
-    return false
-  }
-}
-
-function isYunwuGeminiGenerateContentEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    return url.hostname.toLowerCase() === "yunwu.ai" && url.pathname.includes("/v1beta/models/gemini-") && url.pathname.endsWith(":generateContent")
-  } catch {
-    return false
-  }
-}
-
-function isGeminiGenerateContentImageEndpoint(endpoint: string) {
-  return is302GeminiOriginalImageEndpoint(endpoint) || isYunwuGeminiGenerateContentEndpoint(endpoint)
-}
-
-function is302NanoBananaWsEditEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    const host = url.hostname.toLowerCase()
-    return is302ApiHost(host) && url.pathname.endsWith("/ws/api/v3/google/nano-banana-2/edit")
-  } catch {
-    return false
-  }
-}
-
-function is302ImageEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    const host = url.hostname.toLowerCase()
-    return is302ApiHost(host) && (url.pathname.endsWith("/images/edits") || url.pathname.endsWith("/images/generations"))
-  } catch {
-    return false
-  }
-}
-
-function isYunwuImageEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/v1/images/edits") || url.pathname.endsWith("/v1/images/generations"))
-  } catch {
-    return false
-  }
-}
-
-function isYunwuFalNanoBananaEditEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint)
-    return url.hostname.toLowerCase() === "yunwu.ai" && (url.pathname.endsWith("/fal-ai/nano-banana/edit") || url.pathname.endsWith("/fal-ai/nano-banana-2/edit"))
-  } catch {
-    return false
-  }
-}
-
-function is302ApiHost(host: string) {
-  return host === "api.302.ai" || host === "api.302ai.cn" || host === "api.302ai.com"
-}
+// Endpoint-classification predicates are defined in lib/provider-image-params.ts and imported above.
 
 function canonical302Endpoint(endpoint: string) {
   const url = new URL(endpoint)
@@ -861,7 +808,7 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
-function imageGenerationPayload(input: { modelName: string; prompt: string; negativePrompt: string; imageReferences: string[]; size?: string; fast302?: boolean }) {
+function imageGenerationPayload(input: { modelName: string; prompt: string; negativePrompt: string; imageReferences: string[]; size?: string; resolvedParams?: Record<string, string> }) {
   const payload: Record<string, unknown> = {
     model: input.modelName,
     prompt: input.prompt,
@@ -870,13 +817,12 @@ function imageGenerationPayload(input: { modelName: string; prompt: string; nega
   if (input.negativePrompt) payload.negative_prompt = input.negativePrompt
   if (input.imageReferences.length) payload.image = input.imageReferences.length === 1 ? input.imageReferences[0] : input.imageReferences
   if (input.modelName.startsWith("google/")) {
-    payload.image_size = "1K"
+    payload.image_size = input.resolvedParams?.image_size || "1K"
   } else {
-    payload.size = input.size || "1024x1024"
+    payload.size = input.size || input.resolvedParams?.size || "1024x1024"
   }
-  if (input.fast302) {
-    Object.assign(payload, fast302ImageOptions())
-  }
+  if (input.resolvedParams) applyImageParamsToJson(payload, input.resolvedParams)
+  if (input.modelName.startsWith("google/")) delete payload.size
   return payload
 }
 
@@ -908,19 +854,19 @@ function geminiOriginalImageEditPayload(
   }
 }
 
-function geminiImageConfigForEndpoint(endpoint: string, vehicleImage?: { bytes: Uint8Array }) {
-  if (!isYunwuGeminiGenerateContentEndpoint(endpoint)) return undefined
-  const dimensions = vehicleImage ? imageDimensions(vehicleImage.bytes) : null
-  return {
-    imageSize: yunwuGeminiImageSize(),
-    aspectRatio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
-  }
+function geminiImageConfigForEndpoint(provider: ProviderConfig, vehicleImage?: { bytes: Uint8Array }): Record<string, string> | undefined {
+  if (!isGeminiGenerateContentImageEndpoint(provider.baseUrl)) return undefined
+  const resolved = resolveImageParams(provider, vehicleImage)
+  const nested = buildNestedFromFlat(resolved)
+  const imageConfigNode = nested.generationConfig && typeof nested.generationConfig === "object" ? (nested.generationConfig as Record<string, unknown>).imageConfig : undefined
+  return imageConfigNode && typeof imageConfigNode === "object" ? (imageConfigNode as Record<string, string>) : undefined
 }
 
-function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[]) {
+function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[], provider: ProviderConfig) {
   const text = [prompt, negativePrompt ? `Negative Prompt:\n${negativePrompt}` : ""].filter(Boolean).join("\n\n")
   const dimensions = imageDimensions(images[0].bytes)
-  return {
+  const resolved = resolveImageParams(provider, images[0])
+  const payload = {
     prompt: text,
     images: images.map((image) => image.providerUrl),
     aspect_ratio: dimensions ? closestNanoBananaAspectRatio(dimensions) : "4:3",
@@ -928,11 +874,14 @@ function nanoBananaWsEditPayload(prompt: string, negativePrompt: string, images:
     enable_sync_mode: nanoBanana302SyncMode(),
     enable_base64_output: false,
   }
+  applyImageParamsToJson(payload, resolved)
+  return payload
 }
 
-function yunwuFalNanoBananaPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[]) {
+function yunwuFalNanoBananaPayload(prompt: string, negativePrompt: string, images: NanoBananaProviderInputImage[], provider: ProviderConfig) {
   const text = [prompt, negativePrompt ? `Negative Prompt:\n${negativePrompt}` : ""].filter(Boolean).join("\n\n")
-  return {
+  const resolved = resolveImageParams(provider, images[0])
+  const payload = {
     prompt: text,
     image_urls: images.map((image) => image.providerUrl),
     num_images: 1,
@@ -943,6 +892,8 @@ function yunwuFalNanoBananaPayload(prompt: string, negativePrompt: string, image
     resolution: yunwuNanoResolution(),
     limit_generations: true,
   }
+  applyImageParamsToJson(payload, resolved)
+  return payload
 }
 
 function nanoBanana302SyncMode() {
@@ -1080,19 +1031,19 @@ function yunwuImageEditRequestShape(
   images: Array<{ mime: string }>,
   prompt: string,
   negativePrompt: string,
-  outputSize: string,
+  params: Record<string, string>,
 ) {
-  const outputFormat = yunwuImageOutputFormat()
+  const outputFormat = params.output_format || "jpeg"
   return {
     imageInputType: "multipart",
     imageCount: images.length,
     imageMimes: images.map((image) => image.mime),
     promptChars: [prompt, negativePrompt].filter(Boolean).join("\n\n").length,
     n: 1,
-    size: outputSize,
-    quality: yunwuImageQuality(),
+    size: params.size || "1024x1024",
+    quality: params.quality || "",
     outputFormat,
-    outputCompression: outputFormat === "jpeg" || outputFormat === "webp" ? yunwuImageOutputCompression() : undefined,
+    outputCompression: outputFormat === "jpeg" || outputFormat === "webp" ? params.output_compression : undefined,
   }
 }
 
@@ -1100,13 +1051,6 @@ function yunwuNanoResolution() {
   const value = String(process.env.YUNWU_NANO_RESOLUTION || "0.5K").trim().toUpperCase()
   if (value === "512" || value === "0.5K" || value === "1K" || value === "2K" || value === "4K") return value === "512" ? "0.5K" : value
   return "0.5K"
-}
-
-function yunwuGeminiImageSize() {
-  const value = String(process.env.YUNWU_GEMINI_IMAGE_SIZE || process.env.YUNWU_NANO_RESOLUTION || "512").trim().toUpperCase()
-  if (value === "512" || value === "0.5K") return "512"
-  if (value === "1K" || value === "2K" || value === "4K") return value
-  return "512"
 }
 
 function yunwuNanoOutputFormat() {
@@ -1205,7 +1149,7 @@ function sanitizeNanoBananaPromptLine(line: string) {
     .replace(NANO_BANANA_CJK_SAFETY_TERMS, "")
 }
 
-function closestNanoBananaAspectRatio(dimensions: { width: number; height: number }) {
+export function closestNanoBananaAspectRatio(dimensions: { width: number; height: number }) {
   const options = [
     ["1:1", 1],
     ["3:2", 3 / 2],
@@ -1429,32 +1373,9 @@ function uniqueNonEmptyStrings(values: string[]) {
   })
 }
 
-function append302FastImageOptions(formData: FormData) {
-  for (const [key, value] of Object.entries(fast302ImageOptions())) {
-    formData.append(key, String(value))
-  }
-}
+// Image-option appenders were replaced by lib/server/provider-param-injector.ts.
 
-function appendYunwuImageEditOptions(formData: FormData) {
-  formData.set("n", "1")
-  formData.set("quality", yunwuImageQuality())
-  formData.set("output_format", yunwuImageOutputFormat())
-  const outputFormat = yunwuImageOutputFormat()
-  if (outputFormat === "jpeg" || outputFormat === "webp") {
-    formData.set("output_compression", String(yunwuImageOutputCompression()))
-  }
-}
-
-function fast302ImageOptions() {
-  return {
-    quality: "low",
-    background: "opaque",
-    output_format: "webp",
-    output_compression: 85,
-  }
-}
-
-function providerOutputImageSize(endpoint: string, vehicleImage?: { bytes: Uint8Array }) {
+export function providerOutputImageSize(endpoint: string, vehicleImage?: { bytes: Uint8Array }) {
   if (isYunwuImageEndpoint(endpoint)) return yunwuImageSize()
   if (!is302ImageEndpoint(endpoint) || !vehicleImage) return "1024x1024"
   const dimensions = imageDimensions(vehicleImage.bytes)
@@ -1467,24 +1388,6 @@ function yunwuImageSize() {
   return "1024x1024"
 }
 
-function yunwuImageQuality() {
-  const value = String(process.env.YUNWU_IMAGE_QUALITY || "low").trim().toLowerCase()
-  if (value === "low" || value === "medium" || value === "high" || value === "auto") return value
-  return "low"
-}
-
-function yunwuImageOutputFormat() {
-  const value = String(process.env.YUNWU_IMAGE_OUTPUT_FORMAT || "jpeg").trim().toLowerCase()
-  if (value === "jpeg" || value === "png" || value === "webp") return value
-  return "jpeg"
-}
-
-function yunwuImageOutputCompression() {
-  const value = Number(process.env.YUNWU_IMAGE_OUTPUT_COMPRESSION || 80)
-  if (!Number.isFinite(value)) return 80
-  return Math.max(0, Math.min(100, Math.round(value)))
-}
-
 function supported302ImageSize(dimensions: { width: number; height: number }) {
   const aspect = dimensions.width / dimensions.height
   if (aspect > 1.1) return "1536x1024"
@@ -1492,7 +1395,7 @@ function supported302ImageSize(dimensions: { width: number; height: number }) {
   return "1024x1024"
 }
 
-function imageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+export function imageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
   return pngDimensions(bytes) || jpegDimensions(bytes) || webpDimensions(bytes)
 }
 

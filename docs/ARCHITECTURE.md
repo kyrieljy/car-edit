@@ -156,13 +156,13 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 模块 | 职责 | 关键文件/目录 |
 |------|------|---------------|
 | 认证模块 | Cookie-based session 认证，手机验证码/密码登录，管理员权限 | `lib/server/auth.ts`, `app/api/auth/` |
-| 生成引擎 | 16 步生成流水线，配置模式/聊天模式，结果质量检查与自动重试 | `lib/server/generation-engine.ts`, `lib/generation-core.ts` |
+| 生成引擎 | 16 步生成流水线，配置模式/聊天模式，结果质量检查与自动重试；调用 Provider 时按 `options.imageParams` 注入可配置画质参数（provider-config 驱动，替代硬编码环境变量） | `lib/server/generation-engine.ts`, `lib/generation-core.ts`, `lib/server/provider-param-injector.ts` |
 | 提示词引擎 | 15 种模板作用域，版本化 Prompt Pack，组合规则引擎 | `lib/prompts.ts`, `config/prompt-packs/` |
 | 视觉识别 | 车辆识别、配件识别、生成结果检查 | `lib/server/vision-provider.ts` |
 | 安全护栏 | 内容安全检查（文件类型、屏蔽词、改装关键词） | `lib/server/guardrail.ts` |
 | 计费系统 | 三级会员（free/pro/max），用量账本，额度消费，模拟支付与订单管理 | `app/api/billing/`, `lib/server/db.ts` |
 | 聊天系统 | 对话模式意图解析（本地 + LLM fallback），会话管理 | `app/api/chat/`, `components/chat-mode.tsx` |
-| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
+| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理；每个 Provider 配置新增「画质参数」分区，支持参数名与枚举值双可配（数据驱动 + 内置模板） | `components/admin-console.tsx`, `app/api/admin/`, `lib/provider-image-params.ts` |
 | 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护，公网域名配置管理 | `lib/server/local-images.ts`, `lib/server/generation-provider.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
 | 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、失败分析、成本核算、订单分析、额度监控、异常告警、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `lib/server/alert-scanner.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
@@ -178,6 +178,16 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 - **理由**：1) 请求时扫描避免了额外的定时任务基础设施（cron/queue），与现有 SQLite 单体架构一致 2) 独立表存储告警记录使管理员可以跨请求查看历史告警、追踪处理状态 3) 每小时去重逻辑（同一用户同一类型同一小时仅记录一条）防止告警洪水 4) 状态流转字段（resolved_at/resolver_id）支持审计追溯
 - **影响**：新增 `alert_records` 表及 3 个索引；新增 `lib/server/alert-scanner.ts` 模块；告警列表 API 在每次请求时执行扫描，有轻微性能开销（约 50-100ms）
 - **关联方案ID**：DESIGN-20260729-003
+
+### ADR-0007：Provider 级画质参数配置采用通用 JSON 列 + 内置模板
+
+- **状态**：已采纳
+- **日期**：2026-08-07
+- **背景**：此前 6 个画质参数（A 类 `quality`、B 类 `imageSize`/`resolution`）硬编码在代码中或通过环境变量（如 `YUNWU_IMAGE_QUALITY`、`YUNWU_GEMINI_IMAGE_SIZE`、`YUNWU_NANO_RESOLUTION`、`NANO_BANANA_302_RESOLUTION`）注入，跨 7 个生图 Provider 难以统一配置，管理员无法在后台按需调整。需要决定 Provider 级画质参数的存储与配置方式。
+- **决策**：在 `provider_configs` 表新增通用 JSON 扩展列 `options_json TEXT NOT NULL DEFAULT '{}'`，当前承载 `imageParams`（`Array<{ key, label, options, value }>`）；管理后台为每个具备 `image_generation` 能力的 Provider 提供「画质参数」分区，参数名（`key`）与枚举值（`options`）双可配，平台内置各 Provider 的默认模板（`lib/provider-image-params.ts`），用户可重置为内置默认值或完全自定义。参数注入逻辑（`lib/server/provider-param-injector.ts`）依据 Provider 协议类型（A 类 OpenAI 兼容 `/images/edits`、`/images/generations`；B 类 Gemini `/generateContent`、Nano Banana）映射到对应字段，保留两个非 API 语义保留值：`''` 表示不传该参数、`'__auto__'` 表示跟随原图/自适应推导（区别于 API 字面量 `auto`）。
+- **理由**：1) 通用 JSON 列避免为每个 Provider 新增专用列或频繁做 schema migration，新增 Provider 仅需在前端模板中声明，无需改表 2) 数据驱动的参数名 + 枚举值双可配，覆盖各 Provider 字段差异，同时内置模板保证开箱即用 3) 保留值语义使「不传」「自适应」成为一等能力，避免把平台决策硬编码为某个字面量 4) `options_json` 走 DB 优先映射（与 `console_url` 一致），`ON CONFLICT DO UPDATE` 列表排除该列，升级时通过 `backfillProviderImageParams()` 从环境变量有效值回填默认值，保证从旧版平滑迁移且零行为变化
+- **影响**：新增 `lib/provider-image-params.ts`、`lib/server/provider-param-injector.ts`；`provider_configs` 新增 `options_json` 列；`lib/server/db.ts`、`lib/catalog.ts`、`lib/server/generation-provider.ts`、`lib/server/provider-test.ts`、`app/api/admin/provider-configs/route.ts`、`components/admin-console.tsx`、`app/globals.css` 同步改造；原环境变量画质参数标记为废弃（仍在缺失内置模板时作为兜底）
+- **关联方案ID**：DESIGN-20260807-001
 
 ### ADR-0005：Recharts 图表库选型
 
@@ -261,5 +271,5 @@ flowchart LR
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
-> 最后更新时间：2026-08-06
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-006
+> 最后更新时间：2026-08-07
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-006、DESIGN-20260807-001
