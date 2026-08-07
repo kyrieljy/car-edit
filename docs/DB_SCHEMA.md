@@ -45,6 +45,8 @@
 | workflow_configs | 工作流编排 | 生成引擎 |
 | generation_bad_cases | 生成 Bad Case | 管理模块 |
 | alert_records | 异常告警记录 | 运营分析模块 |
+| admin_test_config | 管理后台全局测试配件设置（画质对比测试基准） | 管理模块 |
+| admin_image_param_tests | 画质参数对比测试结果缓存 | 管理模块 |
 
 ## 表结构详情
 
@@ -921,5 +923,57 @@
 
 ---
 
+### admin_test_config（`admin_test_config`）
+
+- **用途**：存储管理后台「模型 API」菜单底部「测试配件设置」的全局单份配置，作为画质参数对比测试的固定基准（原车图 + 配件组合 + 车漆 + 姿态）。全库仅一行（`id='default'`），所有 Provider 的对比测试统一取用。（新增于 DESIGN-20260807-002）
+- **字段**：
+
+  | 字段名 | 类型 | 是否必填 | 默认值 | 描述 |
+  |--------|------|----------|--------|------|
+  | id | TEXT | 是 | - | 固定为 `default`（主键，全局单行） |
+  | vehicle_upload_id | TEXT | 是 | `''` | 原车图上传记录 ID（关联 `vehicle_uploads`） |
+  | source_image_url | TEXT | 是 | `''` | 原车图 URL（经 `/api/admin/uploads` 上传后引用） |
+  | display_vehicle_model | TEXT | 是 | `''` | 展示用车型名 |
+  | paint_id | TEXT | 是 | `''` | 车漆 ID |
+  | paint_finish_effect | TEXT | 是 | `''` | 车漆效果 |
+  | gradient_paint_json | TEXT | 是 | `'{}'` | 渐变车漆配置（JSON 序列化） |
+  | custom_paint_json | TEXT | 是 | `'{}'` | 自定义车漆配置（JSON 序列化） |
+  | stance | INTEGER | 是 | 0 | 姿态 0-100 |
+  | selections_json | TEXT | 是 | `'{}'` | 各配件位置已选资源映射（JSON 序列化，`SelectionMap`） |
+  | selection_options_json | TEXT | 是 | `'{}'` | 各配件位置配置项（JSON 序列化，`PartSelectionOptions`） |
+  | updated_at | INTEGER | 是 | 0 | 最后更新时间戳（毫秒） |
+
+- **索引**：无额外索引（单行表）
+- **约束**：PRIMARY KEY: `id`；保存以 `id='default'` 做 `INSERT ... ON CONFLICT(id) DO UPDATE` upsert
+- **关联表**：vehicle_uploads（通过 vehicle_upload_id）
+
+### admin_image_param_tests（`admin_image_param_tests`）
+
+- **用途**：缓存画质参数对比测试的结果图。每行对应一个 (Provider, 画质参数, 枚举值) 的效果图；首次点击触发全量生图并落库，非首次直接展示，「重新生成」仅 upsert 对应行。按「纯缓存不失效」口径，不做基于配置变更的自动失效。（新增于 DESIGN-20260807-002）
+- **字段**：
+
+  | 字段名 | 类型 | 是否必填 | 默认值 | 描述 |
+  |--------|------|----------|--------|------|
+  | id | TEXT | 是 | - | 结果记录唯一标识（主键） |
+  | provider_id | TEXT | 是 | - | 被测 Provider ID |
+  | param_key | TEXT | 是 | - | 画质参数 key（如 `quality`、`generationConfig.imageConfig.imageSize`） |
+  | param_value | TEXT | 是 | - | 对比的画质参数枚举值 |
+  | result_image_url | TEXT | 是 | `''` | 效果图 URL（落 `results/`，失败时为空串） |
+  | status | TEXT | 是 | `succeeded` | 状态：`succeeded` / `failed` |
+  | error_detail | TEXT | 是 | `''` | 失败原因（成功时为空串） |
+  | latency_ms | INTEGER | 是 | 0 | 单次生图耗时（毫秒） |
+  | created_at | INTEGER | 是 | 0 | 生成时间戳（毫秒）；「重新生成」时刷新 |
+
+- **索引**：
+
+  | 索引名 | 字段 | 类型 | 说明 |
+  |--------|------|------|------|
+  | admin_image_param_tests_provider_param_idx | (provider_id, param_key) | INDEX | 按 (Provider, 参数) 查询缓存结果 |
+
+- **约束**：PRIMARY KEY: `id`；UNIQUE(`provider_id`, `param_key`, `param_value`)；`regenerateValue` 重跑时以 `ON CONFLICT(provider_id, param_key, param_value) DO UPDATE` 刷新 `result_image_url`/`status`/`error_detail`/`latency_ms`/`created_at`
+- **关联表**：provider_configs（通过 provider_id）
+
+---
+
 > 最后更新时间：2026-08-07
-> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001
+> 关联方案ID：DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001、DESIGN-20260807-002

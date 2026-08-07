@@ -1686,6 +1686,8 @@ http://127.0.0.1:3000  （开发环境）
 |------|------|------|
 | `POST` | `/api/admin/provider-configs` | 更新 AI 提供商配置（API Key、模型、启用状态、画质参数等） |
 | `POST` | `/api/admin/provider-configs/test-all` | 并发测试所有 Provider 可用性 |
+| `GET` | `/api/admin/provider-configs/compare-test` | 查询某 (Provider, 画质参数) 的对比测试结果缓存 |
+| `POST` | `/api/admin/provider-configs/compare-test` | 对画质参数全部枚举值并行真实生图对比 / 单值重新生成 |
 
 ##### 更新 AI 提供商配置
 
@@ -1809,6 +1811,155 @@ http://127.0.0.1:3000  （开发环境）
   - 判定不可用：HTTP 401/403（鉴权失败）、404（URL 错误）、5xx（服务端错误）、连接超时（15s）
   - 判定参数配置错误：携带自定义画质参数的测试请求返回 400/422，且错误响应体中提及某个已配置的参数名时，判为 `unavailable`，`detail` 形如 `HTTP 400 — 参数配置错误（"quality"）`，以区别于普通「参数缺失」（已更新 2026-08-07）
 - **关联数据表**：`provider_configs`
+
+---
+
+#### 测试配件设置（全局单份）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/test-config` | 读取全局测试配件设置 |
+| `PUT` | `/api/admin/test-config` | 保存全局测试配件设置 |
+
+##### 读取全局测试配件设置
+
+- **路径**：`GET /api/admin/test-config`
+- **描述**：返回管理后台「模型 API」菜单底部「测试配件设置」全局单份配置，供后台面板回显。从未保存时返回 `config: null`。（新增于 DESIGN-20260807-002）
+- **鉴权**：需要管理员权限（Cookie session）。
+- **响应格式**：
+
+  ```json
+  {
+    "config": {
+      "id": "default",
+      "vehicleUploadId": "upload_xxx",
+      "sourceImageUrl": "/results/xxx.jpg",
+      "displayVehicleModel": "Demo Car",
+      "paintId": "paint_xxx",
+      "paintFinishEffect": "gloss",
+      "gradientPaint": null,
+      "customPaint": null,
+      "stance": 60,
+      "selections": { "dryCarbon": ["asset_1"], "caliperCase": "asset_2" },
+      "selectionOptions": { "dryCarbon": { "max": 4 } },
+      "updatedAt": 1784980000000
+    }
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | `config` | AdminTestConfig \| null | 全局单份测试配件设置；未配置时为 null |
+  | `config.sourceImageUrl` | string | 原车图 URL（经 `POST /api/admin/uploads` 上传后引用） |
+  | `config.selections` | SelectionMap | 各配件位置已选资源映射 |
+  | `config.selectionOptions` | PartSelectionOptions | 各配件位置的配置项（如可选数量上限） |
+  | `config.stance` | number | 姿态 0-100 |
+
+- **关联数据表**：`admin_test_config`
+
+##### 保存全局测试配件设置
+
+- **路径**：`PUT /api/admin/test-config`
+- **描述**：保存「测试配件设置」全局单份配置。原车图经既有 `POST /api/admin/uploads` 上传取得 URL 后由本接口以 JSON 提交；服务端以固定单行 `id='default'` 做 upsert。（新增于 DESIGN-20260807-002）
+- **鉴权**：需要管理员权限（Cookie session）。
+- **请求参数**（JSON Body）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | vehicleUploadId | string | 是 | 原车图上传记录 ID |
+  | sourceImageUrl | string | 是 | 原车图 URL |
+  | displayVehicleModel | string | 否 | 展示用车型名 |
+  | paintId | string | 是 | 车漆 ID |
+  | paintFinishEffect | string | 是 | 车漆效果 |
+  | gradientPaint | object \| null | 否 | 渐变车漆配置 |
+  | customPaint | object \| null | 否 | 自定义车漆配置 |
+  | stance | number | 是 | 姿态 0-100 |
+  | selections | SelectionMap | 是 | 各配件位置已选资源映射（非空） |
+  | selectionOptions | PartSelectionOptions | 是 | 各配件位置配置项 |
+
+- **校验规则**：`sourceImageUrl` 非空且 `selections` 非空，否则返回 400。
+- **响应格式**：`{ "config": AdminTestConfig }`（返回保存后的完整配置）。
+- **错误码**：400（参数缺失）、401（未认证）、403（非管理员）
+- **关联数据表**：`admin_test_config`
+
+---
+
+#### 画质参数对比测试
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/provider-configs/compare-test` | 查询某 (Provider, 画质参数) 的对比测试结果缓存 |
+| `POST` | `/api/admin/provider-configs/compare-test` | 对画质参数全部枚举值并行真实生图对比 / 单值重新生成 |
+
+##### 查询对比测试结果缓存
+
+- **路径**：`GET /api/admin/provider-configs/compare-test?providerId=<id>&paramKey=<key>`
+- **描述**：查询指定 (Provider, 画质参数) 的对比测试结果缓存，供「非首次」点击直接展示，或点击时判定是否首次。（新增于 DESIGN-20260807-002）
+- **鉴权**：需要管理员权限（Cookie session）。
+- **查询参数**：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | providerId | string | 是 | Provider ID |
+  | paramKey | string | 是 | 画质参数 key（如 `quality`、`generationConfig.imageConfig.imageSize`） |
+
+- **响应格式**：
+
+  ```json
+  {
+    "results": [
+      {
+        "id": "test_xxx",
+        "providerId": "provider_80fce082",
+        "paramKey": "quality",
+        "paramValue": "high",
+        "resultImageUrl": "/results/xxx.jpg",
+        "status": "succeeded",
+        "errorDetail": "",
+        "latencyMs": 1234,
+        "createdAt": 1784980000000
+      }
+    ]
+  }
+  ```
+
+- **响应字段说明**：
+
+  | 字段 | 类型 | 描述 |
+  |------|------|------|
+  | `results` | ImageParamTestResult[] | 该 (Provider, 参数) 下全部枚举值的结果（空数组表示首次） |
+  | `results[].paramValue` | string | 本次对比的画质参数枚举值（`__auto__` 前端显示为「跟随原图」） |
+  | `results[].status` | string | `succeeded` / `failed` |
+  | `results[].resultImageUrl` | string | 效果图 URL（失败时为空串） |
+  | `results[].errorDetail` | string | 失败原因（成功时为空串） |
+  | `results[].latencyMs` | number | 单次生图耗时（毫秒） |
+  | `results[].createdAt` | number | 生成时间戳（毫秒），纯缓存不失效，仅「重新生成」刷新 |
+
+- **关联数据表**：`admin_image_param_tests`
+
+##### 运行画质参数对比测试
+
+- **路径**：`POST /api/admin/provider-configs/compare-test`
+- **描述**：对指定画质参数执行真实生图对比测试。读取全局「测试配件设置」作为固定基准，对该参数的全部枚举值并行调用生图引擎（`Promise.allSettled`），结果逐值 upsert 至 `admin_image_param_tests` 后返回全量缓存。生图复用完整工作流（提示词/参考图/质检重试），但**不扣用户额度、不写 `generation_jobs`/`usage_ledger`**。（新增于 DESIGN-20260807-002）
+- **鉴权**：需要管理员权限（Cookie session）。
+- **请求参数**（JSON Body）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | providerId | string | 是 | Provider ID（须具备 `image_generation` 能力且已启用） |
+  | paramKey | string | 是 | 画质参数 key |
+  | values | string[] | 否 | 指定要对比的枚举值集合；省略时取该 Provider 该参数的 `options` 全集（过滤空串） |
+  | regenerateValue | string | 否 | 仅重跑该单值（「重新生成」按钮）；传入时忽略 `values` |
+
+- **前置校验**：
+  - 未保存「测试配件设置」（缺原图或无任何配件选择）→ 400，提示先去底部「测试配件设置」配置
+  - Provider 未启用 / 无 `image_generation` 能力 / 缺 API Key → 对应行标记 `failed`，`errorDetail` 明确说明，不回退 fallback
+- **响应格式**：`{ "results": ImageParamTestResult[] }`（该 (Provider, 参数) 全量最新结果，含本次新生成与历史缓存）。
+- **错误码**：400（缺测试配件设置或参数非法）、401（未认证）、403（非管理员）
+- **注意**：对比测试为**真实生图**，一次点击 = 枚举值个数次底层模型调用（通常 4-7 次），会消耗底层模型额度/费用；单行失败不影响其他行展示，可单独「重新生成」
+- **关联数据表**：`admin_image_param_tests`、`admin_test_config`
 
 ---
 

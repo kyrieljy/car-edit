@@ -6853,7 +6853,7 @@ a {
 
 .provider-image-param-basic {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
 }
@@ -25730,4 +25730,158 @@ a {
   padding: 40px 0;
   font-size: 14px;
   font-weight: 800;
+}
+
+/* ---- 画质参数对比测试 + 测试配件设置 (DESIGN-20260807-002) ---- */
+.provider-image-param-compare {
+  width: auto;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 12px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.provider-image-param-compare:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.provider-image-param-compare:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.image-param-compare-modal {
+  width: min(760px, 92vw);
+}
+
+.image-param-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.image-param-compare-table th,
+.image-param-compare-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: var(--text, #f7f7fb);
+  vertical-align: middle;
+}
+
+.image-param-compare-table code {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.image-param-compare-thumb {
+  width: 104px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.image-param-compare-error {
+  color: var(--red);
+  font-size: 12px;
+}
+
+.provider-test-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--muted, #9ca3af);
+  font-size: 13px;
+}
+
+.provider-test-error {
+  padding: 12px 24px;
+  color: var(--red);
+  font-size: 13px;
+}
+
+.test-config-panel {
+  margin-top: 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 20px;
+}
+
+.test-config-hint {
+  color: var(--muted, #9ca3af);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0 16px;
+}
+
+.test-config-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.test-config-upload-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, #9ca3af);
+}
+
+.test-config-thumb {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.test-config-noimage {
+  color: var(--muted, #9ca3af);
+  font-size: 13px;
+}
+
+.test-config-finish {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted, #9ca3af);
+}
+
+.test-config-finish select {
+  background: var(--panel, #14161f);
+  color: var(--text, #f7f7fb);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.provider-save-test-config {
+  margin-top: 18px;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #11131a;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+}
+
+.provider-save-test-config:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stance-card input[type="range"] {
+  width: 100%;
 }

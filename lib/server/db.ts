@@ -47,6 +47,7 @@ import type {
   PartCategory,
   PartCategoryConfigType,
   PartColorPolicy,
+  PaintGradient,
   AdminPaymentOrder,
   PartPromptTestStatus,
   PartReferenceRole,
@@ -71,6 +72,9 @@ import type {
   AlertRecord,
   AlertType,
   AlertStatus,
+  AdminTestConfig,
+  SaveAdminTestConfigInput,
+  ImageParamTestResult,
 } from "../types"
 import type { ProviderImageParam, ProviderOptions } from "../types"
 
@@ -502,6 +506,34 @@ function initSchema(conn: DatabaseSync) {
       resolved_at INTEGER,
       resolver_id TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS admin_test_config (
+      id TEXT PRIMARY KEY,
+      vehicle_upload_id TEXT NOT NULL DEFAULT '',
+      source_image_url TEXT NOT NULL DEFAULT '',
+      display_vehicle_model TEXT NOT NULL DEFAULT '',
+      paint_id TEXT NOT NULL DEFAULT '',
+      paint_finish_effect TEXT NOT NULL DEFAULT '',
+      gradient_paint_json TEXT NOT NULL DEFAULT '{}',
+      custom_paint_json TEXT NOT NULL DEFAULT '{}',
+      stance INTEGER NOT NULL DEFAULT 0,
+      selections_json TEXT NOT NULL DEFAULT '{}',
+      selection_options_json TEXT NOT NULL DEFAULT '{}',
+      updated_at INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_image_param_tests (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL,
+      param_key TEXT NOT NULL,
+      param_value TEXT NOT NULL,
+      result_image_url TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'succeeded',
+      error_detail TEXT NOT NULL DEFAULT '',
+      latency_ms INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(provider_id, param_key, param_value)
+    );
   `)
   conn.exec("CREATE UNIQUE INDEX IF NOT EXISTS entitlement_usage_unique ON entitlement_usage(user_id, mode, date_key);")
   conn.exec("CREATE INDEX IF NOT EXISTS account_messages_user_created_idx ON account_messages(user_id, created_at DESC);")
@@ -511,6 +543,7 @@ function initSchema(conn: DatabaseSync) {
   conn.exec("CREATE INDEX IF NOT EXISTS alert_records_user_idx ON alert_records(user_id);")
   conn.exec("CREATE INDEX IF NOT EXISTS alert_records_detected_idx ON alert_records(detected_at DESC);")
   conn.exec("CREATE INDEX IF NOT EXISTS alert_records_status_idx ON alert_records(status);")
+  conn.exec("CREATE INDEX IF NOT EXISTS admin_image_param_tests_provider_param_idx ON admin_image_param_tests(provider_id, param_key);")
   migrateSchema(conn)
 }
 
@@ -5735,4 +5768,135 @@ export function insertAlert(input: {
     INSERT INTO alert_records (id, user_id, alert_type, alert_value, detected_at, status)
     VALUES (?, ?, ?, ?, ?, 'pending')
   `).run(id, input.userId, input.alertType, input.alertValue, input.detectedAt)
+}
+
+// ---------------------------------------------------------------------------
+// Admin test fixtures + image-param comparison-test cache
+// (DESIGN-20260807-002: 画质参数对比测试与测试配件设置)
+// ---------------------------------------------------------------------------
+
+function mapAdminTestConfig(row: Row): AdminTestConfig {
+  return {
+    id: String(row.id),
+    vehicleUploadId: String(row.vehicle_upload_id || ""),
+    sourceImageUrl: String(row.source_image_url || ""),
+    displayVehicleModel: String(row.display_vehicle_model || ""),
+    paintId: String(row.paint_id || ""),
+    paintFinishEffect: String(row.paint_finish_effect || ""),
+    gradientPaint: safeJson<PaintGradient | null>(String(row.gradient_paint_json || "null"), null),
+    customPaint: safeJson<unknown | null>(String(row.custom_paint_json || "null"), null),
+    stance: Number(row.stance ?? 0),
+    selections: safeJson<SelectionMap>(String(row.selections_json || "{}"), {}),
+    selectionOptions: safeJson<PartSelectionOptions>(String(row.selection_options_json || "{}"), {}),
+    updatedAt: Number(row.updated_at ?? 0),
+  }
+}
+
+// Global single-row admin test fixture. Returns null when never saved.
+export function getAdminTestConfig(): AdminTestConfig | null {
+  const row = database().prepare("SELECT * FROM admin_test_config WHERE id = 'default'").get() as Row | undefined
+  return row ? mapAdminTestConfig(row) : null
+}
+
+// Upsert the global admin test fixture (fixed id 'default').
+export function saveAdminTestConfig(input: SaveAdminTestConfigInput): AdminTestConfig {
+  const now = nowMs()
+  database()
+    .prepare(`
+      INSERT INTO admin_test_config
+      (id, vehicle_upload_id, source_image_url, display_vehicle_model, paint_id, paint_finish_effect, gradient_paint_json, custom_paint_json, stance, selections_json, selection_options_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        vehicle_upload_id = excluded.vehicle_upload_id,
+        source_image_url = excluded.source_image_url,
+        display_vehicle_model = excluded.display_vehicle_model,
+        paint_id = excluded.paint_id,
+        paint_finish_effect = excluded.paint_finish_effect,
+        gradient_paint_json = excluded.gradient_paint_json,
+        custom_paint_json = excluded.custom_paint_json,
+        stance = excluded.stance,
+        selections_json = excluded.selections_json,
+        selection_options_json = excluded.selection_options_json,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      "default",
+      input.vehicleUploadId,
+      input.sourceImageUrl,
+      input.displayVehicleModel || "",
+      input.paintId,
+      input.paintFinishEffect,
+      JSON.stringify(input.gradientPaint ?? null),
+      JSON.stringify(input.customPaint ?? null),
+      input.stance,
+      JSON.stringify(input.selections ?? {}),
+      JSON.stringify(input.selectionOptions ?? {}),
+      now,
+    )
+  return getAdminTestConfig() as AdminTestConfig
+}
+
+function mapImageParamTest(row: Row): ImageParamTestResult {
+  return {
+    id: String(row.id),
+    providerId: String(row.provider_id),
+    paramKey: String(row.param_key),
+    paramValue: String(row.param_value),
+    resultImageUrl: String(row.result_image_url || ""),
+    status: (row.status === "failed" ? "failed" : "succeeded") as ImageParamTestResult["status"],
+    errorDetail: String(row.error_detail || ""),
+    latencyMs: Number(row.latency_ms ?? 0),
+    createdAt: Number(row.created_at ?? 0),
+  }
+}
+
+// List cached comparison results for a (provider, param) pair, oldest first.
+export function listImageParamTests(providerId: string, paramKey: string): ImageParamTestResult[] {
+  const rows = database()
+    .prepare("SELECT * FROM admin_image_param_tests WHERE provider_id = ? AND param_key = ? ORDER BY created_at ASC")
+    .all(providerId, paramKey) as Row[]
+  return rows.map(mapImageParamTest)
+}
+
+// Upsert a single comparison-test result row. Re-running a value overwrites the
+// previous result (cache does not auto-expire; only explicit regenerate refreshes it).
+export function upsertImageParamTest(input: {
+  providerId: string
+  paramKey: string
+  paramValue: string
+  resultImageUrl: string
+  status: "succeeded" | "failed"
+  errorDetail?: string
+  latencyMs: number
+}): ImageParamTestResult {
+  const id = `ipt_${crypto.randomUUID().slice(0, 8)}`
+  const now = nowMs()
+  database()
+    .prepare(`
+      INSERT INTO admin_image_param_tests
+      (id, provider_id, param_key, param_value, result_image_url, status, error_detail, latency_ms, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(provider_id, param_key, param_value) DO UPDATE SET
+        id = excluded.id,
+        result_image_url = excluded.result_image_url,
+        status = excluded.status,
+        error_detail = excluded.error_detail,
+        latency_ms = excluded.latency_ms,
+        created_at = excluded.created_at
+    `)
+    .run(
+      id,
+      input.providerId,
+      input.paramKey,
+      input.paramValue,
+      input.resultImageUrl || "",
+      input.status,
+      input.errorDetail ?? "",
+      input.latencyMs,
+      now,
+    )
+  const row = database()
+    .prepare("SELECT * FROM admin_image_param_tests WHERE provider_id = ? AND param_key = ? AND param_value = ?")
+    .get(input.providerId, input.paramKey, input.paramValue) as Row
+  return mapImageParamTest(row)
 }

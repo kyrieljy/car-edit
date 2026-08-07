@@ -195,6 +195,147 @@ export function previewGenerationWorkflow(input: RunGenerationWorkflowInput) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Admin image-param comparison test (DESIGN-20260807-002)
+// Ephemeral single-value generation: forces the tested image_generation provider,
+// shallow-clones it to override one image-param value, disables fallback, and skips
+// user-record persistence / entitlement. The result image is still written to disk by
+// the provider layer (invokeGenerationProvider -> saveProviderImage), so it is reusable
+// as a cached comparison result without ever touching generation_jobs / usage_ledger.
+// ---------------------------------------------------------------------------
+
+export type RunAdminImageParamTestInput = {
+  providerId: string
+  paramKey: string
+  paramValue: string
+  sourceImageUrl: string
+  standardJson: GenerationStandardJson
+  onProgress?: ProgressEmitter
+}
+
+export type AdminImageParamTestOutcome = {
+  status: "succeeded" | "failed"
+  resultImageUrl: string
+  latencyMs: number
+  errorDetail: string
+}
+
+export async function runAdminImageParamTest(input: RunAdminImageParamTestInput): Promise<AdminImageParamTestOutcome> {
+  const emitProgress = input.onProgress ?? noopProgress
+  const catalog = getCatalog()
+  const provider = resolveProvider(input.providerId, catalog.providers, "image_generation")
+  if (!provider) {
+    return {
+      status: "failed",
+      resultImageUrl: "",
+      latencyMs: 0,
+      errorDetail: "Provider is not enabled or does not provide the image_generation capability.",
+    }
+  }
+
+  // Shallow-clone the provider overriding only the target image-param value. This never
+  // writes back to provider_configs, so the admin test cannot pollute live configuration.
+  const patchedProvider: ProviderConfig = {
+    ...provider,
+    options: {
+      ...provider.options,
+      imageParams: (provider.options?.imageParams ?? []).map((param) =>
+        param.key === input.paramKey ? { ...param, value: input.paramValue } : param,
+      ),
+    },
+  }
+
+  const workflow = getWorkflowConfig("config")
+  const promptNodeIds = workflow.nodes.map((node) => node.promptTemplateId).filter(Boolean)
+  const workflowTemplateIds = new Set([...workflow.promptTemplateIds, ...promptNodeIds])
+  const workflowTemplates = workflowTemplateIds.size
+    ? catalog.promptTemplates.filter((template) => workflowTemplateIds.has(template.id) || template.scope === "part" || template.scope === "category" || template.scope === "combo")
+    : catalog.promptTemplates
+  emitProgress({ step: "prompt_build" })
+  const promptBuild = buildGenerationPrompt({
+    spec: input.standardJson,
+    preset: catalog.promptPreset,
+    templates: workflowTemplates,
+  })
+
+  const imageNode = workflow.nodes.find((node) => node.type === "image_generation" && node.enabled)
+  const resultCheckNode = workflow.nodes.find((node) => node.type === "result_check" && node.enabled)
+  const retryNode = workflow.nodes.find((node) => node.type === "retry" && node.enabled)
+  const resultCheckPrompt = nodePromptBody(resultCheckNode, workflowTemplates)
+  const retryPromptTemplate = nodePromptBody(retryNode, workflowTemplates)
+  const resultCheckProvider = resolveNodeProvider(resultCheckNode, "", catalog.providers, "vision")
+
+  let response = await invokeGenerationWithCallPolicy({
+    mode: "config",
+    provider: patchedProvider,
+    fallbackProvider: undefined,
+    categories: catalog.categories,
+    node: imageNode,
+    vehicleImageUrl: input.sourceImageUrl,
+    prompt: promptBuild.prompt,
+    negativePrompt: promptBuild.negativePrompt,
+    standardJson: input.standardJson,
+    onProgress: emitProgress,
+  })
+
+  const resultCheckEnabled = Boolean(resultCheckNode) || workflow.resultCheckEnabled
+  let resultCheck = response.ok && resultCheckEnabled
+    ? await evaluateGenerationResultForWorkflow({
+        spec: input.standardJson,
+        sourceImageUrl: input.sourceImageUrl,
+        resultImageUrl: response.resultImageUrl,
+        prompt: promptBuild.prompt,
+        resultCheckPrompt,
+        resultCheckProvider,
+      })
+    : null
+
+  const maxRetries = retryNode ? retryNode.maxRetries : workflow.maxRetries
+  const retryEnabled = (Boolean(retryNode) || workflow.autoRetryEnabled) && qualityFailurePolicy(resultCheckNode, retryNode) === "repair_once"
+  if (response.ok && resultCheck && !resultCheck.passed && retryEnabled && maxRetries > 0) {
+    const retryProvider = patchedProvider
+    emitProgress({ step: "provider_retry", provider: retryProvider.id, retryAttempt: 1, meta: { reason: "result_check_failed" } })
+    const repairPrompt = buildRepairPrompt(promptBuild.prompt, resultCheck, { retryPromptTemplate })
+    response = await invokeGenerationWithCallPolicy({
+      mode: "config",
+      provider: retryProvider,
+      fallbackProvider: undefined,
+      categories: catalog.categories,
+      node: imageNode,
+      vehicleImageUrl: input.sourceImageUrl,
+      prompt: repairPrompt,
+      negativePrompt: promptBuild.negativePrompt,
+      standardJson: input.standardJson,
+      onProgress: emitProgress,
+    })
+    if (response.ok && resultCheckEnabled) {
+      resultCheck = await evaluateGenerationResultForWorkflow({
+        spec: input.standardJson,
+        sourceImageUrl: input.sourceImageUrl,
+        resultImageUrl: response.resultImageUrl,
+        prompt: repairPrompt,
+        resultCheckPrompt,
+        resultCheckProvider,
+      })
+    }
+  }
+
+  if (!response.ok) {
+    return {
+      status: "failed",
+      resultImageUrl: "",
+      latencyMs: response.latencyMs,
+      errorDetail: response.error || "Generation provider failed.",
+    }
+  }
+  return {
+    status: "succeeded",
+    resultImageUrl: response.resultImageUrl,
+    latencyMs: response.latencyMs,
+    errorDetail: resultCheck && !resultCheck.passed ? resultCheck.summary : "",
+  }
+}
+
 type PartReferenceBucket = {
   partIndex: number
   category: string

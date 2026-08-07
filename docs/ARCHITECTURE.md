@@ -40,7 +40,7 @@ flowchart TD
     end
 
     subgraph Data["数据层"]
-        DB[("SQLite<br/>data/car_mod_effect.sqlite<br/>24 张表")]
+        DB[("SQLite<br/>data/car_mod_effect.sqlite<br/>26 张表")]
         LocalStorage["本地文件存储<br/>data/ + public/"]
     end
 
@@ -127,7 +127,7 @@ Next.js Route Handlers，作为系统的 HTTP 入口。负责处理外部请求�
 
 ### 4. 数据层（lib/server/db.ts）
 
-基于 SQLite 的数据持久化层。使用 Node.js 18+ 内置的 `node:sqlite` 模块，开启 WAL 模式以支持并发读取。包含 22 张数据表，覆盖用户、生成记录、会话、计费、管理等业务域。
+基于 SQLite 的数据持久化层。使用 Node.js 18+ 内置的 `node:sqlite` 模块，开启 WAL 模式以支持并发读取。包含 24 张数据表，覆盖用户、生成记录、会话、计费、管理等业务域。
 
 **数据库位置**：`data/car_mod_effect.sqlite`
 
@@ -138,7 +138,8 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 **关键组件**：
 - `components/car-mod-studio.tsx` -- 核心工作室组件，应用主界面；包含 PC 端浮动垂直菜单栏（AppMenu 导航）与 ComingSoonPlaceholder 占位
 - `components/chat-mode.tsx` -- 对话模式组件
-- `components/admin-console.tsx` -- 管理后台控制台
+- `components/admin-console.tsx` -- 管理后台控制台；含「画质参数对比测试」按钮、`ImageParamCompareModal` 弹窗、`AdminTestConfigPanel` 测试配件设置面板
+- `components/config-panel/part-option-subcomponents.tsx` -- 配件 configType 子组件与类型守卫共享模块（ DryCarbonPartsList / WingStyleList / ExhaustLayoutList / SurfaceInstallControl / CaliperCaseList / PartOptionsPanel + 4 个类型守卫），用户端 `car-mod-studio` 与管理后台「测试配件设置」共用
 - `components/workflow-designer.tsx` -- 工作流设计器
 - `components/auth-modal.tsx` -- 认证弹窗
 - `components/subscribe-modal.tsx` -- 订阅弹窗
@@ -162,7 +163,7 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 安全护栏 | 内容安全检查（文件类型、屏蔽词、改装关键词） | `lib/server/guardrail.ts` |
 | 计费系统 | 三级会员（free/pro/max），用量账本，额度消费，模拟支付与订单管理 | `app/api/billing/`, `lib/server/db.ts` |
 | 聊天系统 | 对话模式意图解析（本地 + LLM fallback），会话管理 | `app/api/chat/`, `components/chat-mode.tsx` |
-| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理；每个 Provider 配置新增「画质参数」分区，支持参数名与枚举值双可配（数据驱动 + 内置模板） | `components/admin-console.tsx`, `app/api/admin/`, `lib/provider-image-params.ts` |
+| 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理；每个 Provider 配置新增「画质参数」分区，支持参数名与枚举值双可配（数据驱动 + 内置模板）；「模型 API」菜单支持「画质参数对比测试」（对某参数全部枚举值并行真实生图横评、结果按 (Provider, 参数, 枚举值) 缓存）与全局单份「测试配件设置」（原图+配件+车漆+姿态，作为对比测试固定基准） | `components/admin-console.tsx`, `app/api/admin/`, `lib/provider-image-params.ts`, `lib/server/generation-engine.ts`, `components/config-panel/part-option-subcomponents.tsx` |
 | 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护，公网域名配置管理 | `lib/server/local-images.ts`, `lib/server/generation-provider.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
 | 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、失败分析、成本核算、订单分析、额度监控、异常告警、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `lib/server/alert-scanner.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
@@ -188,6 +189,16 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 - **理由**：1) 通用 JSON 列避免为每个 Provider 新增专用列或频繁做 schema migration，新增 Provider 仅需在前端模板中声明，无需改表 2) 数据驱动的参数名 + 枚举值双可配，覆盖各 Provider 字段差异，同时内置模板保证开箱即用 3) 保留值语义使「不传」「自适应」成为一等能力，避免把平台决策硬编码为某个字面量 4) `options_json` 走 DB 优先映射（与 `console_url` 一致），`ON CONFLICT DO UPDATE` 列表排除该列，升级时通过 `backfillProviderImageParams()` 从环境变量有效值回填默认值，保证从旧版平滑迁移且零行为变化
 - **影响**：新增 `lib/provider-image-params.ts`、`lib/server/provider-param-injector.ts`；`provider_configs` 新增 `options_json` 列；`lib/server/db.ts`、`lib/catalog.ts`、`lib/server/generation-provider.ts`、`lib/server/provider-test.ts`、`app/api/admin/provider-configs/route.ts`、`components/admin-console.tsx`、`app/globals.css` 同步改造；原环境变量画质参数标记为废弃（仍在缺失内置模板时作为兜底）
 - **关联方案ID**：DESIGN-20260807-001
+
+### ADR-0008：画质参数对比测试采用 Provider 浅克隆覆盖参数 + 短时生图不落用户记录
+
+- **状态**：已采纳
+- **日期**：2026-08-07
+- **背景**：DESIGN-20260807-001 让管理员可在后台编辑画质参数，但仍需「看得见效果」的闭环——在同一固定基准下对每个画质参数的各枚举值并行真实生图横评。需要决定「如何在不污染线上 Provider 配置、不扣用户额度、不影响用户生成记录的前提下，对单个参数做临时覆盖生图」的实现方式。
+- **决策**：在生成引擎新增独立函数 `runAdminImageParamTest(input)`（与 `runGenerationWorkflow` 并列，不复用其入参，隔离用户生成链路）。机制为：① 以入参 `providerId` 经 `resolveProvider(id, providers, "image_generation")` 强制解析被测 Provider，解析失败/未启用/无能力直接返回 `failed`（不静默回退 fallback，对比测的就是这个 Provider）；② 构造 `patchedProvider = { ...provider, options: { ...provider.options, imageParams: imageParams.map(p => p.key === targetKey ? { ...p, value: targetValue } : p) } }` 仅浅克隆覆盖目标画质参数值，**绝不写 `provider_configs` 表**（规避 DESIGN-20260807-001 强调的 codeOwned 覆盖与 ON CONFLICT 污染，因为根本不落库）；③ 走完整工作流（`getWorkflowConfigByMode("config")` 取管线骨架 + 提示词 + 参考图 + `evaluateGenerationResultForWorkflow` 质检与单次 repair 重试），但跳过 `checkAndConsumeEntitlement`（本就不在引擎内）与 `createGeneration`，结果图仍经 `saveProviderImage` 落 `results/`，返回 `{ status, resultImageUrl, latencyMs, errorDetail }`；④ 结果按 `UNIQUE(provider_id, param_key, param_value)` upsert 至独立表 `admin_image_param_tests`，与用户生成记录（`generation_jobs`/`usage_ledger`）天然隔离，运营分析与成本统计不受影响。
+- **理由**：1) 独立函数 + 不调 `createGeneration`，保证对比测试零侵入用户生成链路与计费，符合需求「不扣额度、不入生成记录」2) Provider 浅克隆（而非改注入器或落库）使单次覆盖纯粹内存态、无持久化副作用，回归风险最低 3) 关闭 fallback 确保横评口径等于被测 Provider 的真实表现，失败行明确标记 `failed` 便于定位（如缺 API Key、参数不被服务端接受）4) 完整工作流口径（含质检重试）使对比结果与用户端出图质量一致，对比有意义 5) 「折中抽取」配件子组件（仅抽 6 个 configType 子组件 + 类型守卫到 `part-option-subcomponents.tsx`，两端各自组合外层壳），相较「整块抽取 ConfigInputPanel」回归面更小、用户配置页零行为变化，代价是外壳 JSX 少量重复，按用户确认的推荐折中方案采纳
+- **影响**：新增 `lib/server/generation-engine.ts` `runAdminImageParamTest`、`app/api/admin/test-config/route.ts`、`app/api/admin/provider-configs/compare-test/route.ts`、`components/config-panel/part-option-subcomponents.tsx`、`components/admin-console.tsx` 的 `ImageParamCompareModal`/`AdminTestConfigPanel`；新增 `admin_test_config`、`admin_image_param_tests` 两表；`car-mod-studio.tsx` 改为复用共享子组件（行为不变）
+- **关联方案ID**：DESIGN-20260807-002
 
 ### ADR-0005：Recharts 图表库选型
 
@@ -265,11 +276,11 @@ flowchart LR
 
 | 存储位置 | 内容 | 说明 |
 |----------|------|------|
-| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 24 张表，WAL 模式 |
+| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 26 张表，WAL 模式 |
 | `data/car_mod_effect.sqlite-wal` | WAL 日志文件 | SQLite 写前日志 |
 | `data/car_mod_effect.sqlite-shm` | 共享内存文件 | SQLite 共享内存 |
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
 > 最后更新时间：2026-08-07
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-006、DESIGN-20260807-001
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-006、DESIGN-20260807-001、DESIGN-20260807-002

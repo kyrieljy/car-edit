@@ -28,6 +28,8 @@
 | Provider | AI 服务提供商 | 能力类型：llm、vision、image_generation、embedding |
 | 画质参数（Image Quality Parameters） | Provider 级可配置的生图参数，决定生成结果的分辨率/清晰度等画质属性 | 每个具备 `image_generation` 能力的 Provider 在管理后台拥有独立「画质参数」分区，参数名（key）与枚举值（options）双可配，平台内置默认模板；DESIGN-20260807-001 新增 |
 | 画质参数保留值（Image Param Reserved Values） | 两个非 API 语义的保留值，表示平台决策而非传给 Provider 的字面量 | `''`（IMAGE_PARAM_VALUE_NONE）表示不传该参数、`'__auto__'`（IMAGE_PARAM_VALUE_AUTO）表示跟随原图/自适应推导；两者均不同于 API 字面量 `auto` |
+| 测试配件设置（Test Accessory Config） | 管理后台「模型 API」菜单底部的全局单份配置，作为画质参数对比测试的固定基准 | 内容等同用户配置页左半：原车图 + 各配件位置资源 + 车漆 + 姿态；保存后全局固定，所有 Provider 的对比测试统一取用，非按 Provider 维度；DESIGN-20260807-002 新增 |
+| 画质参数对比测试（Image Param Compare Test） | 管理员对某一画质参数的全部枚举值并行发起真实生图、横向比较出图差异的能力 | 首次点击并行生图并缓存，非首次直接展示，单值可「重新生成」；为真实生图、消耗底层模型额度/费用，但**不扣用户额度、不写 `generation_jobs`/`usage_ledger`**，与用户生成记录隔离；结果按 (Provider, 参数, 枚举值) 持久化、纯缓存不失效；DESIGN-20260807-002 新增 |
 | 安全护栏（Guardrail） | 内容安全检查机制 | 检查文件类型、屏蔽词、改装关键词 |
 | 会员计划（Membership Plan） | 用户订阅等级 | free（725积分/月）、pro（2210积分/月）、max（6160积分/月） |
 | 支付订单（Payment Order） | 用户购买会员套餐的交易记录 | 包含支付方式（微信/支付宝）、金额（分）、状态（pending/paid/failed/refunded） |
@@ -234,6 +236,7 @@ flowchart TD
 | BR-016 | 额度余额分档：已耗尽 = 剩余额度为 0；即将耗尽 = 剩余额度 < 套餐上限的 20%；充足 = 剩余额度 >= 套餐上限的 20%。 | 运营分析平台额度监控模块 | 内部/内测用户不受此分档限制 |
 | BR-017 | 异常告警触发条件：high_frequency = 用户当日生成次数超过 100 次；high_cost = 用户当日总成本超过 5000 分（50 元）。同一用户同一类型同一小时内仅记录一条告警。 | 运营分析平台告警扫描 | 阈值可通过代码常量调整，当前为硬编码 |
 | BR-018 | 画质参数采用 Provider 级配置，参数名与枚举值双可配，平台内置各 Provider 默认模板；保留值 `''` 表示不传该参数、`'__auto__'` 表示跟随原图/自适应推导，二者均不等同于 API 字面量 `auto`。A 类 Provider（OpenAI 兼容 `/images/edits`、`/images/generations`）使用 `quality` 字段，B 类 Provider（Gemini `/generateContent`、Nano Banana）使用 `imageSize`/`resolution` 并嵌套于 `generationConfig.imageConfig`。 | 管理后台配置具备 image_generation 能力的 Provider 时 | 原环境变量画质参数（YUNWU_IMAGE_QUALITY 等）已废弃，仅在缺失内置模板时作为兜底；首次升级由 backfill 从环境变量有效值回填默认值，保证零行为变化 |
+| BR-019 | 画质参数对比测试为真实生图（消耗底层模型额度/费用），但**不扣减任何用户额度、不写入 `generation_jobs`/`usage_ledger`**，与用户生成记录天然隔离，不污染运营分析与成本统计；结果按 (Provider, 参数, 枚举值) 持久化缓存（纯缓存不失效，仅「重新生成」刷新），以「测试配件设置」全局单份配置为固定基准。 | 管理后台对某具备 image_generation 能力的 Provider 执行「对比测试」时 | 「一键测试所有模型」(`test-all`) 为最小连通性测试（不出图），与对比测试职责区分并存；对比测试须先配置「测试配件设置」（原图+至少一项配件选择）否则拒绝执行 |
 
 ---
 
@@ -282,4 +285,4 @@ erDiagram
 ---
 
 > 最后更新时间：2026-08-07
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-003、DESIGN-20260807-001、DESIGN-20260807-002

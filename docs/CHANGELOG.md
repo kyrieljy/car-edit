@@ -35,6 +35,34 @@
 - [文档] `docs/models.md` 各 Provider 表格新增「画质配置」列 (关联方案ID: DESIGN-20260807-001)
 - [文档] `docs/302-image-quality-tuning.md` 补充结论已被后台配置取代的说明 (关联方案ID: DESIGN-20260807-001)
 
+### 画质参数对比测试与测试配件设置 (DESIGN-20260807-002)
+
+#### 新增
+- [新增] `components/config-panel/part-option-subcomponents.tsx` 共享模块：从 `car-mod-studio.tsx` 抽取 6 个配件 configType 子组件（`DryCarbonPartsList`/`WingStyleList`/`ExhaustLayoutList`/`SurfaceInstallControl`/`CaliperCaseList`/`PartOptionsPanel`）+ 4 个类型守卫 + 依赖常量/helper，供用户端与管理后台「测试配件设置」复用（采用用户确认的「折中抽取」方案，外层壳由两端各自组合） (关联方案ID: DESIGN-20260807-002)
+- [新增] `lib/server/generation-engine.ts` `runAdminImageParamTest(input)`：强制生图 Provider + Provider 浅克隆覆盖单画质参数值（不写 `provider_configs`）+ 关闭 fallback + 跳过 `createGeneration`/额度、复用完整工作流（提示词/参考图/质检重试），结果图落 `results/` 但不写 `generation_jobs`/`usage_ledger` (关联方案ID: DESIGN-20260807-002)
+- [新增] `app/api/admin/test-config/route.ts` `GET`/`PUT` 全局测试配件设置读写（原图经既有 `/api/admin/uploads` 上传后引用） (关联方案ID: DESIGN-20260807-002)
+- [新增] `app/api/admin/provider-configs/compare-test/route.ts` `GET` 查缓存 / `POST` 运行对比测试：全量并行 `Promise.allSettled` + 单值 `regenerateValue` 重跑，前置校验 Provider 能力与测试配件设置存在 (关联方案ID: DESIGN-20260807-002)
+- [新增] `lib/types.ts` `AdminTestConfig` / `SaveAdminTestConfigInput` / `ImageParamTestResult` 类型 (关联方案ID: DESIGN-20260807-002)
+- [新增] `lib/server/db.ts` 建表 `admin_test_config`（全局单行）、`admin_image_param_tests`（UNIQUE(provider_id, param_key, param_value)）+ 索引；新增 CRUD `getAdminTestConfig`/`saveAdminTestConfig`/`listImageParamTests`/`upsertImageParamTest` (关联方案ID: DESIGN-20260807-002)
+
+#### 修改
+- [修改] `components/admin-console.tsx` 「画质参数」分区每个参数行新增「对比测试」按钮（从 `ProviderManagerV3`→`ProviderFields`→`ProviderImageParamsEditor` 透传 `providerId`；新建未落库 Provider 禁用）；新增 `ImageParamCompareModal`（复刻 `ProviderTestModal` 单层 portal 弹窗，三列列表 + 每行「重新生成」）；`provider-sections` 后追加 `AdminTestConfigPanel`（原图上传 + 配件手风琴 + 车漆 + 姿态 + 保存） (关联方案ID: DESIGN-20260807-002)
+- [修改] `components/car-mod-studio.tsx` 左半 6 个 configType 子组件与类型守卫改为从 `part-option-subcomponents.tsx` 导入复用，业务状态与交互函数保留（零行为变化） (关联方案ID: DESIGN-20260807-002)
+- [修改] `app/globals.css` 新增对比测试按钮、对比结果弹窗表格、测试配件设置分区样式（引用既有 CSS 变量，遵循 ADR-0004） (关联方案ID: DESIGN-20260807-002)
+
+#### 影响
+- 管理后台「模型 API」菜单最底部新增「测试配件设置」分区（页面效果与用户配置页左半一致），保存后全局固定，所有 Provider 的画质参数对比测试统一取用
+- 具备「图片生成」能力的 Provider，其「画质参数」分区每个参数行可点「对比测试」：首次对该参数全部枚举值并行真实生图、弹窗列表展示（枚举值 / 效果图 / 重新生成），非首次直接展示缓存，「重新生成」仅重跑单值
+- 对比测试为真实生图，走完整工作流但**不扣用户额度、不写 `generation_jobs`/`usage_ledger`**，与用户生成记录天然隔离；结果按 (Provider, 参数, 枚举值) 持久化缓存，纯缓存不失效
+- 被测 Provider 采用浅克隆覆盖单参数值，**绝不改写 `provider_configs`**，规避 codeOwned 覆盖与配置污染；Provider 未启用/无能力/缺 Key 时对应行标记失败且不回退 fallback
+- 「一键测试所有模型」(`test-all`) 保持不变：其为最小连通性测试（不出图），与对比测试（真实出图）职责区分并存
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 `GET`/`PUT /api/admin/test-config` 与 `GET`/`POST /api/admin/provider-configs/compare-test` 四个端点文档 (关联方案ID: DESIGN-20260807-002)
+- [文档] `docs/DB_SCHEMA.md` 新增 `admin_test_config`、`admin_image_param_tests` 两表结构与索引、约束、迁移记录 (关联方案ID: DESIGN-20260807-002)
+- [文档] `docs/ARCHITECTURE.md` 管理后台模块职责补充「画质对比测试」与「测试配件设置」，新增 ADR-0008 记录「Provider 浅克隆覆盖参数 + 短时生图不落用户记录」决策 (关联方案ID: DESIGN-20260807-002)
+- [文档] `docs/BUSINESS_DOMAIN.md` 术语表新增「测试配件设置」「画质参数对比测试」，并说明其与用户生成的区别 (关联方案ID: DESIGN-20260807-002)
+
 ### 一键测试支持停用模型 (DESIGN-20260806-007)
 
 #### 修改

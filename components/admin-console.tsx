@@ -51,6 +51,25 @@ import MessageBroadcaster from "@/components/admin/message-broadcaster"
 import ReportGenerator from "@/components/admin/report-generator"
 import { buildGenerationPrompt } from "@/lib/generation-core"
 import { buildDefaultImageParams, IMAGE_PARAM_RESERVE_LABELS, IMAGE_PARAM_VALUE_AUTO, IMAGE_PARAM_VALUE_NONE } from "@/lib/provider-image-params"
+import {
+  AssetImage,
+  CaliperCaseList,
+  DryCarbonPartsList,
+  PartOptionsPanel,
+  SurfaceInstallControl,
+  WingStyleList,
+  dryCarbonParts,
+  displayAssetSubtitle,
+  displayAssetTitle,
+  displayDryCarbonCategorySelectionStatus,
+  isBrandResourceCategory,
+  isResourceNoImageCategory,
+  isResourceSubcategoryCategory,
+  isResourceWithImageCategory,
+  selectedDryCarbonPartsFor,
+  styleSurfaceCategoryIds,
+  type Language,
+} from "@/components/config-panel/part-option-subcomponents"
 import type {
   AdminSummary,
   AccountAvatarPreset,
@@ -58,6 +77,12 @@ import type {
   AuthUser,
   GenerationJob,
   GenerationStandardJson,
+  ImageParamTestResult,
+  AdminTestConfig,
+  CatalogResponse,
+  PaintGradient,
+  PartSelectionOptions,
+  SelectionMap,
   GuardrailConfig,
   MembershipPlan,
   PartAsset,
@@ -2549,6 +2574,8 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
   const [editingProviderId, setEditingProviderId] = useState<ProviderId | null>(null)
   const [testResults, setTestResults] = useState<ProviderTestResult[] | null>(null)
   const [testLoading, setTestLoading] = useState(false)
+  const [compareState, setCompareState] = useState<{ providerId: string; paramKey: string } | null>(null)
+  const openCompareTest = useCallback((providerId: string, paramKey: string) => setCompareState({ providerId, paramKey }), [])
 
   useEffect(() => {
     setForm(buildProviderForm(summary.providers))
@@ -2687,6 +2714,8 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
             value={newProvider}
             onChange={(patch) => setNewProvider((current) => ({ ...current, ...patch }))}
             onToggleCapability={toggleNewCapability}
+            providerId={undefined}
+            onCompareTest={openCompareTest}
           />
           <button type="button" onClick={() => void createProvider()}>
             <BadgeCheck size={16} />
@@ -2743,6 +2772,8 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
                             value={current}
                             onChange={(patch) => updateProviderForm(provider.id, patch)}
                             onToggleCapability={(capability, checked) => toggleCapability(provider.id, capability, checked)}
+                            providerId={provider.id}
+                            onCompareTest={openCompareTest}
                           />
                           <div className="provider-card-actions">
                             <button type="submit">
@@ -2767,7 +2798,9 @@ function ProviderManagerV3({ summary, onChanged, notify }: { summary: AdminSumma
           )
         })}
       </div>
+      <AdminTestConfigPanel notify={notify} />
       {testResults && createPortal(<ProviderTestModal results={testResults} onClose={() => setTestResults(null)} />, document.body)}
+      {compareState && createPortal(<ImageParamCompareModal providerId={compareState.providerId} paramKey={compareState.paramKey} onClose={() => setCompareState(null)} />, document.body)}
     </section>
   )
 }
@@ -2828,14 +2861,414 @@ function ProviderTestModal({ results, onClose }: { results: ProviderTestResult[]
   )
 }
 
+function ImageParamCompareModal({ providerId, paramKey, onClose }: { providerId: string; paramKey: string; onClose: () => void }) {
+  const [rows, setRows] = useState<ImageParamTestResult[]>([])
+  const [loading, setLoading] = useState(true)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  const [error, setError] = useState("")
+
+  const valueLabel = (value: string) => (value === IMAGE_PARAM_VALUE_AUTO ? IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_AUTO] : value)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const getRes = await fetch(`/api/admin/provider-configs/compare-test?providerId=${encodeURIComponent(providerId)}&paramKey=${encodeURIComponent(paramKey)}`)
+        const getBody = await getRes.json().catch(() => ({}))
+        if (!getRes.ok) {
+          if (!cancelled) {
+            setError(getBody.error || "加载对比结果失败。")
+            setLoading(false)
+          }
+          return
+        }
+        if ((getBody.results ?? []).length > 0) {
+          if (!cancelled) {
+            setRows(getBody.results)
+            setLoading(false)
+          }
+          return
+        }
+        const postRes = await fetch("/api/admin/provider-configs/compare-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ providerId, paramKey }),
+        })
+        const postBody = await postRes.json().catch(() => ({}))
+        if (!postRes.ok) {
+          if (!cancelled) {
+            setError(postBody.error || "对比测试失败。")
+            setLoading(false)
+          }
+          return
+        }
+        if (!cancelled) {
+          setRows(postBody.results ?? [])
+          setLoading(false)
+        }
+      } catch {
+        if (!cancelled) {
+          setError("网络错误，请稍后重试。")
+          setLoading(false)
+        }
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [providerId, paramKey])
+
+  const regenerate = async (value: string) => {
+    setRegenerating(value)
+    try {
+      const res = await fetch("/api/admin/provider-configs/compare-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId, paramKey, regenerateValue: value }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.ok) setRows(body.results ?? [])
+      else setError(body.error || "重新生成失败。")
+    } catch {
+      setError("网络错误，请稍后重试。")
+    } finally {
+      setRegenerating(null)
+    }
+  }
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div className="provider-test-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+        <motion.div className="provider-test-modal image-param-compare-modal" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+          <div className="provider-test-modal-header">
+            <div>
+              <h3>画质参数对比测试</h3>
+              <p className="provider-test-summary">
+                参数 <code>{paramKey}</code> · 共 {rows.length} 个枚举值
+              </p>
+            </div>
+            <button type="button" className="provider-test-close" onClick={onClose}>
+              <X size={18} />
+            </button>
+          </div>
+          {error && <p className="provider-test-error">{error}</p>}
+          {loading ? (
+            <div className="provider-test-loading">
+              <Loader2 size={20} className="spin" />
+              <span>正在并行生成各枚举值效果图（真实生图，将消耗模型额度）…</span>
+            </div>
+          ) : (
+            <div className="provider-test-table-wrap">
+              <table className="provider-test-table image-param-compare-table">
+                <thead>
+                  <tr>
+                    <th>参数枚举值</th>
+                    <th>效果图</th>
+                    <th>耗时</th>
+                    <th>重新生成</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.paramValue}>
+                      <td>
+                        <code>{valueLabel(row.paramValue)}</code>
+                        {row.status === "failed" && <span className="provider-test-status provider-test-status-fail">失败</span>}
+                      </td>
+                      <td>
+                        {row.status === "succeeded" && row.resultImageUrl ? (
+                          <img className="image-param-compare-thumb" src={row.resultImageUrl} alt={valueLabel(row.paramValue)} />
+                        ) : (
+                          <span className="image-param-compare-error">{row.errorDetail || "生图失败"}</span>
+                        )}
+                      </td>
+                      <td>{row.latencyMs > 0 ? `${row.latencyMs}ms` : "-"}</td>
+                      <td>
+                        <button type="button" className="provider-image-param-compare" disabled={regenerating === row.paramValue} onClick={() => void regenerate(row.paramValue)}>
+                          {regenerating === row.paramValue ? <Loader2 size={14} className="spin" /> : "重新生成"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  )
+}
+
+function AdminTestConfigPanel({ notify }: { notify: NotifyAdmin }) {
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(null)
+  const [sourceImageUrl, setSourceImageUrl] = useState("")
+  const [vehicleUploadId, setVehicleUploadId] = useState("")
+  const [selections, setSelections] = useState<SelectionMap>({})
+  const [selectionOptions, setSelectionOptions] = useState<PartSelectionOptions>({})
+  const [paintId, setPaintId] = useState("factory")
+  const [paintFinishEffect, setPaintFinishEffect] = useState("gloss")
+  const [gradientPaint, setGradientPaint] = useState<PaintGradient | null>(null)
+  const [stance, setStance] = useState(0)
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
+  const [expandedCaliperAssetId, setExpandedCaliperAssetId] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState("")
+  const assetRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const language: Language = "zh"
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const [catRes, cfgRes] = await Promise.all([fetch("/api/catalog"), fetch("/api/admin/test-config")])
+        const catData = await catRes.json().catch(() => ({}))
+        const cfgData = await cfgRes.json().catch(() => ({}))
+        if (cancelled) return
+        setCatalog((catData.catalog ?? catData) as CatalogResponse)
+        const config = cfgData.config as AdminTestConfig | null
+        if (config) {
+          setSourceImageUrl(config.sourceImageUrl)
+          setVehicleUploadId(config.vehicleUploadId)
+          setSelections(config.selections)
+          setSelectionOptions(config.selectionOptions)
+          setPaintId(config.paintId)
+          setPaintFinishEffect(config.paintFinishEffect)
+          setGradientPaint(config.gradientPaint)
+          setStance(config.stance)
+        }
+      } catch {
+        if (!cancelled) setLoadError("加载测试配件设置失败。")
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const selectAsset = (asset: PartAsset) => {
+    setSelections((prev) => ({ ...prev, [asset.categoryId]: asset.id }))
+  }
+  const toggleDryCarbonPart = (part: (typeof dryCarbonParts)[number]) => {
+    setSelections((prev) => {
+      const next = { ...prev }
+      if (next[part.id] === part.assetId) delete next[part.id]
+      else next[part.id] = part.assetId
+      return next
+    })
+  }
+  const updatePartSelectionOption = (categoryId: string, patch: PartSelectionOptions[string]) => {
+    setSelectionOptions((prev) => ({ ...prev, [categoryId]: { ...prev[categoryId], ...patch } }))
+  }
+
+  const onUpload = async (file: File | undefined) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: fd })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        notify("error", body.error || "上传失败。")
+        return
+      }
+      setSourceImageUrl(body.imageUrl)
+      setVehicleUploadId("")
+    } catch {
+      notify("error", "上传失败。")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const save = async () => {
+    if (!sourceImageUrl) {
+      notify("error", "请先上传原车图。")
+      return
+    }
+    if (Object.keys(selections).length === 0) {
+      notify("error", "请至少选择一个配件。")
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch("/api/admin/test-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleUploadId, sourceImageUrl, paintId, paintFinishEffect, gradientPaint, customPaint: null, stance, selections, selectionOptions }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        notify("error", body.error || "保存失败。")
+        return
+      }
+      notify("success", "测试配件设置已保存。")
+    } catch {
+      notify("error", "保存失败。")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const selectedSurfaceAssets = useMemo(() => {
+    if (!catalog) return []
+    return catalog.categories
+      .filter((category) => styleSurfaceCategoryIds.has(category.id))
+      .map((category) => selections[category.id])
+      .filter(Boolean)
+      .map((id) => catalog.assets.find((asset) => asset.id === id))
+      .filter((asset): asset is PartAsset => Boolean(asset))
+  }, [catalog, selections])
+
+  if (loadError) return <section className="admin-panel test-config-panel"><p className="provider-test-error">{loadError}</p></section>
+  if (!catalog) return <section className="admin-panel test-config-panel"><p className="provider-test-loading">加载中…</p></section>
+
+  return (
+    <section className="admin-panel test-config-panel">
+      <PanelHeading label="测试配件" title="测试配件设置" />
+      <p className="test-config-hint">固定一组标准输入（原图 + 配件 + 车漆 + 姿态），供「画质参数」对比测试统一使用。保存后长期不变。</p>
+      <div className="test-config-upload">
+        <label className="test-config-upload-label">
+          <span>原车图</span>
+          <input type="file" accept="image/*" disabled={uploading} onChange={(event) => void onUpload(event.target.files?.[0])} />
+        </label>
+        {sourceImageUrl ? <img className="test-config-thumb" src={sourceImageUrl} alt="原车图" /> : <span className="test-config-noimage">未上传</span>}
+      </div>
+      <section className="parts-accordion">
+        {catalog.categories.map((category) => {
+          const isOpen = expandedCategory === category.id
+          const isDryCarbon = category.id === "dry-carbon-parts"
+          const categoryAssets = catalog.assets.filter((asset) => asset.categoryId === category.id)
+          const selectedAsset = catalog.assets.find((asset) => selections[category.id] === asset.id)
+          const selectedDryCarbonParts = isDryCarbon ? selectedDryCarbonPartsFor(selections) : []
+          return (
+            <article key={category.id} className={isOpen ? "accordion-card expanded" : "accordion-card"}>
+              <button type="button" className="accordion-trigger" onClick={() => setExpandedCategory(isOpen ? null : category.id)}>
+                <span className="accordion-mark">{isOpen ? <X size={16} /> : <Plus size={16} />}</span>
+                <span className="accordion-copy">
+                  <strong>{category.label}</strong>
+                  <small>{isDryCarbon ? displayDryCarbonCategorySelectionStatus(language, selectedDryCarbonParts) : selectedAsset ? displayAssetSubtitle(selectedAsset) : ""}</small>
+                </span>
+                {(selectedAsset || selectedDryCarbonParts.length > 0) && <BadgeCheck className="selected-check" size={15} />}
+              </button>
+              <div className="accordion-content" aria-hidden={!isOpen}>
+                <div className="accordion-content-inner">
+                  {categoryAssets.length === 0 ? (
+                    <div className="empty-category">暂无可选资源</div>
+                  ) : isDryCarbon ? (
+                    <DryCarbonPartsList language={language} catalog={catalog} selections={selections} focusedAssetId="" assetRefs={assetRefs} search="" toggleDryCarbonPart={toggleDryCarbonPart} />
+                  ) : isResourceSubcategoryCategory(category) ? (
+                    <div className="asset-grid">
+                      {categoryAssets.map((asset) => (
+                        <div key={asset.id} className="asset-option">
+                          <button type="button" className={selections[asset.categoryId] === asset.id ? "asset-card selected" : "asset-card"} onClick={() => selectAsset(asset)}>
+                            <AssetImage asset={asset} />
+                            <strong>{displayAssetTitle(asset)}</strong>
+                            <span>{displayAssetSubtitle(asset)}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : isBrandResourceCategory(category) && category.id === "calipers" ? (
+                    <CaliperCaseList
+                      language={language}
+                      assets={categoryAssets}
+                      selectedAssetId={selections.calipers}
+                      expandedAssetId={expandedCaliperAssetId}
+                      focusedAssetId=""
+                      assetRefs={assetRefs}
+                      selectionOptions={selectionOptions}
+                      selectAsset={selectAsset}
+                      setExpandedAssetId={setExpandedCaliperAssetId}
+                      updatePartSelectionOption={updatePartSelectionOption}
+                    />
+                  ) : isResourceWithImageCategory(category) ? (
+                    <WingStyleList
+                      language={language}
+                      assets={categoryAssets}
+                      selectedAssetId={selections[category.id]}
+                      focusedAssetId=""
+                      assetRefs={assetRefs}
+                      selectionOptions={selectionOptions}
+                      selectAsset={selectAsset}
+                      updatePartSelectionOption={updatePartSelectionOption}
+                    />
+                  ) : isResourceNoImageCategory(category) ? (
+                    <SurfaceInstallControl
+                      language={language}
+                      asset={categoryAssets[0]}
+                      selectedAssetId={selections[category.id]}
+                      focusedAssetId=""
+                      assetRefs={assetRefs}
+                      selectionOptions={selectionOptions}
+                      selectAsset={selectAsset}
+                      updatePartSelectionOption={updatePartSelectionOption}
+                    />
+                  ) : (
+                    <div className="asset-grid">
+                      {categoryAssets.map((asset) => (
+                        <div key={asset.id} className="asset-option">
+                          <button type="button" className={selections[asset.categoryId] === asset.id ? "asset-card selected" : "asset-card"} onClick={() => selectAsset(asset)}>
+                            <AssetImage asset={asset} />
+                            <strong>{displayAssetTitle(asset)}</strong>
+                            <span>{displayAssetSubtitle(asset)}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+          )
+        })}
+      </section>
+      <PartOptionsPanel language={language} selectionOptions={selectionOptions} selectedSurfaceAssets={selectedSurfaceAssets} updatePartSelectionOption={updatePartSelectionOption} />
+      <section className="option-card color-card">
+        <h2>车漆</h2>
+        <div className="color-dots compact">
+          {catalog.paints.map((paint) => (
+            <button key={paint.id} type="button" className={paint.id === paintId ? "selected" : ""} style={{ backgroundColor: paint.hex }} title={paint.label} onClick={() => setPaintId(paint.id)} />
+          ))}
+        </div>
+        <label className="test-config-finish">
+          <span>车漆效果</span>
+          <select value={paintFinishEffect} onChange={(event) => setPaintFinishEffect(event.target.value)}>
+            {["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"].map((effect) => (
+              <option key={effect} value={effect}>{effect}</option>
+            ))}
+          </select>
+        </label>
+      </section>
+      <section className="option-card stance-card">
+        <h2>姿态</h2>
+        <input type="range" min={0} max={100} value={stance} onChange={(event) => setStance(Number(event.target.value))} />
+        <span>{stance}</span>
+      </section>
+      <button type="button" className="provider-save-test-config" disabled={saving} onClick={() => void save()}>
+        {saving ? "保存中…" : "保存测试配件设置"}
+      </button>
+    </section>
+  )
+}
+
 function ProviderFields({
   value,
   onChange,
   onToggleCapability,
+  providerId,
+  onCompareTest,
 }: {
   value: ProviderFormValue
   onChange: (patch: Partial<ProviderFormValue>) => void
   onToggleCapability: (capability: ProviderCapability, checked: boolean) => void
+  providerId?: string
+  onCompareTest?: (providerId: string, paramKey: string) => void
 }) {
   const updateBaseUrl = (nextBaseUrl: string) => {
     const nextImageParams = value.imageParams.length === 0 ? buildDefaultImageParams(nextBaseUrl, value.modelName) : value.imageParams
@@ -2887,7 +3320,7 @@ function ProviderFields({
         启用模型接口
       </label>
       {value.capabilities.includes("image_generation") && (
-        <ProviderImageParamsEditor value={value.imageParams} onChange={updateImageParams} baseUrl={value.baseUrl} modelName={value.modelName} />
+        <ProviderImageParamsEditor value={value.imageParams} onChange={updateImageParams} baseUrl={value.baseUrl} modelName={value.modelName} providerId={providerId} onCompareTest={onCompareTest} />
       )}
       {value.capabilities.includes("image_generation") && <input type="hidden" name="imageParams" value={JSON.stringify(value.imageParams)} />}
     </>
@@ -2899,11 +3332,15 @@ function ProviderImageParamsEditor({
   onChange,
   baseUrl,
   modelName,
+  providerId,
+  onCompareTest,
 }: {
   value: ProviderImageParam[]
   onChange: (params: ProviderImageParam[]) => void
   baseUrl: string
   modelName: string
+  providerId?: string
+  onCompareTest?: (providerId: string, paramKey: string) => void
 }) {
   const resetToTemplate = () => onChange(buildDefaultImageParams(baseUrl, modelName))
   const updateParam = (index: number, patch: Partial<ProviderImageParam>) => {
@@ -2941,6 +3378,15 @@ function ProviderImageParamsEditor({
               ))}
               <option value={IMAGE_PARAM_VALUE_NONE}>{IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_NONE]}</option>
             </select>
+            <button
+              type="button"
+              className="provider-image-param-compare"
+              disabled={!providerId || !onCompareTest}
+              title={providerId ? "对该参数的全部枚举值并行生图对比" : "保存模型后方可对比测试"}
+              onClick={() => providerId && onCompareTest?.(providerId, param.key)}
+            >
+              对比测试
+            </button>
             <button type="button" className="provider-image-param-remove" onClick={() => removeParam(index)}>
               删除
             </button>

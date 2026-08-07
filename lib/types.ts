@@ -209,6 +209,49 @@ export type ProviderOptions = {
   imageParams: ProviderImageParam[]
 }
 
+// Global single-row admin test fixture used as the fixed baseline for image-param
+// comparison tests. Mirrors the config-mode generation input (vehicle + parts + paint + stance).
+export type AdminTestConfig = {
+  id: string
+  vehicleUploadId: string
+  sourceImageUrl: string
+  displayVehicleModel: string
+  paintId: string
+  paintFinishEffect: string
+  gradientPaint: PaintGradient | null
+  customPaint: unknown | null
+  stance: number
+  selections: SelectionMap
+  selectionOptions: PartSelectionOptions
+  updatedAt: number
+}
+
+export type SaveAdminTestConfigInput = {
+  vehicleUploadId: string
+  sourceImageUrl: string
+  displayVehicleModel?: string
+  paintId: string
+  paintFinishEffect: string
+  gradientPaint: unknown | null
+  customPaint: unknown | null
+  stance: number
+  selections: SelectionMap
+  selectionOptions: PartSelectionOptions
+}
+
+// One cached comparison-test result row, keyed by (providerId, paramKey, paramValue).
+export type ImageParamTestResult = {
+  id: string
+  providerId: string
+  paramKey: string
+  paramValue: string
+  resultImageUrl: string
+  status: "succeeded" | "failed"
+  errorDetail: string
+  latencyMs: number
+  createdAt: number
+}
+
 export type PromptPreset = {
   id: string
   title: string
