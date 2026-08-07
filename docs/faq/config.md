@@ -39,4 +39,17 @@
 
 ---
 
-> 最后更新时间：2026-07-25
+## Q：管理后台设置了公网域名（PUBLIC_ASSET_BASE_URL）但不生效
+**现象**：在管理后台"系统配置 > 域名配置"页面保存公网域名后，生图 API 仍然报错提示需要公网 URL，或"当前生效域名"仍显示为空。
+
+**根因**：`site_configs` 表的初始 seed 行未插入。`seed()` 函数中 `site_configs` 的 INSERT 语句位于 `shouldSeedLegacyStaticConfig()` 早返回检查之后，当环境变量 `CAR_MOD_LEGACY_STATIC_DB_SEED` 未设为 `1` 时（常见情况），seed 函数在到达 `site_configs` INSERT 之前就 return 了，导致表存在但无 `id='default'` 行。同时 `updateSiteConfig()` 使用 `UPDATE ... WHERE id='default'`，对不存在的行执行 UPDATE 会静默失败（`changes: 0`），保存操作看似成功但数据从未写入。
+
+**解决方案**：已修复（DESIGN-20260806-006 后续修复）：
+1. 将 `seedSiteConfig()` 调用移到 `shouldSeedLegacyStaticConfig()` 早返回之前，确保无论环境变量如何设置，`site_configs` 表始终有初始行。
+2. 将 `updateSiteConfig()` 从 `UPDATE` 改为 `INSERT ... ON CONFLICT(id) DO UPDATE`（UPSERT），确保即使行不存在也能创建。
+
+**关联方案**：DESIGN-20260806-006
+
+---
+
+> 最后更新时间：2026-08-06

@@ -13,6 +13,7 @@ import {
   promptSeed,
   promptTemplateSeed,
   providerSeed,
+  siteConfigSeed,
   v2FrontCatalogAssetIds,
   v2FrontCatalogBrandIds,
   workflowSeed,
@@ -57,6 +58,7 @@ import type {
   ProviderId,
   ResultCheckResult,
   SelectionMap,
+  SiteConfig,
   Subscription,
   SubcategoryGroup,
   WorkflowConfig,
@@ -290,6 +292,12 @@ function initSchema(conn: DatabaseSync) {
       mock_mode INTEGER NOT NULL DEFAULT 1,
       mock_fail_uploads INTEGER NOT NULL DEFAULT 0,
       provider TEXT NOT NULL DEFAULT 'mock',
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS site_configs (
+      id TEXT PRIMARY KEY,
+      public_asset_base_url TEXT NOT NULL DEFAULT '',
       updated_at INTEGER NOT NULL
     );
 
@@ -768,6 +776,7 @@ function seed(conn: DatabaseSync) {
   seedAccountMessages(conn, now)
   seedProviderConfigs(conn, now)
   seedClassicPaints(conn, now)
+  seedSiteConfig(conn, now)
   if (!shouldSeedLegacyStaticConfig()) return
 
   const categoryStatement = conn.prepare(`
@@ -894,6 +903,7 @@ function seed(conn: DatabaseSync) {
     guardrailSeed.provider,
     now,
   )
+
   seedWorkflows(conn, now)
 
   conn.prepare(`
@@ -1011,6 +1021,19 @@ function seedClassicPaints(conn: DatabaseSync, now: number) {
 
 function shouldSeedLegacyStaticConfig() {
   return process.env.CAR_MOD_LEGACY_STATIC_DB_SEED === "1"
+}
+
+function seedSiteConfig(conn: DatabaseSync, now: number) {
+  conn.prepare(`
+    INSERT INTO site_configs
+    (id, public_asset_base_url, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(id) DO NOTHING
+  `).run(
+    siteConfigSeed.id,
+    siteConfigSeed.publicAssetBaseUrl,
+    now,
+  )
 }
 
 function seedWorkflows(conn: DatabaseSync, now: number) {
@@ -2731,6 +2754,7 @@ export function getAdminSummary(): AdminSummary {
     classicPaints: classicPaints(),
     workflows: workflowConfigs(),
     guardrailConfig: getGuardrailConfig(),
+    siteConfig: getSiteConfig(),
     chatSessions: listChatSessions(),
     plans: membershipPlans(),
     auditLogs: auditLogs(),
@@ -3347,6 +3371,32 @@ export function updateGuardrailConfig(input: Partial<Omit<GuardrailConfig, "id" 
       next.updatedAt,
     )
   return getGuardrailConfig()
+}
+
+export function getSiteConfig(): SiteConfig {
+  const row = database().prepare("SELECT * FROM site_configs WHERE id = 'default'").get() as Row | undefined
+  if (!row) return siteConfigSeed
+  return mapSiteConfig(row)
+}
+
+export function updateSiteConfig(input: Partial<Omit<SiteConfig, "id" | "updatedAt">>) {
+  const current = getSiteConfig()
+  const next = { ...current, ...input, updatedAt: nowMs() }
+  database()
+    .prepare(`
+      INSERT INTO site_configs
+      (id, public_asset_base_url, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        public_asset_base_url = excluded.public_asset_base_url,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      "default",
+      next.publicAssetBaseUrl,
+      next.updatedAt,
+    )
+  return getSiteConfig()
 }
 
 export function listWorkflowConfigs(): WorkflowConfig[] {
@@ -4220,6 +4270,14 @@ function mapGuardrailConfig(row: Row): GuardrailConfig {
     mockMode: Boolean(row.mock_mode),
     mockFailUploads: Boolean(row.mock_fail_uploads),
     provider: String(row.provider || "mock") as GuardrailConfig["provider"],
+    updatedAt: Number(row.updated_at),
+  }
+}
+
+function mapSiteConfig(row: Row): SiteConfig {
+  return {
+    id: "default",
+    publicAssetBaseUrl: String(row.public_asset_base_url || ""),
     updatedAt: Number(row.updated_at),
   }
 }

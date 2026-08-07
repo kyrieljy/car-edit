@@ -284,6 +284,12 @@ export type GuardrailConfig = {
   updatedAt: number
 }
 
+export type SiteConfig = {
+  id: "default"
+  publicAssetBaseUrl: string
+  updatedAt: number
+}
+
 export type ChatParseStatus = "ready" | "needs_followup" | "rejected"
 
 export type ChatIntentParseResult = {
@@ -678,6 +684,7 @@ export type AdminSummary = {
   classicPaints: BrandClassicPaint[]
   workflows: WorkflowConfig[]
   guardrailConfig: GuardrailConfig
+  siteConfig: SiteConfig
   chatSessions: ChatSession[]
   plans: MembershipPlan[]
   auditLogs: AuditLog[]

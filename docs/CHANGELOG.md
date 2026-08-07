@@ -2,7 +2,61 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-08-07
+
+### 一键测试支持停用模型 (DESIGN-20260806-007)
+
+#### 修改
+- [修改] `lib/server/provider-test.ts` `testProvider()` 移除 `!provider.enabled` 跳过分支，停用的 Provider（已配置 API Key）现纳入并行测试范围，返回"可用"或"不可用"状态而非"跳过" (关联方案ID: DESIGN-20260806-007)
+
+#### 影响
+- 管理后台"模型 API"页面"一键测试所有模型"按钮现对所有非 mock/local 且已配置 API Key 的 Provider 发起测试，无论启用或停用
+- 帮助管理员验证临时停用的 Provider 是否仍然可用，评估是否可重新启用
+- mock/local Provider 和未配置 API Key 的 Provider 仍显示"跳过"，行为不变
+
 ## 2026-08-06
+
+### 修复公网域名配置不生效 (DESIGN-20260806-006 后续修复)
+
+#### 修复
+- [修复] `lib/server/db.ts` `seedSiteConfig()` 调用从 `shouldSeedLegacyStaticConfig()` 早返回之后移到之前，确保 `site_configs` 表始终有初始行
+- [修复] `lib/server/db.ts` `updateSiteConfig()` 从 `UPDATE` 改为 `INSERT ... ON CONFLICT(id) DO UPDATE`（UPSERT），修复行不存在时保存静默失败的问题
+
+#### 影响
+- 修复管理后台保存公网域名后不生效的问题（根因：seed 未插入初始行 + UPDATE 对空表静默失败）
+
+### 公网域名配置管理 (DESIGN-20260806-006)
+
+#### 新增
+- [新增] `lib/types.ts` 新增 `SiteConfig` 类型，`AdminSummary` 新增 `siteConfig` 字段 (关联方案ID: DESIGN-20260806-006)
+- [新增] `lib/catalog.ts` 新增 `siteConfigSeed` 种子数据 (关联方案ID: DESIGN-20260806-006)
+- [新增] `lib/server/db.ts` 新增 `site_configs` 表、`getSiteConfig()` / `updateSiteConfig()` / `mapSiteConfig()` 函数 (关联方案ID: DESIGN-20260806-006)
+- [新增] `app/api/admin/site-config/route.ts` 域名配置 GET / POST API 端点，含 URL 合法性和 localhost 校验 (关联方案ID: DESIGN-20260806-006)
+- [新增] `components/admin-console.tsx` 系统配置分类下新增"域名配置"菜单项和 `DomainConfigManager` 面板组件 (关联方案ID: DESIGN-20260806-006)
+
+#### 修改
+- [修改] `lib/server/db.ts` `getAdminSummary()` 返回 `siteConfig` 字段，`seedDatabase` 插入 `site_configs` 种子数据 (关联方案ID: DESIGN-20260806-006)
+- [修改] `lib/server/generation-provider.ts` `providerInputPublicBaseUrl()` 改为 async，优先读取数据库 `site_configs` 配置，为空时回退环境变量链路 (关联方案ID: DESIGN-20260806-006)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 `GET/POST /api/admin/site-config` 接口文档 (关联方案ID: DESIGN-20260806-006)
+- [文档] `docs/DB_SCHEMA.md` 新增 `site_configs` 表结构文档 (关联方案ID: DESIGN-20260806-006)
+- [文档] `docs/ARCHITECTURE.md` 核心模块表更新图片存储模块，环境配置新增公网域名说明，表数量更新为 24 张 (关联方案ID: DESIGN-20260806-006)
+
+#### 影响范围
+- 管理后台新增"域名配置"页面，管理员可直接编辑公网域名并立即生效
+- 调用 Nano-Banana / Gemini 生图 API 时，图片链接使用数据库配置的域名拼接
+- 数据库未配置时回退到环境变量，现有行为不变
+- OpenAI 兼容 `images/edits` 路径发送二进制数据，不受影响
+
+### 管理员二级菜单改造 (DESIGN-20260806-005)
+
+#### 修改
+- [修改] `components/admin-console.tsx` 将 23 个一级平铺菜单改造为二级菜单结构：数据看板独立置顶，其余 22 个菜单按业务职能分为 5 个一级分组（系统配置 / 商业运营 / 用户与安全 / 数据分析 / 运维工具），采用手风琴展开模式，切换 tab 时自动展开目标分组 (关联方案ID: DESIGN-20260806-005)
+- [修改] `app/globals.css` 新增 `.nav-divider`、`.nav-group`、`.nav-group-header`、`.nav-group-label`、`.nav-group-count`、`.nav-group-chevron`、`.nav-group-items` 等二级菜单样式，新增精简模式适配样式 (关联方案ID: DESIGN-20260806-005)
+
+#### 影响范围
+- 仅影响管理后台侧边栏导航结构，不影响面板渲染逻辑、用户端界面、API、数据库和提示词生成流程
 
 ### 一键测试所有模型可用性 (DESIGN-20260806-004)
 

@@ -10,10 +10,12 @@ import {
   ArrowUp,
   BadgeCheck,
   BarChart3,
+  ChevronDown,
   ChevronsUpDown,
   Database,
   Eye,
   Grid2X2,
+  Globe,
   ImageIcon,
   KeyRound,
   ListPlus,
@@ -22,11 +24,15 @@ import {
   Receipt,
   RefreshCw,
   ServerCog,
+  Settings,
   ShieldCheck,
   Trash2,
   TrendingUp,
   UploadCloud,
   Users,
+  UserCog,
+  Wallet,
+  Wrench,
   X,
   Zap,
   Loader2,
@@ -63,52 +69,103 @@ import type {
   PromptTemplateScope,
   ProviderCapability,
   ProviderId,
+  SiteConfig,
   WorkflowConfig,
   WorkflowNodeConfig,
 } from "@/lib/types"
 
-type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "plans" | "cost-view" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-orders" | "analytics-quota" | "analytics-health" | "analytics-quality" | "ops-messages" | "ops-reports"
+type AdminTab = "dashboard" | "assets" | "avatars" | "providers" | "prompts" | "workflows" | "guardrail" | "site-config" | "plans" | "cost-view" | "badcases" | "users" | "profiles" | "audit" | "orders" | "analytics-generations" | "analytics-users" | "analytics-failures" | "analytics-orders" | "analytics-quota" | "analytics-health" | "analytics-quality" | "ops-messages" | "ops-reports"
 type AdminView = { type: "tab"; tab: AdminTab } | { type: "generation-detail"; jobId: string } | { type: "user-detail"; userId: string }
 type AdminToast = { type: "success" | "error"; message: string } | null
 type NotifyAdmin = (type: "success" | "error", message: string) => void
 
-const navItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.ReactNode }> = [
-  { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
-  { id: "avatars", label: "头像预设", sub: "账号头像 / 启用状态", icon: <ImageIcon size={20} /> },
-  { id: "providers", label: "模型 API", sub: "全局生效接口", icon: <ServerCog size={20} /> },
-  { id: "prompts", label: "提示词", sub: "配置 / 对话 / 负面词", icon: <ListPlus size={20} /> },
-  { id: "guardrail", label: "风控 SOP", sub: "检测与 Workflow", icon: <ShieldCheck size={20} /> },
-  { id: "plans", label: "会员配置", sub: "套餐与额度", icon: <BadgeCheck size={20} /> },
-  { id: "cost-view", label: "成本查看", sub: "供应商后台", icon: <Eye size={20} /> },
-  { id: "users", label: "用户管理", sub: "账号与角色", icon: <Users size={20} /> },
-  { id: "audit", label: "安全审计", sub: "行为日志", icon: <Activity size={20} /> },
+type NavItem = { id: AdminTab; label: string; sub: string; icon: React.ReactNode }
+
+type NavGroup = {
+  id: string
+  label: string
+  icon: React.ReactNode
+  items: NavItem[]
+}
+
+// Standalone top-level item (not part of any group)
+const dashboardItem: NavItem = {
+  id: "dashboard",
+  label: "数据看板",
+  sub: "指标 / 状态 / 趋势",
+  icon: <Database size={20} />,
+}
+
+// 5 groups by business function, 22 items total + 1 standalone = 23
+const navGroups: NavGroup[] = [
+  {
+    id: "system-config",
+    label: "系统配置",
+    icon: <Settings size={18} />,
+    items: [
+      { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
+      { id: "avatars", label: "头像预设", sub: "账号头像 / 排序 / 状态", icon: <ImageIcon size={20} /> },
+      { id: "providers", label: "模型 API", sub: "全局模型接口", icon: <ServerCog size={20} /> },
+      { id: "prompts", label: "提示词", sub: "模板 / 负面词 / 重试", icon: <ListPlus size={20} /> },
+      { id: "workflows", label: "Workflow", sub: "配置 / 对话 / 检查", icon: <Activity size={20} /> },
+      { id: "guardrail", label: "风控 SOP", sub: "检测 / 限制 / 追问", icon: <ShieldCheck size={20} /> },
+      { id: "site-config", label: "域名配置", sub: "公网域名 / 生图链接", icon: <Globe size={20} /> },
+    ],
+  },
+  {
+    id: "business-ops",
+    label: "商业运营",
+    icon: <Wallet size={18} />,
+    items: [
+      { id: "plans", label: "会员配置", sub: "套餐 / 额度 / 价格", icon: <BadgeCheck size={20} /> },
+      { id: "cost-view", label: "成本查看", sub: "供应商管理后台", icon: <Eye size={20} /> },
+      { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
+    ],
+  },
+  {
+    id: "user-security",
+    label: "用户与安全",
+    icon: <UserCog size={18} />,
+    items: [
+      { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
+      { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
+      { id: "audit", label: "审计日志", sub: "后台操作 / 安全", icon: <Activity size={20} /> },
+    ],
+  },
+  {
+    id: "analytics",
+    label: "数据分析",
+    icon: <BarChart3 size={18} />,
+    items: [
+      { id: "analytics-generations", label: "生成记录", sub: "筛选 / 趋势 / 详情", icon: <BarChart3 size={20} /> },
+      { id: "analytics-users", label: "用户分析", sub: "注册 / 活跃 / 留存", icon: <TrendingUp size={20} /> },
+      { id: "analytics-failures", label: "失败分析", sub: "失败率 / 归因 / 排名", icon: <Activity size={20} /> },
+      { id: "analytics-orders", label: "订单分析", sub: "收入 / 转化 / 续费", icon: <Receipt size={20} /> },
+      { id: "analytics-quota", label: "额度监控", sub: "消耗 / 余额 / 告警", icon: <Database size={20} /> },
+      { id: "analytics-health", label: "系统健康", sub: "成功率 / 延迟 / 队列", icon: <Activity size={20} /> },
+      { id: "analytics-quality", label: "质量分析", sub: "评分 / Bad Case", icon: <BarChart3 size={20} /> },
+      { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
+    ],
+  },
+  {
+    id: "ops-tools",
+    label: "运维工具",
+    icon: <Wrench size={18} />,
+    items: [
+      { id: "ops-messages", label: "消息推送", sub: "广播 / 筛选", icon: <Users size={20} /> },
+      { id: "ops-reports", label: "报表导出", sub: "日报 / 周报 / 月报", icon: <Receipt size={20} /> },
+    ],
+  },
 ]
 
-const generationNavItems: Array<{ id: AdminTab; label: string; sub: string; icon: React.ReactNode }> = [
-  { id: "dashboard", label: "数据看板", sub: "指标 / 状态 / 趋势", icon: <Database size={20} /> },
-  { id: "assets", label: "资源库", sub: "类型 / 品牌 / 配件", icon: <Grid2X2 size={20} /> },
-  { id: "avatars", label: "头像预设", sub: "账号头像 / 排序 / 状态", icon: <ImageIcon size={20} /> },
-  { id: "providers", label: "模型 API", sub: "全局模型接口", icon: <ServerCog size={20} /> },
-  { id: "prompts", label: "提示词", sub: "模板 / 负面词 / 重试", icon: <ListPlus size={20} /> },
-  { id: "workflows", label: "Workflow", sub: "配置 / 对话 / 检查", icon: <Activity size={20} /> },
-  { id: "guardrail", label: "风控 SOP", sub: "检测 / 限制 / 追问", icon: <ShieldCheck size={20} /> },
-  { id: "plans", label: "会员配置", sub: "套餐 / 额度 / 价格", icon: <BadgeCheck size={20} /> },
-  { id: "cost-view", label: "成本查看", sub: "供应商管理后台", icon: <Eye size={20} /> },
-  { id: "badcases", label: "失败样本", sub: "质量检查 / 失败样本", icon: <Eye size={20} /> },
-  { id: "analytics-generations", label: "生成记录", sub: "筛选 / 趋势 / 详情", icon: <BarChart3 size={20} /> },
-  { id: "analytics-users", label: "用户分析", sub: "注册 / 活跃 / 留存", icon: <TrendingUp size={20} /> },
-  { id: "analytics-failures", label: "失败分析", sub: "失败率 / 归因 / 排名", icon: <Activity size={20} /> },
-  { id: "analytics-orders", label: "订单分析", sub: "收入 / 转化 / 续费", icon: <Receipt size={20} /> },
-  { id: "analytics-quota", label: "额度监控", sub: "消耗 / 余额 / 告警", icon: <Database size={20} /> },
-  { id: "analytics-health", label: "系统健康", sub: "成功率 / 延迟 / 队列", icon: <Activity size={20} /> },
-  { id: "analytics-quality", label: "质量分析", sub: "评分 / Bad Case", icon: <BarChart3 size={20} /> },
-  { id: "ops-messages", label: "消息推送", sub: "广播 / 筛选", icon: <Users size={20} /> },
-  { id: "ops-reports", label: "报表导出", sub: "日报 / 周报 / 月报", icon: <Receipt size={20} /> },
-  { id: "users", label: "用户管理", sub: "账号 / 角色 / 套餐", icon: <Users size={20} /> },
-  { id: "profiles", label: "用户画像", sub: "车辆 / 配件 / 偏好", icon: <Users size={20} /> },
-  { id: "orders", label: "订单", sub: "支付与订阅", icon: <Receipt size={20} /> },
-  { id: "audit", label: "审计日志", sub: "后台操作 / 安全", icon: <Activity size={20} /> },
-]
+function findGroupIdByTab(tab: AdminTab): string | null {
+  for (const group of navGroups) {
+    if (group.items.some((item) => item.id === tab)) {
+      return group.id
+    }
+  }
+  return null
+}
 
 function adminTabTitle(tab: AdminTab) {
   return {
@@ -119,6 +176,7 @@ function adminTabTitle(tab: AdminTab) {
     prompts: "提示词管理",
     workflows: "Workflow 管理",
     guardrail: "风控 SOP 配置",
+    "site-config": "域名配置",
     plans: "会员配置",
     "cost-view": "成本查看",
     badcases: "失败样本记录",
@@ -244,11 +302,18 @@ export function AdminConsole() {
   const [adminCode, setAdminCode] = useState("")
   const [notice, setNotice] = useState("")
   const [toast, setToast] = useState<AdminToast>(null)
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(navGroups[0].id)
 
   const tab = view.type === "tab" ? view.tab : null
 
   const openTab = useCallback((t: AdminTab) => {
     setView({ type: "tab", tab: t })
+    const groupId = findGroupIdByTab(t)
+    if (groupId) setExpandedGroupId(groupId)
+  }, [])
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroupId((prev) => (prev === groupId ? null : groupId))
   }, [])
 
   const openGenerationDetail = useCallback((jobId: string) => {
@@ -389,14 +454,56 @@ export function AdminConsole() {
       <aside className="admin-sidebar">
         <ClinicalBrand />
         <nav>
-          {generationNavItems.map((item) => (
-            <button key={item.id} className={tab === item.id ? "selected" : ""} onClick={() => openTab(item.id)}>
-              <span className="nav-glyph">{item.icon}</span>
-              <span className="nav-copy">
-                <strong>{item.label}</strong>
-                <em>{item.sub}</em>
-              </span>
-            </button>
+          {/* Standalone top-level item: dashboard */}
+          <button
+            className={`nav-standalone${tab === "dashboard" ? " selected" : ""}`}
+            onClick={() => openTab(dashboardItem.id)}
+            title={dashboardItem.label}
+          >
+            <span className="nav-glyph">{dashboardItem.icon}</span>
+            <span className="nav-copy">
+              <strong>{dashboardItem.label}</strong>
+              <em>{dashboardItem.sub}</em>
+            </span>
+          </button>
+
+          <div className="nav-divider" />
+
+          {/* Grouped nav items with accordion */}
+          {navGroups.map((group) => (
+            <div key={group.id} className="nav-group">
+              <button
+                className={`nav-group-header${expandedGroupId === group.id ? " expanded" : ""}`}
+                onClick={() => toggleGroup(group.id)}
+              >
+                <span className="nav-group-icon">{group.icon}</span>
+                <span className="nav-group-label">{group.label}</span>
+                <span className="nav-group-count">{group.items.length}</span>
+                <ChevronDown
+                  size={14}
+                  className="nav-group-chevron"
+                  data-expanded={expandedGroupId === group.id}
+                />
+              </button>
+              {expandedGroupId === group.id && (
+                <div className="nav-group-items">
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      className={tab === item.id ? "selected" : ""}
+                      onClick={() => openTab(item.id)}
+                      title={item.label}
+                    >
+                      <span className="nav-glyph">{item.icon}</span>
+                      <span className="nav-copy">
+                        <strong>{item.label}</strong>
+                        <em>{item.sub}</em>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
         <div className="admin-db-card">
@@ -482,6 +589,7 @@ export function AdminConsole() {
               {tab === "prompts" && <PromptTemplateManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "workflows" && <WorkflowDesigner summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "guardrail" && <GuardrailManager summary={summary} onChanged={() => void loadSummary()} />}
+              {tab === "site-config" && <DomainConfigManager summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "plans" && <PlanManagerV2 summary={summary} onChanged={() => void loadSummary()} notify={notify} />}
               {tab === "cost-view" && <CostViewPanel summary={summary} />}
               {tab === "badcases" && <BadCaseOpsTable summary={summary} />}
@@ -3179,6 +3287,84 @@ function GuardrailManager({ summary, onChanged }: { summary: AdminSummary; onCha
         <p>3. 组装基础 Prompt、配件 Prompt、组合 Prompt 和 Negative Prompt。</p>
         <p>4. 调用当前全局模型，结果失败时自动强化缺失元素并重试一次。</p>
       </div>
+    </section>
+  )
+}
+
+function DomainConfigManager({ summary, onChanged, notify }: { summary: AdminSummary; onChanged: () => void; notify: NotifyAdmin }) {
+  const [form, setForm] = useState<SiteConfig>(summary.siteConfig)
+  const [effectiveBaseUrl, setEffectiveBaseUrl] = useState("")
+
+  useEffect(() => {
+    setForm(summary.siteConfig)
+    void fetchEffectiveBaseUrl()
+  }, [summary.siteConfig])
+
+  const fetchEffectiveBaseUrl = async () => {
+    try {
+      const response = await fetch("/api/admin/site-config")
+      if (response.ok) {
+        const body = await response.json()
+        setEffectiveBaseUrl(body.effectiveBaseUrl || "")
+      }
+    } catch {
+      // Keep the last known effective URL on fetch failure.
+    }
+  }
+
+  const samplePath = "/uploads/vehicle-1722345678901-a3b4c5d6.jpg"
+  const sampleUrl = effectiveBaseUrl
+    ? new URL(samplePath, effectiveBaseUrl).toString()
+    : "(需配置公网域名后可见示例)"
+
+  const save = async () => {
+    const response = await fetch("/api/admin/site-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publicAssetBaseUrl: form.publicAssetBaseUrl }),
+    })
+    const body = await response.json()
+    if (!response.ok) {
+      notify("error", body.error || "保存失败")
+      return
+    }
+    setForm({ id: body.id, publicAssetBaseUrl: body.publicAssetBaseUrl, updatedAt: body.updatedAt })
+    setEffectiveBaseUrl(body.effectiveBaseUrl || "")
+    notify("success", "域名已保存")
+    onChanged()
+  }
+
+  return (
+    <section className="admin-panel guardrail-panel">
+      <form className="admin-form wide" onSubmit={(event) => { event.preventDefault(); void save() }}>
+        <PanelHeading label="域名 // 公网" title="PUBLIC_ASSET_BASE_URL" />
+        <label>
+          公网域名
+          <input
+            type="text"
+            value={form.publicAssetBaseUrl}
+            placeholder="https://example.com"
+            onChange={(event) => setForm((current) => ({ ...current, publicAssetBaseUrl: event.target.value }))}
+          />
+        </label>
+        <div className="guardrail-copy">
+          <PanelHeading label="当前生效" title="生图 API 使用的域名" />
+          <p>{effectiveBaseUrl || "(未配置 — 无数据库域名且无环境变量，Nano-Banana / Gemini 将无法调用)"}</p>
+        </div>
+        <div className="guardrail-copy">
+          <PanelHeading label="拼接示例" title="生图 API 图片链接" />
+          <p>域名：{effectiveBaseUrl || "(未配置)"}</p>
+          <p>路径：{samplePath}</p>
+          <p>结果：{sampleUrl}</p>
+        </div>
+        <small className="form-note">
+          配置后，调用 Nano-Banana / Gemini 等需要公网图片 URL 的生图 Provider 时，将使用此域名拼接图片链接。留空则回退到环境变量 PROVIDER_PUBLIC_BASE_URL / NEXT_PUBLIC_APP_URL / APP_URL / SITE_URL。
+        </small>
+        <button type="submit">
+          <Globe size={16} />
+          保存域名配置
+        </button>
+      </form>
     </section>
   )
 }

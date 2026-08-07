@@ -28,6 +28,7 @@
 | usage_ledger | 用量账本（计费） | 计费模块 |
 | garage_items | 用户车库收藏 | 车库模块 |
 | guardrail_configs | 安全护栏配置 | 安全模块 |
+| site_configs | 站点配置（公网域名） | 系统配置模块 |
 | chat_sessions | 对话会话 | 聊天模块 |
 | chat_messages | 对话消息 | 聊天模块 |
 | chat_attachments | 对话附件 | 聊天模块 |
@@ -457,6 +458,23 @@
   | blocked_keywords | TEXT | 是 | `'[]'` | 屏蔽关键词列表（JSON 数组） |
   | mock_fail_uploads | INTEGER | 是 | 0 | 模拟上传失败次数（用于测试） |
   | updated_at | TEXT | 是 | - | 最后更新时间 |
+
+- **索引**：无额外索引
+- **约束**：PRIMARY KEY: `id`
+- **关联表**：无
+
+---
+
+### site_configs（`site_configs`）
+
+- **用途**：站点配置，存储公网域名（PUBLIC_ASSET_BASE_URL）用于生图 API 图片链接拼接
+- **字段**：
+
+  | 字段名 | 类型 | 是否必填 | 默认值 | 描述 |
+  |--------|------|----------|--------|------|
+  | id | TEXT | 是 | - | 配置唯一标识（主键，固定 'default'） |
+  | public_asset_base_url | TEXT | 是 | `''` | 公网域名，用于拼接生图 API 图片链接 |
+  | updated_at | INTEGER | 是 | - | 最后更新时间（Unix 毫秒） |
 
 - **索引**：无额外索引
 - **约束**：PRIMARY KEY: `id`

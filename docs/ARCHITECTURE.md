@@ -40,7 +40,7 @@ flowchart TD
     end
 
     subgraph Data["数据层"]
-        DB[("SQLite<br/>data/car_mod_effect.sqlite<br/>22 张表")]
+        DB[("SQLite<br/>data/car_mod_effect.sqlite<br/>24 张表")]
         LocalStorage["本地文件存储<br/>data/ + public/"]
     end
 
@@ -163,7 +163,7 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
 | 计费系统 | 三级会员（free/pro/max），用量账本，额度消费，模拟支付与订单管理 | `app/api/billing/`, `lib/server/db.ts` |
 | 聊天系统 | 对话模式意图解析（本地 + LLM fallback），会话管理 | `app/api/chat/`, `components/chat-mode.tsx` |
 | 管理后台 | 配件/品牌/Provider/Workflow/提示词/护栏/配额/订单全量管理 | `components/admin-console.tsx`, `app/api/admin/` |
-| 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护 | `lib/server/local-images.ts` |
+| 图片存储 | 双重存储（data/ + public/），MIME 检测，路径安全防护，公网域名配置管理 | `lib/server/local-images.ts`, `lib/server/generation-provider.ts` |
 | 进度流 | NDJSON 流式进度协议，15 个进度步骤 | `lib/server/progress-stream.ts` |
 | 运营分析模块 | 时序聚合查询、生成记录分析、用户洞察、失败分析、成本核算、订单分析、额度监控、异常告警、CSV 导出 | `lib/server/analytics-queries.ts`, `lib/server/export-service.ts`, `lib/server/alert-scanner.ts`, `app/api/admin/analytics/`, `app/api/admin/generations/` |
 
@@ -238,6 +238,7 @@ React 组件层，负责用户界面渲染与交互。采用单组件状态管�
   - 阿里云 AccessKey（用于号码认证与短信服务）
   - 短信模板码
   - 各 AI Provider 的 API Key（加密存储于数据库）
+  - 公网域名（`PROVIDER_PUBLIC_BASE_URL` / `NEXT_PUBLIC_APP_URL` / `APP_URL` / `SITE_URL`，可在管理后台"域名配置"页面热更新，数据库配置优先于环境变量）
 - **健康检查**：冒烟测试脚本 `scripts/smoke.mjs` 用于部署后健康检查
 
 ### 服务依赖
@@ -254,11 +255,11 @@ flowchart LR
 
 | 存储位置 | 内容 | 说明 |
 |----------|------|------|
-| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 23 张表，WAL 模式 |
+| `data/car_mod_effect.sqlite` | SQLite 数据库文件 | 24 张表，WAL 模式 |
 | `data/car_mod_effect.sqlite-wal` | WAL 日志文件 | SQLite 写前日志 |
 | `data/car_mod_effect.sqlite-shm` | 共享内存文件 | SQLite 共享内存 |
 | `data/results/` | AI 生成结果图片 | Provider 返回的生成结果 |
 | `data/uploads/` | 用户上传图片 | 包含车辆照片、配件照片等 |
 
-> 最后更新时间：2026-07-29
-> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003
+> 最后更新时间：2026-08-06
+> 关联方案ID：DESIGN-20260729-001、DESIGN-20260729-002、DESIGN-20260729-003、DESIGN-20260806-006

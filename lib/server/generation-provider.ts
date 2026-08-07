@@ -1,5 +1,5 @@
 import { setDefaultResultOrder } from "node:dns"
-import { getProviderApiKey } from "./db"
+import { getProviderApiKey, getSiteConfig } from "./db"
 import { readImageAsset } from "./image-assets"
 import { isPersistentLocalImageUrl, materializeImageUrl } from "./image-materializer"
 import { mimeFromImageBytes, mimeFromPath, readLocalImageByAppUrl, writeResultImage, writeVehicleUploadImage } from "./local-images"
@@ -956,7 +956,7 @@ function nanoBanana302Resolution() {
 }
 
 async function nanoBananaProviderInputImages(urls: string[], providerId: ProviderId): Promise<NanoBananaProviderInputImage[]> {
-  const publicBaseUrl = providerInputPublicBaseUrl()
+  const publicBaseUrl = await providerInputPublicBaseUrl()
   if (!publicBaseUrl) {
     throw new Error(
       "Nano-Banana image edit requires public image URLs. Localhost/127.0.0.1 cannot be used. Run the real test on the public test server, or use a public tunnel and set PROVIDER_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL, APP_URL, or SITE_URL to that public app origin.",
@@ -998,7 +998,21 @@ async function nanoBananaProviderInputImage(
   }
 }
 
-function providerInputPublicBaseUrl() {
+async function providerInputPublicBaseUrl() {
+  // Database-configured domain takes priority over environment variables.
+  const dbConfig = getSiteConfig()
+  const dbValue = dbConfig.publicAssetBaseUrl.trim()
+  if (dbValue) {
+    try {
+      const url = new URL(dbValue)
+      if ((url.protocol === "http:" || url.protocol === "https:") && !isLocalOnlyHost(url.hostname)) {
+        return url.origin
+      }
+    } catch {
+      // Fall through to environment variables if the DB value is invalid.
+    }
+  }
+
   const value =
     process.env.PROVIDER_PUBLIC_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||

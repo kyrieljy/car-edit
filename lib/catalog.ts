@@ -9,6 +9,7 @@ import type {
   PromptPreset,
   PromptTemplate,
   ProviderConfig,
+  SiteConfig,
   WorkflowConfig,
   WorkflowEdgeConfig,
   WorkflowNodeConfig,
@@ -1578,6 +1579,12 @@ export const guardrailSeed: GuardrailConfig = {
   mockMode: true,
   mockFailUploads: false,
   provider: "mock",
+  updatedAt: 0,
+}
+
+export const siteConfigSeed: SiteConfig = {
+  id: "default",
+  publicAssetBaseUrl: "",
   updatedAt: 0,
 }
 
