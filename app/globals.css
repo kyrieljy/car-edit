@@ -16348,6 +16348,34 @@ a {
   color: var(--clinical-text);
 }
 
+.provider-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 96px;
+  height: 38px;
+  min-height: 38px;
+  justify-self: start;
+  padding: 0 16px;
+  border: 1px solid var(--red, #ef4444);
+  background: transparent;
+  color: var(--red, #ef4444);
+  cursor: pointer;
+}
+
+.provider-delete-button:hover:not(:disabled) {
+  background: var(--red, #ef4444);
+  color: #fff;
+}
+
+.provider-delete-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--clinical-muted, #9ca3af);
+}
+
 .admin-clinical .provider-card .provider-card-actions button {
   width: auto;
   flex: 1 1 0;
@@ -25953,4 +25981,186 @@ a {
 
 .stance-card input[type="range"] {
   width: 100%;
+}
+
+/* ===== StyledSelect (custom dropdown replacing native <select>) =====
+   Panel is position:absolute so opening/closing never shifts sibling layout. */
+.styled-select {
+  position: relative;
+  width: 100%;
+}
+
+.styled-select__control {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.styled-select__control:hover:not(:disabled) {
+  border-color: var(--line);
+}
+
+.styled-select__control:focus-visible {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.styled-select__control[aria-expanded="true"] {
+  border-color: var(--blue);
+}
+
+.styled-select__control:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.styled-select__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.styled-select__placeholder {
+  color: var(--muted-2);
+}
+
+.styled-select__chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.styled-select__control[aria-expanded="true"] .styled-select__chevron {
+  transform: rotate(180deg);
+}
+
+.styled-select__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 120;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.styled-select__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.styled-select__option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.styled-select__option:hover,
+.styled-select__option.is-active {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.styled-select__option.is-selected {
+  color: var(--text);
+}
+
+.styled-select__option.is-disabled {
+  color: var(--muted-2);
+  cursor: not-allowed;
+}
+
+.styled-select__check {
+  flex-shrink: 0;
+}
+
+/* clinical theme — Scheme A "Teal Hairline":
+   teal is used only as a hairline/focus/check accent, never as a fill background.
+   Trigger uses `button.styled-select__control` so it outranks the theme's
+   `.admin-clinical .provider-card button { background: var(--clinical-teal) }` rule. */
+.admin-clinical button.styled-select__control {
+  background: var(--clinical-panel-low);
+  border: 1px solid var(--clinical-line);
+  border-radius: 0;
+  color: var(--clinical-text);
+  font-family: "Space Grotesk", "Courier New", monospace;
+  letter-spacing: 0.02em;
+}
+
+.admin-clinical button.styled-select__control:hover:not(:disabled) {
+  border-color: var(--clinical-line);
+}
+
+.admin-clinical .styled-select__control:focus-visible {
+  outline: none;
+  border-color: var(--clinical-teal);
+}
+
+.admin-clinical .styled-select__control[aria-expanded="true"] {
+  border-color: var(--clinical-teal);
+}
+
+.admin-clinical .styled-select__placeholder {
+  color: var(--clinical-muted);
+}
+
+.admin-clinical .styled-select__chevron {
+  color: var(--clinical-muted);
+}
+
+.admin-clinical .styled-select__panel {
+  background: var(--clinical-panel-low);
+  border: 1px solid var(--clinical-line);
+  border-radius: 0;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+.admin-clinical .styled-select__option {
+  color: var(--clinical-muted);
+}
+
+.admin-clinical .styled-select__option:hover,
+.admin-clinical .styled-select__option.is-active {
+  background: rgba(0, 255, 194, 0.12);
+  color: var(--clinical-text);
+}
+
+.admin-clinical .styled-select__option.is-selected {
+  color: var(--clinical-teal);
+}
+
+.admin-clinical .styled-select__option.is-disabled {
+  color: var(--clinical-line);
+}
+
+.admin-clinical .styled-select__check {
+  color: var(--clinical-teal);
 }

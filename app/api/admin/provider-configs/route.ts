@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { updateProvider } from "@/lib/server/db"
+import { deleteProvider, updateProvider } from "@/lib/server/db"
 import { authErrorResponse, requireAdminUser } from "@/lib/server/auth"
 import type { ProviderCapability, ProviderId, ProviderImageParam } from "@/lib/types"
 import { classifyImageParamTemplate, validateProviderImageParams } from "@/lib/provider-image-params"
@@ -40,5 +40,22 @@ export async function POST(request: Request) {
     return (error as { status?: number }).status
       ? authErrorResponse(error)
       : NextResponse.json({ error: error instanceof Error ? error.message : "Provider update failed" }, { status: 400 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    requireAdminUser()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) {
+      return NextResponse.json({ error: "缺少 id 参数。" }, { status: 400 })
+    }
+    deleteProvider(id as ProviderId)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    return (error as { status?: number }).status
+      ? authErrorResponse(error)
+      : NextResponse.json({ error: error instanceof Error ? error.message : "Provider delete failed" }, { status: 400 })
   }
 }

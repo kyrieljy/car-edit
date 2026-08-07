@@ -1,4 +1,7 @@
+
 'use client';
+import { StyledSelect } from "@/components/ui/styled-select";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, ChevronLeft, ChevronRight, Search, RefreshCw } from 'lucide-react';
@@ -260,33 +263,33 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
           </label>
           <label>
             模式
-            <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <StyledSelect value={mode} onChange={(e) => setMode(e.target.value)}>
               {MODE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </label>
           <label>
             状态
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <StyledSelect value={status} onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </label>
           <label>
             提供商
-            <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+            <StyledSelect value={providerId} onChange={(e) => setProviderId(e.target.value)}>
               {PROVIDER_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </label>
         </div>
         <div className="analytics-filter-row">
@@ -463,7 +466,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
         </button>
         <label className="analytics-page-size">
           每页
-          <select
+          <StyledSelect
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
           >
@@ -472,7 +475,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
                 {size}
               </option>
             ))}
-          </select>
+          </StyledSelect>
           条
         </label>
       </div>

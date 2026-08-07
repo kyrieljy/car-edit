@@ -1555,7 +1555,7 @@ export const promptTemplateSeed: Array<Omit<PromptTemplate, "updatedAt">> = [
   },
 ]
 
-type RawProviderSeed = Omit<ProviderConfig, "options">
+type RawProviderSeed = Omit<ProviderConfig, "options" | "builtIn">
 
 const rawProviderSeed: RawProviderSeed[] = [
   { id: "mock", label: "Mock Render", baseUrl: "local://mock-render", modelName: "mock-render-v1", capabilities: ["image_generation"], enabled: true, active: true, hasApiKey: false, maskedKey: "", consoleUrl: "", updatedAt: 0 },
@@ -1574,6 +1574,7 @@ const rawProviderSeed: RawProviderSeed[] = [
 
 export const providerSeed: ProviderConfig[] = rawProviderSeed.map((provider) => ({
   ...provider,
+  builtIn: provider.id === "mock" || provider.id === "mock-vision" || provider.id === "mock-llm",
   options: buildDefaultProviderOptions(provider.baseUrl, provider.modelName),
 }))
 

@@ -185,6 +185,7 @@ export type ProviderConfig = {
   consoleUrl: string
   updatedAt: number
   options: ProviderOptions
+  builtIn: boolean
 }
 
 // Image-parameter template keys, classified by the provider API endpoint shape.

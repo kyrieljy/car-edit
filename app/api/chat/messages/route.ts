@@ -1350,5 +1350,6 @@ function mockVisionProvider(): ProviderConfig {
     consoleUrl: "",
     updatedAt: 0,
     options: { imageParams: [] },
+    builtIn: true,
   }
 }

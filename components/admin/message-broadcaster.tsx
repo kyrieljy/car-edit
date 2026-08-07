@@ -1,4 +1,7 @@
+
 'use client';
+import { StyledSelect } from "@/components/ui/styled-select";
+
 
 import { useState } from 'react';
 import { Send, Users, Tag, Crown, UserCheck } from 'lucide-react';
@@ -111,11 +114,11 @@ export default function MessageBroadcaster() {
             {target === 'plan' && (
               <label className="broadcast-label">
                 <span>Plan ID</span>
-                <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="broadcast-input">
+                <StyledSelect value={planId} onChange={(e) => setPlanId(e.target.value)} className="broadcast-input">
                   <option value="free">Free</option>
                   <option value="pro">Pro</option>
                   <option value="max">Max</option>
-                </select>
+                </StyledSelect>
               </label>
             )}
 

@@ -1,5 +1,8 @@
+
 "use client"
 
+
+import { StyledSelect } from "@/components/ui/styled-select";
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import {
   Activity,
@@ -328,7 +331,7 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                 <>
                   <label>
                     主模型
-                    <select value={selectedNode.providerId} onChange={(event) => updateSelectedNode({ providerId: event.target.value as ProviderId })}>
+                    <StyledSelect value={selectedNode.providerId} onChange={(event) => updateSelectedNode({ providerId: event.target.value as ProviderId })}>
                       <option value="" disabled>
                         选择{capabilityLabels[selectedNode.providerCapability]}
                       </option>
@@ -338,11 +341,11 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                           {provider.label}
                         </option>
                       ))}
-                    </select>
+                    </StyledSelect>
                   </label>
                   <label>
                     备用模型
-                    <select value={selectedNode.fallbackProviderId} onChange={(event) => updateSelectedNode({ fallbackProviderId: event.target.value as ProviderId | "" })}>
+                    <StyledSelect value={selectedNode.fallbackProviderId} onChange={(event) => updateSelectedNode({ fallbackProviderId: event.target.value as ProviderId | "" })}>
                       <option value="">不启用</option>
                       {providerFallbackOption(selectedNode.fallbackProviderId, providerOptions, summary)}
                       {providerOptions.map((provider) => (
@@ -350,17 +353,17 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                           {provider.label}
                         </option>
                       ))}
-                    </select>
+                    </StyledSelect>
                   </label>
                   <label>
                     调用失败策略
-                    <select value={callFailurePolicy(selectedNode)} onChange={(event) => updateSelectedNodeConfig({ callFailurePolicy: event.target.value as CallFailurePolicy })}>
+                    <StyledSelect value={callFailurePolicy(selectedNode)} onChange={(event) => updateSelectedNodeConfig({ callFailurePolicy: event.target.value as CallFailurePolicy })}>
                       {callFailurePolicies.map((policy) => (
                         <option key={policy.id} value={policy.id}>
                           {policy.label}
                         </option>
                       ))}
-                    </select>
+                    </StyledSelect>
                   </label>
                 </>
               ) : (
@@ -371,13 +374,13 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
                 <>
                   <label>
                     质量失败策略
-                    <select value={qualityFailurePolicy(selectedNode)} onChange={(event) => updateQualityFailurePolicy(event.target.value as QualityFailurePolicy)}>
+                    <StyledSelect value={qualityFailurePolicy(selectedNode)} onChange={(event) => updateQualityFailurePolicy(event.target.value as QualityFailurePolicy)}>
                       {qualityFailurePolicies.map((policy) => (
                         <option key={policy.id} value={policy.id}>
                           {policy.label}
                         </option>
                       ))}
-                    </select>
+                    </StyledSelect>
                   </label>
                   {selectedNode.type === "retry" && (
                     <>
@@ -397,14 +400,14 @@ export function WorkflowDesigner({ summary, onChanged, notify }: WorkflowDesigne
               {shouldShowPromptSelect(selectedNode) && (
                 <label>
                   提示词模板
-                  <select value={selectedNode.promptTemplateId} onChange={(event) => updateSelectedNode({ promptTemplateId: event.target.value })}>
+                  <StyledSelect value={selectedNode.promptTemplateId} onChange={(event) => updateSelectedNode({ promptTemplateId: event.target.value })}>
                     <option value="">不绑定提示词</option>
                     {summary.promptTemplates.map((template) => (
                       <option key={template.id} value={template.id}>
                         {promptTemplateOptionLabel(template.title, template.id)}
                       </option>
                     ))}
-                  </select>
+                  </StyledSelect>
                 </label>
               )}
 

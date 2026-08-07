@@ -102,6 +102,8 @@ const systemBrandIds = new Set(brandsSeed.map((item) => item.id))
 const systemAssetIds = new Set(assetsSeed.map((item) => item.id))
 const systemClassicPaintIds = new Set(classicPaintsSeed.map((item) => item.id))
 const systemProviderIds = new Set(providerSeed.map((item) => item.id))
+// 真正不可删除的内核模型：本地 mock 系列，用作生成管线的兜底，删除会导致系统无可用模型。
+const coreProviderIds = new Set<ProviderId>(["mock", "mock-vision", "mock-llm"])
 const systemWorkflowIds = new Set(workflowSeed.map((item) => item.id))
 
 let db: DatabaseSync | null = null
@@ -233,7 +235,8 @@ function initSchema(conn: DatabaseSync) {
       api_key_masked TEXT,
       console_url TEXT NOT NULL DEFAULT '',
       options_json TEXT NOT NULL DEFAULT '{}',
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      deleted INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS vehicle_uploads (
@@ -622,6 +625,9 @@ function migrateSchema(conn: DatabaseSync) {
   if (!providerColumns.some((column) => column.name === "options_json")) {
     conn.exec("ALTER TABLE provider_configs ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}'")
     backfillProviderImageParams(conn)
+  }
+  if (!providerColumns.some((column) => column.name === "deleted")) {
+    conn.exec("ALTER TABLE provider_configs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
   }
   const assetColumns = conn.prepare("PRAGMA table_info(part_assets)").all() as Array<{ name: string }>
   if (!assetColumns.some((column) => column.name === "brand_id")) {
@@ -3336,6 +3342,7 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     consoleUrl: "",
     options: { imageParams: [] },
     updatedAt: nowMs(),
+    builtIn: false,
   }
   const nextOptions: ProviderOptions = { imageParams: input.imageParams ?? baseProvider.options.imageParams }
   const apiKey = input.apiKey ?? ""
@@ -3350,8 +3357,8 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     database()
       .prepare(`
         INSERT INTO provider_configs
-        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, options_json, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, options_json, updated_at, deleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
       `)
       .run(
         providerId,
@@ -3371,7 +3378,7 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
     database()
       .prepare(`
         UPDATE provider_configs
-        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, console_url = ?, options_json = ?, updated_at = ?
+        SET label = ?, base_url = ?, model_name = ?, capabilities_json = ?, enabled = ?, active = ?, api_key_cipher = COALESCE(?, api_key_cipher), api_key_masked = ?, console_url = ?, options_json = ?, updated_at = ?, deleted = 0
         WHERE id = ?
       `)
       .run(
@@ -3391,6 +3398,32 @@ export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl
   }
   database().prepare("UPDATE provider_configs SET active = 1, enabled = 1 WHERE id = 'mock' AND NOT EXISTS (SELECT 1 FROM provider_configs WHERE active = 1)").run()
   return providers().find((provider) => provider.id === providerId) as ProviderConfig
+}
+
+export function deleteProvider(id: ProviderId) {
+  const providerId = String(id)
+  if (coreProviderIds.has(providerId)) {
+    throw new Error("系统内核模型（mock）不可删除。")
+  }
+  const isSeed = systemProviderIds.has(providerId)
+  if (isSeed) {
+    // 种子外部模型：软删除，写入 deleted=1 使其在 providers() 中隐藏；若已存在编辑行则更新之。
+    database()
+      .prepare(`
+        INSERT INTO provider_configs (id, label, base_url, model_name, capabilities_json, enabled, active, api_key_cipher, api_key_masked, console_url, options_json, updated_at, deleted)
+        VALUES (?, ?, '', '', '[]', 0, 0, '', '', '', '{}', ?, 1)
+        ON CONFLICT(id) DO UPDATE SET deleted = 1, enabled = 0, active = 0, updated_at = excluded.updated_at
+      `)
+      .run(providerId, providerId, nowMs())
+  } else {
+    database().prepare("DELETE FROM provider_configs WHERE id = ?").run(providerId)
+  }
+  database()
+    .prepare(
+      "UPDATE provider_configs SET active = 1, enabled = 1 WHERE id = 'mock' AND NOT EXISTS (SELECT 1 FROM provider_configs WHERE active = 1)",
+    )
+    .run()
+  writeAudit("", "admin.provider_config.delete", { id: providerId, builtIn: isSeed })
 }
 
 export function getProviderApiKey(providerId: ProviderId) {
@@ -3840,6 +3873,7 @@ function mapProviderRow(row?: Row, fallback?: ProviderConfig): ProviderConfig {
     consoleUrl: String(row.console_url ?? fallback?.consoleUrl ?? ""),
     options: safeJson<ProviderOptions>(String(row.options_json || "{}"), fallback?.options ?? { imageParams: [] }),
     updatedAt: Number(row.updated_at || fallback?.updatedAt || 0),
+    builtIn: coreProviderIds.has(row ? String(row.id) : (fallback?.id ?? "")),
   }
 }
 
@@ -4017,8 +4051,17 @@ function providers(): ProviderConfig[] {
   const rowById = new Map(rows.map((row) => [String(row.id), row]))
   const hasDbActiveProvider = rows.some((row) => Boolean(row.active))
   return [
-    ...providerSeed.map((provider) => mapProviderRow(rowById.get(provider.id), hasDbActiveProvider && !rowById.has(provider.id) ? { ...provider, active: false } : provider)),
-    ...rows.filter((row) => !systemProviderIds.has(String(row.id))).map((row) => mapProviderRow(row)),
+    ...providerSeed
+      .filter((provider) => {
+        const row = rowById.get(provider.id)
+        return !(row && Number(row.deleted))
+      })
+      .map((provider) =>
+        mapProviderRow(rowById.get(provider.id), hasDbActiveProvider && !rowById.has(provider.id) ? { ...provider, active: false } : provider),
+      ),
+    ...rows
+      .filter((row) => !systemProviderIds.has(String(row.id)) && !Number(row.deleted))
+      .map((row) => mapProviderRow(row)),
   ].toSorted((a, b) => a.id.localeCompare(b.id))
 }
 

@@ -1,5 +1,8 @@
+
 "use client"
 
+
+import { StyledSelect } from "@/components/ui/styled-select";
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -291,13 +294,13 @@ function SubcategoryConfigEditor({ config, onChange, categoryAssets }: {
           <div className="subcategory-assets">
             {group.assets.map((asset, assetIndex) => (
               <div key={assetIndex} className="subcategory-asset-row">
-                <select value={asset.assetId} onChange={(event) => updateAsset(groupIndex, assetIndex, { assetId: event.target.value })}>
+                <StyledSelect value={asset.assetId} onChange={(event) => updateAsset(groupIndex, assetIndex, { assetId: event.target.value })}>
                   {categoryAssets.map((catAsset) => (
                     <option key={catAsset.id} value={catAsset.id}>
                       {catAsset.id}{catAsset.brand || catAsset.model ? ` (${[catAsset.brand, catAsset.model].filter(Boolean).join(" ")})` : ""}
                     </option>
                   ))}
-                </select>
+                </StyledSelect>
                 <input value={asset.childLabelZh} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelZh: event.target.value })} placeholder="子标签中文（如：左）" />
                 <input value={asset.childLabelEn} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelEn: event.target.value })} placeholder="子标签英文（如：Left）" />
                 <button type="button" className="icon-danger" onClick={() => removeAsset(groupIndex, assetIndex)} aria-label="删除配件">
@@ -1771,11 +1774,11 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
             </label>
             <label>
               配置类型
-              <select value={categoryForm.configType} onChange={(event) => setCategoryForm((current) => ({ ...current, configType: event.target.value as "brand_resource" | "resource" | "resource_subcategory" }))}>
+              <StyledSelect value={categoryForm.configType} onChange={(event) => setCategoryForm((current) => ({ ...current, configType: event.target.value as "brand_resource" | "resource" | "resource_subcategory" }))}>
                 <option value="brand_resource">品牌-资源</option>
                 <option value="resource">资源</option>
                 <option value="resource_subcategory">资源-细分类</option>
-              </select>
+              </StyledSelect>
             </label>
             {categoryForm.configType === "resource" && (
               <label className="inline-check">
@@ -1804,13 +1807,13 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
         <div className="taxonomy-card">
           <PanelHeading label="资源流程" title="品牌管理" count={`${categoryBrands.length} 个品牌`} />
           <div className="admin-toolbar">
-            <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+            <StyledSelect value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
               {brandResourceCategories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.labelZh || category.labelEn || category.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </div>
           <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} placeholder="搜索品牌 ID / 名称" />
           <div className={dragState?.kind === "brand" ? "taxonomy-list drag-active" : "taxonomy-list"}>
@@ -1848,13 +1851,13 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
           <form className="admin-form compact" onSubmit={(event) => { event.preventDefault(); void saveBrand() }}>
             <label>
               所属类型
-              <select value={brandForm.categoryId} onChange={(event) => setBrandForm((current) => ({ ...current, categoryId: event.target.value }))}>
+              <StyledSelect value={brandForm.categoryId} onChange={(event) => setBrandForm((current) => ({ ...current, categoryId: event.target.value }))}>
                 {brandResourceCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.labelZh || category.labelEn || category.label}
                   </option>
                 ))}
-              </select>
+              </StyledSelect>
             </label>
             <label>
               品牌 ID
@@ -1884,21 +1887,21 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
         <div>
           <PanelHeading label="资源流程" title="配件管理" count={`${filteredAssets.length} 个配件`} />
           <div className="admin-toolbar">
-            <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+            <StyledSelect value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
               {summary.categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.labelZh || category.labelEn || category.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
             <input value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder="搜索品牌 / 型号 / 款式 / 颜色" />
-            <select value={assetQaFilter} onChange={(event) => setAssetQaFilter(event.target.value as "all" | AssetQaIssueId)} aria-label="资产 QA 筛选">
+            <StyledSelect value={assetQaFilter} onChange={(event) => setAssetQaFilter(event.target.value as "all" | AssetQaIssueId)} aria-label="资产 QA 筛选">
               {assetQaFilterOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </div>
           {selectedCategoryConfigType === "brand_resource" && (
           <div className="brand-tags">
@@ -1947,13 +1950,13 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
           {selectedCategoryConfigType === "brand_resource" && (
           <label>
             所属品牌
-            <select value={assetBrandId} onChange={(event) => setAssetBrandId(event.target.value)}>
+            <StyledSelect value={assetBrandId} onChange={(event) => setAssetBrandId(event.target.value)}>
               {assetFormBrands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
                   {brand.label}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </label>
           )}
           <label>
@@ -2014,7 +2017,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
           <div className="asset-color-policy-card">
             <label>
               配色策略 / Color policy
-              <select value={defaultColorPolicy} onChange={(event) => setDefaultColorPolicy(event.target.value as PartColorPolicy)}>
+              <StyledSelect value={defaultColorPolicy} onChange={(event) => setDefaultColorPolicy(event.target.value as PartColorPolicy)}>
                 {partColorPolicyOptions
                   .filter((option) => allowedColorPolicies.includes(option.id))
                   .map((option) => (
@@ -2022,7 +2025,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
                       默认：{option.label}
                     </option>
                   ))}
-              </select>
+              </StyledSelect>
             </label>
             <div className="asset-policy-checks">
               <span>允许用户选择 / Allowed options</span>
@@ -2060,13 +2063,13 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
                       <div className="asset-reference-editor-row">
                         <label>
                           Role
-                          <select value={reference.role} onChange={(event) => updateGenerationReference(index, { role: event.target.value as PartReferenceRole })}>
+                          <StyledSelect value={reference.role} onChange={(event) => updateGenerationReference(index, { role: event.target.value as PartReferenceRole })}>
                             {referenceRoleOptions.map((role) => (
                               <option key={role} value={role}>
                                 {referenceRoleLabel(role)}
                               </option>
                             ))}
-                          </select>
+                          </StyledSelect>
                         </label>
                         <label>
                           View
@@ -2150,12 +2153,12 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
               <div className="asset-optional-content-inner">
             <label>
               Prompt 测试状态
-              <select value={promptTestStatus} onChange={(event) => setPromptTestStatus(event.target.value as typeof promptTestStatus)}>
+              <StyledSelect value={promptTestStatus} onChange={(event) => setPromptTestStatus(event.target.value as typeof promptTestStatus)}>
                 <option value="untested">未测试</option>
                 <option value="pass">通过</option>
                 <option value="weak">较弱</option>
                 <option value="fail">失败</option>
-              </select>
+              </StyledSelect>
             </label>
             <label className="inline-check">
               <input type="checkbox" checked={generationReady} onChange={(event) => setGenerationReady(event.target.checked)} />
@@ -2470,13 +2473,13 @@ function ClassicPaintManager({ summary, onChanged, notify }: { summary: AdminSum
           </label>
           <label>
             车漆材质
-            <select value={draft.material} onChange={(event) => setDraft((current) => ({ ...current, material: event.target.value as ClassicPaintDraft["material"] }))}>
+            <StyledSelect value={draft.material} onChange={(event) => setDraft((current) => ({ ...current, material: event.target.value as ClassicPaintDraft["material"] }))}>
               {classicPaintMaterials.map((material) => (
                 <option key={material} value={material}>
                   {material}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </label>
           <label>
             排序
@@ -2764,6 +2767,19 @@ function ProviderManagerV3({
     onChanged()
   }
 
+  const removeProvider = async (id: ProviderId, label: string) => {
+    if (!window.confirm(`删除模型 API「${label}」？删除后不可恢复，引用该模型的 Workflow 节点需重新选择模型。`)) return
+    const response = await fetch(`/api/admin/provider-configs?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      notify("error", body.error || "删除模型 API 失败。")
+      return
+    }
+    notify("success", "模型 API 已删除。")
+    if (editingProviderId === id) setEditingProviderId(null)
+    onChanged()
+  }
+
   const runProviderTest = async () => {
     setTestLoading(true)
     try {
@@ -2869,12 +2885,34 @@ function ProviderManagerV3({
                             <button type="button" className="provider-secondary-button" onClick={() => cancelEditingProvider(provider.id)}>
                               取消
                             </button>
+                            <button
+                              type="button"
+                              className="provider-delete-button"
+                              disabled={provider.builtIn}
+                              title={provider.builtIn ? "系统内置模型不可删除" : "删除该模型 API"}
+                              onClick={() => void removeProvider(provider.id, current.label || provider.label)}
+                            >
+                              <Trash2 size={16} />
+                              删除
+                            </button>
                           </div>
                         </form>
                       ) : (
-                        <button type="button" className="provider-edit-button" onClick={() => startEditingProvider(provider.id)}>
-                          编辑
-                        </button>
+                        <div className="provider-card-actions">
+                          <button type="button" className="provider-edit-button" onClick={() => startEditingProvider(provider.id)}>
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            className="provider-delete-button"
+                            disabled={provider.builtIn}
+                            title={provider.builtIn ? "系统内置模型不可删除" : "删除该模型 API"}
+                            onClick={() => void removeProvider(provider.id, current.label || provider.label)}
+                          >
+                            <Trash2 size={16} />
+                            删除
+                          </button>
+                        </div>
                       )}
                     </article>
                   )
@@ -3295,11 +3333,11 @@ function AdminTestConfigPanel({ notify }: { notify: NotifyAdmin }) {
         </div>
         <label className="test-config-finish">
           <span>车漆效果</span>
-          <select value={paintFinishEffect} onChange={(event) => setPaintFinishEffect(event.target.value)}>
+          <StyledSelect value={paintFinishEffect} onChange={(event) => setPaintFinishEffect(event.target.value)}>
             {["gloss", "metallic", "matte", "satin", "pearl", "chrome", "gradient"].map((effect) => (
               <option key={effect} value={effect}>{effect}</option>
             ))}
-          </select>
+          </StyledSelect>
         </label>
       </section>
       <section className="option-card stance-card">
@@ -3423,7 +3461,7 @@ function ProviderImageParamsEditor({
               placeholder="参数名（如 quality）"
               onChange={(event) => updateParam(index, { key: event.target.value })}
             />
-            <select
+            <StyledSelect
               className="provider-image-param-value"
               value={param.value}
               onChange={(event) => updateParam(index, { value: event.target.value })}
@@ -3433,7 +3471,7 @@ function ProviderImageParamsEditor({
                   {option === IMAGE_PARAM_VALUE_AUTO ? IMAGE_PARAM_RESERVE_LABELS[IMAGE_PARAM_VALUE_AUTO] : option}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
             <button
               type="button"
               className="provider-image-param-compare"
@@ -3607,14 +3645,14 @@ function PromptTemplateManagerV2({ summary }: { summary: AdminSummary; onChanged
           {scope === "part" && (
             <label>
               绑定配件
-              <select value={form.assetId} disabled>
+              <StyledSelect value={form.assetId} disabled>
                 <option value="">请选择配件</option>
                 {summary.assets.map((asset) => (
                   <option key={asset.id} value={asset.id}>
                     {asset.brand} {asset.model} {asset.variant}
                   </option>
                 ))}
-              </select>
+              </StyledSelect>
             </label>
           )}
           {scope === "combo" && (
@@ -3649,13 +3687,13 @@ function PromptTemplateManagerV2({ summary }: { summary: AdminSummary; onChanged
               <span>{finalPromptPreview.note}</span>
               <small>当前预览 Workflow：{selectedPreviewWorkflow.title}</small>
             </div>
-            <select value={selectedPreviewWorkflow.id} onChange={(event) => setPreviewWorkflowId(event.target.value)}>
+            <StyledSelect value={selectedPreviewWorkflow.id} onChange={(event) => setPreviewWorkflowId(event.target.value)}>
               {previewWorkflows.map((workflow) => (
                 <option key={workflow.id} value={workflow.id}>
                   {workflow.title} / {workflowModePreviewLabel(workflow.mode)}
                 </option>
               ))}
-            </select>
+            </StyledSelect>
           </div>
 
           <div className="workflow-prompt-id-list">
@@ -3865,14 +3903,14 @@ function GuardrailManager({ summary, onChanged }: { summary: AdminSummary; onCha
         </label>
         <label>
           检测 Provider
-          <select value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value as GuardrailConfig["provider"] }))}>
+          <StyledSelect value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value as GuardrailConfig["provider"] }))}>
             <option value="mock">Mock 检测</option>
             {summary.providers.map((provider) => (
               <option key={provider.id} value={provider.id}>
                 {provider.label}
               </option>
             ))}
-          </select>
+          </StyledSelect>
         </label>
         <label className="check-line">
           <input type="checkbox" checked={form.mockMode} onChange={(event) => setForm((current) => ({ ...current, mockMode: event.target.checked }))} />
@@ -4618,11 +4656,11 @@ function UsersOpsTable({ summary, onChanged, notify, onOpenUserDetail }: { summa
               <td colSpan={7}>
                 <div className="admin-inline-form admin-users-filter-form">
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search user, phone, email" />
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value === "disabled" ? "disabled" : event.target.value === "active" ? "active" : "all")}>
+                  <StyledSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value === "disabled" ? "disabled" : event.target.value === "active" ? "active" : "all")}>
                     <option value="all">All statuses</option>
                     <option value="active">Active</option>
                     <option value="disabled">Disabled</option>
-                  </select>
+                  </StyledSelect>
                 </div>
               </td>
             </tr>
@@ -4642,23 +4680,23 @@ function UsersOpsTable({ summary, onChanged, notify, onOpenUserDetail }: { summa
                   </td>
                   <td className="admin-user-account-cell">{user.username}</td>
                   <td className="admin-user-role-cell">
-                    <select value={userDraft.role} onChange={(event) => patchUserDraft(user, { role: event.target.value === "admin" ? "admin" : "user" })}>
+                    <StyledSelect value={userDraft.role} onChange={(event) => patchUserDraft(user, { role: event.target.value === "admin" ? "admin" : "user" })}>
                       <option value="user">user</option>
                       <option value="admin">admin</option>
-                    </select>
+                    </StyledSelect>
                     <small className="admin-cell-sub">{user.status}</small>
                   </td>
                   <td className="admin-user-plan-cell">
-                    <select value={userDraft.plan} onChange={(event) => patchUserDraft(user, { plan: event.target.value })}>
+                    <StyledSelect value={userDraft.plan} onChange={(event) => patchUserDraft(user, { plan: event.target.value })}>
                       <option value="free">free</option>
                       <option value="pro">pro</option>
                       <option value="max">max</option>
                       <option value="internal">internal</option>
-                    </select>
-                    <select value={userDraft.status} onChange={(event) => patchUserDraft(user, { status: event.target.value === "disabled" ? "disabled" : "active" })}>
+                    </StyledSelect>
+                    <StyledSelect value={userDraft.status} onChange={(event) => patchUserDraft(user, { status: event.target.value === "disabled" ? "disabled" : "active" })}>
                       <option value="active">active</option>
                       <option value="disabled">disabled</option>
-                    </select>
+                    </StyledSelect>
                     <button type="button" disabled={userDraft.saving} onClick={() => void saveUser(user)}>
                       {userDraft.saving ? "Saving" : "Save user"}
                     </button>
@@ -4673,10 +4711,10 @@ function UsersOpsTable({ summary, onChanged, notify, onOpenUserDetail }: { summa
                   </td>
                   <td className="admin-quota-cell">
                     <div className="admin-inline-form admin-quota-adjust-form">
-                      <select aria-label="调整额度类型" value={draft.mode} onChange={(event) => patchDraft(user.id, { mode: event.target.value === "chat" ? "chat" : "config" })}>
+                      <StyledSelect aria-label="调整额度类型" value={draft.mode} onChange={(event) => patchDraft(user.id, { mode: event.target.value === "chat" ? "chat" : "config" })}>
                         <option value="config">配置</option>
                         <option value="chat">对话</option>
-                      </select>
+                      </StyledSelect>
                       <input aria-label="调整额度数量" type="number" step={1} value={draft.delta} onChange={(event) => patchDraft(user.id, { delta: event.target.value })} />
                       <input className="quota-reason-input" aria-label="额度调整原因" value={draft.reason} onChange={(event) => patchDraft(user.id, { reason: event.target.value })} placeholder="原因（必填）" />
                       <button type="button" disabled={draft.saving} onClick={() => void adjustQuota(user.id)}>
@@ -5141,12 +5179,12 @@ function AdminOrdersTable() {
           </label>
           <label className="admin-filter-field">
             <span>套餐</span>
-            <select value={planId} onChange={(event) => setPlanId(event.target.value)}>
+            <StyledSelect value={planId} onChange={(event) => setPlanId(event.target.value)}>
               <option value="">全部</option>
               <option value="free">free</option>
               <option value="pro">pro</option>
               <option value="max">max</option>
-            </select>
+            </StyledSelect>
           </label>
           <button type="button" className="admin-filter-reset" onClick={resetFilters}>
             重置
