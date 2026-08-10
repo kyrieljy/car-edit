@@ -55,6 +55,10 @@ function isMainlandMobile(value: string) {
   return /^1[3-9]\d{9}$/.test(phoneDigits(value))
 }
 
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
 const authMobilePageTransition = { type: "spring", stiffness: 310, damping: 34 } as const
 const authMobilePageVariants = {
   enter: (direction: AuthTransitionDirection) => ({
@@ -112,6 +116,8 @@ const authCopy = {
     identifierPlaceholder: "Enter username or phone",
     phone: "Phone",
     phonePlaceholder: "Enter phone number",
+    email: "Email",
+    emailPlaceholder: "Enter email",
     password: "Password",
     passwordPlaceholder: "Enter password",
     newPasswordPlaceholder: "Enter new password",
@@ -119,6 +125,7 @@ const authCopy = {
     confirmPasswordPlaceholder: "Confirm password",
     smsCode: "SMS code",
     codePlaceholder: "Enter code",
+    emailCode: "Email code",
     adminCode: "Admin code",
     adminCodePlaceholder: "Enter admin code",
     send: "Send",
@@ -143,6 +150,7 @@ const authCopy = {
     terms: "User Agreement",
     needAgreement: "Please read and agree to the service terms first.",
     invalidPhone: "Please enter a valid mainland China mobile number.",
+    invalidEmail: "Please enter a valid email address.",
     passwordMismatch: "Passwords do not match.",
     adminCodeRequired: "Admin login requires a phone verification code.",
     passwordNotSet: "This phone account has not set a password yet. Please use SMS code login, or use Forgot password to set a login password.",
@@ -157,6 +165,7 @@ const authCopy = {
     oneTapFallback: "One-tap login failed. You may not be using mobile data, or your carrier may be temporarily unavailable. Please use SMS code login.",
     socialSoon: (name: string) => `${name} login is not available in this test build yet.`,
     duplicatePhone: (username: string) => `This phone number is already registered and bound to user ${username}.`,
+    duplicateEmail: (username: string) => `This email is already registered and bound to user ${username}.`,
     maskedPhone: "Carrier auth",
   },
   zh: {
@@ -184,12 +193,15 @@ const authCopy = {
     identifierPlaceholder: "请输入用户名或手机号",
     phone: "手机号",
     phonePlaceholder: "请输入手机号",
+    email: "邮箱",
+    emailPlaceholder: "请输入邮箱",
     password: "密码",
     passwordPlaceholder: "请输入密码",
     newPasswordPlaceholder: "请输入新密码",
     confirmPassword: "确认密码",
     confirmPasswordPlaceholder: "请再次输入密码",
     smsCode: "验证码",
+    emailCode: "邮箱验证码",
     codePlaceholder: "请输入验证码",
     adminCode: "管理员验证码",
     adminCodePlaceholder: "请输入管理员验证码",
@@ -215,6 +227,7 @@ const authCopy = {
     terms: "用户服务协议",
     needAgreement: "请先阅读并同意服务协议和隐私政策。",
     invalidPhone: "请输出正确的手机号码。",
+    invalidEmail: "请输入正确的邮箱地址。",
     passwordMismatch: "两次输入的密码不一致。",
     adminCodeRequired: "管理员登录需要输入手机验证码。",
     passwordNotSet: "该手机号账号尚未设置密码，请使用短信验证码登录，或通过忘记密码设置登录密码。",
@@ -229,6 +242,7 @@ const authCopy = {
     oneTapFallback: "本机号码登录失败，可能是当前未使用移动数据或运营商暂不可用，请使用短信验证码登录。",
     socialSoon: (name: string) => `${name} 登录在当前测试版本暂未开放。`,
     duplicatePhone: (username: string) => `该手机号已注册并绑定 ${username} 用户。`,
+    duplicateEmail: (username: string) => `该邮箱已注册并绑定 ${username} 用户。`,
     maskedPhone: "本机号码登录",
   },
 }
@@ -245,6 +259,8 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
   const [identifier, setIdentifier] = useState("")
   const [username, setUsername] = useState("")
   const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [contactMethod, setContactMethod] = useState<"phone" | "email">("phone")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [code, setCode] = useState("")
@@ -266,6 +282,8 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     setIdentifier("")
     setUsername("")
     setPhone("")
+    setEmail("")
+    setContactMethod("phone")
     setPassword("")
     setConfirmPassword("")
     setCode("")
@@ -318,8 +336,39 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     return false
   }
 
+  const requireValidContact = () => {
+    if (contactMethod === "phone") {
+      if (isMainlandMobile(phone)) return true
+      setNotice("")
+      setCodeFeedback(t.invalidPhone)
+      setCodeFeedbackTone("error")
+      return false
+    }
+    if (isEmail(email)) return true
+    setNotice("")
+    setCodeFeedback(t.invalidEmail)
+    setCodeFeedbackTone("error")
+    return false
+  }
+
+  const switchContactMethod = (next: "phone" | "email") => {
+    if (next === contactMethod) return
+    setContactMethod(next)
+    setPhone("")
+    setEmail("")
+    setCode("")
+    setCodeFeedback("")
+    setCodeFeedbackTone("info")
+    setCodeCooldown(0)
+  }
+
   const handleDuplicatePhone = (body: { username?: unknown; error?: unknown }) => {
-    const message = typeof body.username === "string" ? t.duplicatePhone(body.username) : String(body.error || t.registerFailed)
+    const message =
+      typeof body.username === "string"
+        ? contactMethod === "email"
+          ? t.duplicateEmail(body.username)
+          : t.duplicatePhone(body.username)
+        : String(body.error || t.registerFailed)
     setNotice(message)
     setCodeFeedback("")
     setCodeFeedbackTone("info")
@@ -330,13 +379,18 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
 
   const sendCode = async (purpose: CodePurpose = "login") => {
     if (codeSending || codeCooldown > 0) return
-    if (purpose !== "admin" && !requireValidPhone()) return
+    if (purpose !== "admin" && !requireValidContact()) return
     setNotice("")
     setCodeFeedback("")
     setCodeFeedbackTone("info")
     setCodeSending(true)
     try {
-      const payload = purpose === "admin" ? { purpose: "admin", identifier, password } : { purpose, phone }
+      const payload =
+        purpose === "admin"
+          ? { purpose: "admin", identifier, password }
+          : contactMethod === "email"
+            ? { purpose, email: email.trim().toLowerCase() }
+            : { purpose, phone }
       const response = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -344,7 +398,7 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
       })
       const body = await response.json().catch(() => ({}))
       if (!response.ok) {
-        if (body.code === "PHONE_ALREADY_REGISTERED") {
+        if (body.code === "PHONE_ALREADY_REGISTERED" || body.code === "EMAIL_ALREADY_REGISTERED") {
           handleDuplicatePhone(body)
         } else {
           const message = typeof body.error === "string" ? body.error : t.codeFailed
@@ -431,15 +485,19 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
   }
 
   const submitSmsLogin = async (bindRequired: boolean) => {
-    if (!requireValidPhone()) return
+    if (!requireValidContact()) return
     if (!requireAgreement()) return
     setLoading(true)
     setNotice("")
     try {
+      const payload =
+        contactMethod === "email"
+          ? { mode: "code", email: email.trim().toLowerCase(), code, bindRequired }
+          : { mode: "code", phone, code, bindRequired }
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "code", phone, code, bindRequired }),
+        body: JSON.stringify(payload),
       })
       const body = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -460,7 +518,7 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
   }
 
   const submitRegister = async (purpose: "login" | "register") => {
-    if (!requireValidPhone()) return
+    if (!requireValidContact()) return
     if (!requireAgreement()) return
     if (password !== confirmPassword) {
       setNotice(t.passwordMismatch)
@@ -469,14 +527,18 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     setLoading(true)
     setNotice("")
     try {
+      const payload =
+        contactMethod === "email"
+          ? { username, email: email.trim().toLowerCase(), password, code, purpose }
+          : { username, phone, password, code, purpose }
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, phone, password, code, purpose }),
+        body: JSON.stringify(payload),
       })
       const body = await response.json().catch(() => ({}))
       if (!response.ok) {
-        if (body.code === "PHONE_ALREADY_REGISTERED") {
+        if (body.code === "PHONE_ALREADY_REGISTERED" || body.code === "EMAIL_ALREADY_REGISTERED") {
           handleDuplicatePhone(body)
         } else if (body.code === "USERNAME_ALREADY_REGISTERED") {
           setNotice(t.usernameExists)
@@ -550,6 +612,36 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     } finally {
       setLoading(false)
     }
+  }
+
+  const wechatEnabled = Boolean(process.env.NEXT_PUBLIC_WECHAT_APPID)
+  const openWechatLogin = () => {
+    if (!wechatEnabled) {
+      window.alert(
+        "微信登录未配置：缺少 NEXT_PUBLIC_WECHAT_APPID（以及服务端 WECHAT_APPID / WECHAT_APPSECRET / WECHAT_REDIRECT_URI）。请在 .env.local 中填写后重启服务。",
+      )
+      return
+    }
+    const popup = window.open("/api/auth/wechat/login", "wechat-login", "width=420,height=560")
+    if (!popup) {
+      window.alert("无法打开微信登录窗口，请允许浏览器弹出窗口后重试。")
+      return
+    }
+    const onMsg = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== "wechat-login") return
+      window.removeEventListener("message", onMsg)
+      try {
+        popup.close()
+      } catch {
+        /* 忽略关闭失败 */
+      }
+      if (event.data.ok) {
+        void finishAuth()
+      } else {
+        window.alert(typeof event.data.message === "string" ? event.data.message : "微信登录失败，请重试。")
+      }
+    }
+    window.addEventListener("message", onMsg)
   }
 
   const openMobileStep = (step: MobileStep, direction: AuthTransitionDirection = "forward") => {
@@ -684,19 +776,21 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     if (mobileStep === "sms") {
       return (
         <form className="auth-template-form auth-mobile-form" onSubmit={(event) => { event.preventDefault(); void submitSmsLogin(false) }}>
-          <PhoneCodeFields t={t} phone={phone} setPhone={setPhone} code={code} setCode={setCode} sendCode={() => void sendCode("login")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
+          <ContactMethodToggle t={t} method={contactMethod} setMethod={switchContactMethod} />
+          <PhoneCodeFields t={t} method={contactMethod} phone={phone} setPhone={setPhone} email={email} setEmail={setEmail} code={code} setCode={setCode} sendCode={() => void sendCode("login")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
           {renderNotice()}
           <Agreement agreed={agreed} setAgreed={setAgreed} t={t} suffix={t.autoCreateAgreementSuffix} />
           <button className="auth-template-submit" type="submit" disabled={loading}>{loading ? t.wait : t.login}</button>
           <AuthLinks items={[[t.goSignup, () => openMobileStep("registerChoice", "switch")], [t.passwordLogin, () => openMobileStep("password", "switch")], [t.forgotPassword, () => openMobileStep("forgot", "switch")]]} />
-          <SocialButtons t={t} onClick={socialPlaceholder} />
+          <SocialButtons t={t} onClick={socialPlaceholder} onWechat={openWechatLogin} />
         </form>
       )
     }
     if (mobileStep === "phoneRegister") {
       return (
         <form className="auth-template-form auth-mobile-form" onSubmit={(event) => { event.preventDefault(); void submitRegister("register") }}>
-          <PhoneCodeFields t={t} phone={phone} setPhone={setPhone} code={code} setCode={setCode} sendCode={() => void sendCode("register")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
+          <ContactMethodToggle t={t} method={contactMethod} setMethod={switchContactMethod} />
+          <PhoneCodeFields t={t} method={contactMethod} phone={phone} setPhone={setPhone} email={email} setEmail={setEmail} code={code} setCode={setCode} sendCode={() => void sendCode("register")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
           <AccountBindFields t={t} username={username} setUsername={setUsername} password={password} setPassword={setPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} showPassword={showPassword} setShowPassword={setShowPassword} />
           {renderNotice()}
           <Agreement agreed={agreed} setAgreed={setAgreed} t={t} suffix={t.autoCreateAgreementSuffix} />
@@ -722,7 +816,7 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
         <Agreement agreed={agreed} setAgreed={setAgreed} t={t} />
         <button className="auth-template-submit" type="submit" disabled={loading}>{loading ? t.wait : t.login}</button>
         <AuthLinks items={[[t.goSignup, () => openMobileStep("registerChoice", "switch")], [t.smsLogin, () => openMobileStep("sms", "switch")], [t.forgotPassword, () => openMobileStep("forgot", "switch")]]} />
-        <SocialButtons t={t} onClick={socialPlaceholder} />
+        <SocialButtons t={t} onClick={socialPlaceholder} onWechat={openWechatLogin} />
       </form>
     )
   }
@@ -731,22 +825,30 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
     if (desktopStep === "sms") {
       return (
         <form className="auth-template-form" onSubmit={(event) => { event.preventDefault(); void submitSmsLogin(true) }}>
-          <PhoneCodeFields t={t} phone={phone} setPhone={setPhone} code={code} setCode={setCode} sendCode={() => void sendCode("login")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
+          <ContactMethodToggle t={t} method={contactMethod} setMethod={switchContactMethod} />
+          <PhoneCodeFields t={t} method={contactMethod} phone={phone} setPhone={setPhone} email={email} setEmail={setEmail} code={code} setCode={setCode} sendCode={() => void sendCode("login")} codeSending={codeSending} codeCooldown={codeCooldown} codeFeedback={codeFeedback} codeFeedbackTone={codeFeedbackTone} />
           {renderNotice()}
           <Agreement agreed={agreed} setAgreed={setAgreed} t={t} />
           <button className="auth-template-submit" type="submit" disabled={loading}>{loading ? t.wait : t.continue}</button>
           <AuthLinks items={[[t.passwordLogin, () => openDesktopStep("password")], [t.forgotPassword, () => openDesktopStep("forgot")]]} />
-          <SocialButtons t={t} onClick={socialPlaceholder} />
+          <SocialButtons t={t} onClick={socialPlaceholder} onWechat={openWechatLogin} />
         </form>
       )
     }
     if (desktopStep === "bind") {
       return (
         <form className="auth-template-form" onSubmit={(event) => { event.preventDefault(); void submitRegister("login") }}>
-          <label>
-            <span>{t.phone}</span>
-            <input value={phone} readOnly />
-          </label>
+          {contactMethod === "email" ? (
+            <label>
+              <span>{t.email}</span>
+              <input value={email} readOnly />
+            </label>
+          ) : (
+            <label>
+              <span>{t.phone}</span>
+              <input value={phone} readOnly />
+            </label>
+          )}
           <AccountBindFields t={t} username={username} setUsername={setUsername} password={password} setPassword={setPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} showPassword={showPassword} setShowPassword={setShowPassword} />
           {renderNotice()}
           <Agreement agreed={agreed} setAgreed={setAgreed} t={t} />
@@ -774,7 +876,7 @@ export function AuthModal({ open, language, mobileTheme = "dark", onClose, onAut
         <Agreement agreed={agreed} setAgreed={setAgreed} t={t} />
         <button className="auth-template-submit" type="submit" disabled={loading}>{loading ? t.wait : t.login}</button>
         <AuthLinks items={[[t.smsLogin, () => openDesktopStep("sms")], [t.forgotPassword, () => openDesktopStep("forgot")]]} />
-        <SocialButtons t={t} onClick={socialPlaceholder} />
+        <SocialButtons t={t} onClick={socialPlaceholder} onWechat={openWechatLogin} />
       </form>
     )
   }
@@ -901,10 +1003,22 @@ function Agreement({ agreed, setAgreed, t, suffix = "" }: { agreed: boolean; set
   )
 }
 
+function ContactMethodToggle(props: { t: Copy; method: "phone" | "email"; setMethod: (value: "phone" | "email") => void }) {
+  return (
+    <div className="auth-template-method-toggle" role="tablist" aria-label={props.t.otherMethods}>
+      <button type="button" role="tab" aria-selected={props.method === "phone"} className={props.method === "phone" ? "active" : ""} onClick={() => props.setMethod("phone")}>{props.t.phone}</button>
+      <button type="button" role="tab" aria-selected={props.method === "email"} className={props.method === "email" ? "active" : ""} onClick={() => props.setMethod("email")}>{props.t.email}</button>
+    </div>
+  )
+}
+
 function PhoneCodeFields(props: {
   t: Copy
+  method?: "phone" | "email"
   phone: string
   setPhone: (value: string) => void
+  email?: string
+  setEmail?: (value: string) => void
   code: string
   setCode: (value: string) => void
   sendCode: () => void
@@ -913,18 +1027,30 @@ function PhoneCodeFields(props: {
   codeFeedback: string
   codeFeedbackTone: "info" | "error"
 }) {
+  const isEmailMethod = props.method === "email"
   const sendLabel = props.codeSending ? props.t.wait : props.codeCooldown > 0 ? `${props.codeCooldown}s` : props.t.send
   return (
     <>
       <label>
-        <span>{props.t.phone}</span>
-        <div className="auth-template-phone">
-          <b>+86</b>
-          <input value={props.phone} onChange={(event) => props.setPhone(phoneDigits(event.target.value))} placeholder={props.t.phonePlaceholder} inputMode="tel" autoComplete="tel-national" maxLength={11} />
-        </div>
+        <span>{isEmailMethod ? props.t.email : props.t.phone}</span>
+        {isEmailMethod ? (
+          <input
+            className="auth-template-email"
+            value={props.email ?? ""}
+            onChange={(event) => props.setEmail?.(event.target.value.trim())}
+            placeholder={props.t.emailPlaceholder}
+            inputMode="email"
+            autoComplete="email"
+          />
+        ) : (
+          <div className="auth-template-phone">
+            <b>+86</b>
+            <input value={props.phone} onChange={(event) => props.setPhone(phoneDigits(event.target.value))} placeholder={props.t.phonePlaceholder} inputMode="tel" autoComplete="tel-national" maxLength={11} />
+          </div>
+        )}
       </label>
       <label>
-        <span>{props.t.smsCode}</span>
+        <span>{isEmailMethod ? props.t.emailCode : props.t.smsCode}</span>
         <div className="auth-template-code">
           <input value={props.code} onChange={(event) => props.setCode(event.target.value)} placeholder={props.t.codePlaceholder} inputMode="numeric" />
           <button type="button" onClick={props.sendCode} disabled={props.codeSending || props.codeCooldown > 0}>{sendLabel}</button>
@@ -1052,19 +1178,26 @@ function AuthLinks({ items }: { items: Array<[string, () => void]> }) {
   )
 }
 
-function SocialButtons({ t, onClick }: { t: Copy; onClick: (name: string) => void }) {
+function SocialButtons({ t, onClick, onWechat }: { t: Copy; onClick: (name: string) => void; onWechat: () => void }) {
   const methods = [
-    { name: "WeChat", className: "wechat", icon: <MessageCircle size={18} /> },
-    { name: "Apple", className: "apple", icon: <AppleLogo /> },
-    { name: "QQ", className: "qq", icon: <QQLogo /> },
-    { name: "Gmail", className: "google", icon: <GoogleLogo /> },
+    { name: "WeChat", className: "wechat", icon: <MessageCircle size={18} />, action: onWechat },
+    { name: "Apple", className: "apple", icon: <AppleLogo />, action: null },
+    { name: "QQ", className: "qq", icon: <QQLogo />, action: null },
+    { name: "Gmail", className: "google", icon: <GoogleLogo />, action: null },
   ]
   return (
     <div className="auth-template-social">
       <span>{t.otherMethods}</span>
       <div>
         {methods.map((method) => (
-          <button key={method.name} className={`auth-social-${method.className}`} type="button" title={method.name} aria-label={method.name} onClick={() => onClick(method.name)}>
+          <button
+            key={method.name}
+            className={`auth-social-${method.className}`}
+            type="button"
+            title={method.name}
+            aria-label={method.name}
+            onClick={() => (method.action ? method.action() : onClick(method.name))}
+          >
             {method.icon}
           </button>
         ))}

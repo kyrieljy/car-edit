@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { loginWithPassword, loginWithPhoneCode, resolvePhoneCodeLogin, verifyPasswordUser } from "@/lib/server/db"
+import { loginWithPassword, loginWithPhoneCode, resolvePhoneCodeLogin, resolveEmailCodeLogin, verifyPasswordUser } from "@/lib/server/db"
 import { attachSession } from "@/lib/server/auth"
 
 export const runtime = "nodejs"
@@ -10,6 +10,17 @@ export async function POST(request: Request) {
     const body = await request.json()
     const mode = String(body.mode || "password")
     if (mode === "code") {
+      if (body.email) {
+        const result = resolveEmailCodeLogin({
+          email: String(body.email || ""),
+          code: String(body.code || ""),
+          bindRequired: Boolean(body.bindRequired),
+        })
+        if (result.requiresBinding || !result.user) {
+          return NextResponse.json({ requiresBinding: true, email: result.email })
+        }
+        return attachSession(NextResponse.json({ user: result.user }), result.user.id)
+      }
       const result = resolvePhoneCodeLogin({
         phone: String(body.phone || ""),
         code: String(body.code || ""),

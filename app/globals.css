@@ -24606,6 +24606,48 @@ a {
   font-weight: 800;
 }
 
+.auth-template-email {
+  width: 100%;
+  height: 62px;
+  border: 1.8px solid #050505;
+  border-radius: 8px;
+  background: #fff;
+  color: #050505;
+  padding: 0 18px;
+  font-size: 16px;
+}
+
+.auth-template-method-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.auth-template-method-toggle button {
+  height: 44px;
+  border: 1.6px solid #d4d4d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #515154;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.auth-template-method-toggle button.active {
+  border-color: #0a84ff;
+  color: #0a84ff;
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.auth-template-method-toggle button:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.5);
+  outline-offset: 2px;
+}
+
 .auth-template-code button:disabled {
   opacity: 0.62;
 }

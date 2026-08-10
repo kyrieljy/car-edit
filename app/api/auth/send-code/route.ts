@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { createVerificationCode, getUserByPhone, markVerificationCodeFailed, markVerificationCodeSent, verifyPasswordUser } from "@/lib/server/db"
+import { createVerificationCode, getUserByEmail, getUserByPhone, markVerificationCodeFailed, markVerificationCodeSent, verifyPasswordUser } from "@/lib/server/db"
 import { requireUser } from "@/lib/server/auth"
 import { sendVerificationSms, smsFailureProvider } from "@/lib/server/sms-provider"
+import { sendVerificationEmail, emailFailureProvider } from "@/lib/server/email-provider"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -10,6 +11,48 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const purpose = normalizePurpose(String(body.purpose || "login"))
+
+    // ---- Email branch ----
+    if (body.email !== undefined && body.email !== "") {
+      const targetEmail = String(body.email || "").trim().toLowerCase()
+      if (!isValidEmail(targetEmail)) {
+        return NextResponse.json({ error: "请输入合法的邮箱地址。", code: "INVALID_EMAIL" }, { status: 400 })
+      }
+      const existingUser = getUserByEmail(targetEmail)
+      if (purpose === "register" && existingUser) {
+        return NextResponse.json(
+          {
+            error: `该邮箱已注册并绑定 ${existingUser.username} 用户。`,
+            code: "EMAIL_ALREADY_REGISTERED",
+            username: existingUser.username,
+          },
+          { status: 409 },
+        )
+      }
+      if (purpose === "login" && existingUser?.role === "admin") {
+        throw new Error("管理员账号请使用账号密码和管理员验证码登录。")
+      }
+      const result = createVerificationCode({
+        email: targetEmail,
+        purpose: purpose === "register" ? "register" : "login",
+        ip: clientIp(request),
+        userAgent: request.headers.get("user-agent") || "",
+      })
+      try {
+        const delivery = await sendVerificationEmail({ email: result.email, code: result.code, purpose: purpose === "register" ? "register" : "login" })
+        markVerificationCodeSent({ id: result.id, provider: delivery.provider, requestId: delivery.requestId })
+        return NextResponse.json({ ok: true, expiresAt: result.expiresAt, devCode: delivery.devCode })
+      } catch (error) {
+        markVerificationCodeFailed({
+          id: result.id,
+          provider: emailFailureProvider(error),
+          error: error instanceof Error ? error.message : "Email delivery failed.",
+        })
+        throw error
+      }
+    }
+
+    // ---- Phone branch ----
     const targetPhone =
       purpose === "admin"
         ? adminPhoneForCode(body)
@@ -59,7 +102,11 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "验证码发送失败。"
-    const code = message.includes("合法的中国大陆手机号") ? "INVALID_PHONE" : undefined
+    const code = message.includes("合法的中国大陆手机号")
+      ? "INVALID_PHONE"
+      : message.includes("合法的邮箱地址")
+        ? "INVALID_EMAIL"
+        : undefined
     return NextResponse.json({ error: message, code }, { status: 400 })
   }
 }
@@ -93,6 +140,10 @@ function isValidMainlandPhone(value: string) {
       ? digits.slice(2)
       : digits
   return /^1[3-9]\d{9}$/.test(local)
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
 function clientIp(request: Request) {

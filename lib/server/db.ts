@@ -609,6 +609,9 @@ function migrateSchema(conn: DatabaseSync) {
       conn.exec(`ALTER TABLE verification_codes ADD COLUMN ${name} ${definition}`)
     }
   })
+  if (!verificationColumns.some((column) => column.name === "email")) {
+    conn.exec("ALTER TABLE verification_codes ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+  }
   const providerColumns = conn.prepare("PRAGMA table_info(provider_configs)").all() as Array<{ name: string }>
   if (!providerColumns.some((column) => column.name === "base_url")) {
     conn.exec("ALTER TABLE provider_configs ADD COLUMN base_url TEXT NOT NULL DEFAULT ''")
@@ -1164,7 +1167,7 @@ function seedAccountMessages(conn: DatabaseSync, now: number) {
       `${userId}-welcome-v1`,
       userId,
       "system",
-      "欢迎使用 ModCar AI",
+      "欢迎使用 OnCar AI",
       "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。点击消息后才会标记为已读。",
       JSON.stringify({ source: "seed" }),
       0,
@@ -1868,6 +1871,13 @@ export function getUserByPhone(phoneInput: string): AuthUser | null {
   return row ? mapAuthUser(row) : null
 }
 
+export function getUserByEmail(emailInput: string): AuthUser | null {
+  const email = normalizeEmail(emailInput)
+  if (!email) return null
+  const row = database().prepare("SELECT * FROM users WHERE lower(email) = lower(?) LIMIT 1").get(email) as Row | undefined
+  return row ? mapAuthUser(row) : null
+}
+
 export function getUserByUsername(usernameInput: string): AuthUser | null {
   const username = usernameInput.trim()
   if (!username) return null
@@ -1969,29 +1979,43 @@ export function deleteSessionToken(token: string) {
   database().prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashValue(token))
 }
 
-export function createVerificationCode(input: { phone: string; purpose: string; ip?: string; userAgent?: string }) {
-  const phone = normalizePhone(input.phone)
-  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+export function createVerificationCode(input: { phone?: string; email?: string; purpose: string; ip?: string; userAgent?: string }) {
   const purpose = normalizeVerificationPurpose(input.purpose)
-  assertVerificationRateLimit(phone, purpose, input.ip || "")
+  let phone = ""
+  let email = ""
+  if (input.email) {
+    email = normalizeEmail(input.email)
+    if (!email) throw new Error(INVALID_EMAIL_MESSAGE)
+  } else {
+    phone = normalizePhone(input.phone || "")
+    if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  }
+  assertVerificationRateLimit({ phone, email }, purpose, input.ip || "")
   const code = randomInt(0, 1000000).toString().padStart(6, "0")
   const now = nowMs()
-  database()
-    .prepare("UPDATE verification_codes SET status = 'replaced' WHERE phone = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ?")
-    .run(phone, purpose, now)
+  if (phone) {
+    database()
+      .prepare("UPDATE verification_codes SET status = 'replaced' WHERE phone = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ?")
+      .run(phone, purpose, now)
+  } else {
+    database()
+      .prepare("UPDATE verification_codes SET status = 'replaced' WHERE email = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ?")
+      .run(email, purpose, now)
+  }
   const id = `vc_${crypto.randomUUID().slice(0, 8)}`
   database()
     .prepare(`
       INSERT INTO verification_codes
-        (id, phone, purpose, code, code_hash, provider, status, request_id, error_message, attempt_count, ip_hash, user_agent_hash, sent_at, failed_at, expires_at, consumed_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, phone, email, purpose, code, code_hash, provider, status, request_id, error_message, attempt_count, ip_hash, user_agent_hash, sent_at, failed_at, expires_at, consumed_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       id,
       phone,
+      email,
       purpose,
       "",
-      verificationCodeHash(phone, purpose, code),
+      verificationCodeHashFor(phone, email, purpose, code),
       "",
       "pending",
       "",
@@ -2005,7 +2029,7 @@ export function createVerificationCode(input: { phone: string; purpose: string; 
       0,
       now,
     )
-  return { id, phone, purpose, code, expiresAt: now + 1000 * 60 * 10 }
+  return { id, phone, email, purpose, code, expiresAt: now + 1000 * 60 * 10 }
 }
 
 export function markVerificationCodeSent(input: { id: string; provider: string; requestId?: string }) {
@@ -2049,31 +2073,60 @@ export function resolvePhoneCodeLogin(input: { phone: string; code: string; bind
   return { user: getUserById(user.id) as AuthUser, requiresBinding: false, phone }
 }
 
-export function registerUser(input: { username: string; phone: string; password: string; code: string; purpose?: string }) {
+export function resolveEmailCodeLogin(input: { email: string; code: string; bindRequired?: boolean }) {
+  const email = normalizeEmail(input.email)
+  if (!email) throw new Error(INVALID_EMAIL_MESSAGE)
+  const row = database().prepare("SELECT * FROM users WHERE lower(email) = lower(?) LIMIT 1").get(email) as Row | undefined
+  if (row) {
+    if (String(row.role || "user") === "admin") throw new Error("管理员账号请使用账号密码和管理员验证码登录。")
+    consumeVerificationCode({ email, purpose: "login", code: input.code })
+    assertUserActive(row)
+    const user = mapAuthUser(row)
+    ensureUserIdentity(user.id, "email", email)
+    markUserLoggedIn(user.id, "auth.login.email_code", { email })
+    return { user: getUserById(user.id) as AuthUser, requiresBinding: false, email }
+  }
+
+  if (input.bindRequired) {
+    verifyVerificationCode({ email, purpose: "login", code: input.code })
+    return { user: null, requiresBinding: true, email }
+  }
+
+  consumeVerificationCode({ email, purpose: "login", code: input.code })
+  const user = createEmailOnlyUser(email, "email_code_login")
+  markUserLoggedIn(user.id, "auth.login.email_code", { email, autoCreated: true })
+  return { user: getUserById(user.id) as AuthUser, requiresBinding: false, email }
+}
+
+export function registerUser(input: { username: string; phone?: string; email?: string; password: string; code: string; purpose?: string }) {
   const username = input.username.trim()
-  const phone = normalizePhone(input.phone)
+  const phone = input.phone ? normalizePhone(input.phone) : ""
+  const email = input.email ? normalizeEmail(input.email) : ""
   if (!username) throw new Error("Username is required.")
-  if (!phone) throw new Error(INVALID_PHONE_MESSAGE)
+  if (!phone && !email) throw new Error("请填写手机号或邮箱。")
+  if (phone && !normalizePhone(input.phone || "")) throw new Error(INVALID_PHONE_MESSAGE)
+  if (email && !normalizeEmail(input.email || "")) throw new Error(INVALID_EMAIL_MESSAGE)
   assertStrongPassword(input.password)
-  consumeVerificationCode({ phone, purpose: input.purpose || "register", code: input.code })
-  ensureUniqueUser(username, phone)
+  consumeVerificationCode(phone ? { phone, purpose: input.purpose || "register", code: input.code } : { email, purpose: input.purpose || "register", code: input.code })
+  ensureUniqueUser(username, phone, email)
   const now = nowMs()
   const userId = `user_${crypto.randomUUID().slice(0, 8)}`
   database()
     .prepare("INSERT INTO users (id, username, phone, password_hash, name, email, avatar_id, role, plan, status, last_login_at, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(userId, username, phone, passwordHash(input.password), username, `${username}@local`, DEFAULT_AVATAR_ID, "user", "free", "active", 0, now, now)
-  ensureUserIdentity(userId, "phone", phone)
+    .run(userId, username, phone, passwordHash(input.password), username, email || `${username}@local`, DEFAULT_AVATAR_ID, "user", "free", "active", 0, now, now)
+  if (phone) ensureUserIdentity(userId, "phone", phone)
+  if (email) ensureUserIdentity(userId, "email", email)
   ensureUserIdentity(userId, "password", username)
   createAccountMessage({
     id: `${userId}-welcome-v1`,
     userId,
     kind: "system",
-    title: "欢迎使用 ModCar AI",
+    title: "欢迎使用 OnCar AI",
     body: "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。点击消息后才会标记为已读。",
     metadata: { source: "register" },
     createdAt: now,
   })
-  writeAudit(userId, "auth.register", { username, phone })
+  writeAudit(userId, "auth.register", { username, phone, email })
   return getUserById(userId) as AuthUser
 }
 
@@ -2108,6 +2161,19 @@ export function loginWithPhoneCode(input: { phone: string; code: string; purpose
   const user = mapAuthUser(row)
   ensureUserIdentity(user.id, "phone", phone)
   markUserLoggedIn(user.id, "auth.login.code", { phone })
+  return getUserById(user.id) as AuthUser
+}
+
+export function loginWithEmailCode(input: { email: string; code: string; purpose?: string }) {
+  const email = normalizeEmail(input.email)
+  if (!email) throw new Error(INVALID_EMAIL_MESSAGE)
+  consumeVerificationCode({ email, purpose: input.purpose || "login", code: input.code })
+  const row = database().prepare("SELECT * FROM users WHERE lower(email) = lower(?) LIMIT 1").get(email) as Row | undefined
+  assertUserActive(row)
+  if (!row) throw new Error("邮箱未注册。")
+  const user = mapAuthUser(row)
+  ensureUserIdentity(user.id, "email", email)
+  markUserLoggedIn(user.id, "auth.login.email_code", { email })
   return getUserById(user.id) as AuthUser
 }
 
@@ -2165,6 +2231,51 @@ export function registerAndBindMockWechat(input: { openId: string; username: str
     .run(`ident_${crypto.randomUUID().slice(0, 8)}`, user.id, "wechat", openId, nowMs())
   writeAudit(user.id, "auth.wechat.register_bind", { openId })
   return { user, requiresBinding: false, openId }
+}
+
+export function loginOrCreateWithWechat(input: {
+  openid: string
+  unionid?: string
+  nickname?: string
+  avatarUrl?: string
+}): AuthUser {
+  const providerUserId = (input.unionid || input.openid).trim()
+  if (!providerUserId) throw new Error("微信授权信息缺失（openid/unionid 为空）")
+  // 1) 已绑定过：直接返回并刷新登录时间
+  const existing = database()
+    .prepare(
+      "SELECT users.* FROM user_identities JOIN users ON users.id = user_identities.user_id WHERE provider = 'wechat' AND provider_user_id = ? LIMIT 1",
+    )
+    .get(providerUserId) as Row | undefined
+  if (existing) {
+    assertUserActive(existing)
+    const now = nowMs()
+    database().prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").run(now, now, String(existing.id))
+    return mapAuthUser(existing)
+  }
+  // 2) 首次登录：自动建号并绑定
+  const now = nowMs()
+  const userId = `user_${crypto.randomUUID().slice(0, 8)}`
+  const username = `wx_${providerUserId.slice(0, 8)}`
+  database()
+    .prepare(
+      "INSERT INTO users (id, username, phone, password_hash, name, email, avatar_id, role, plan, status, last_login_at, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(userId, username, "", "", input.nickname?.trim() || "微信用户", `${username}@local`, DEFAULT_AVATAR_ID, "user", "free", "active", now, now, now)
+  database()
+    .prepare("INSERT INTO user_identities (id, user_id, provider, provider_user_id, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(`ident_${crypto.randomUUID().slice(0, 8)}`, userId, "wechat", providerUserId, now)
+  createAccountMessage({
+    id: `${userId}-welcome-v1`,
+    userId,
+    kind: "system",
+    title: "欢迎使用 OnCar AI",
+    body: "你已通过微信登录。可在「账号设置」中绑定手机号或设置密码，以便使用更多登录方式。",
+    metadata: { source: "wechat" },
+    createdAt: now,
+  })
+  writeAudit(userId, "auth.wechat.login", { openid: input.openid, unionid: input.unionid || "" })
+  return getUserById(userId) as AuthUser
 }
 
 export function getMembershipPlans() {
@@ -5207,6 +5318,7 @@ export function nowMs() {
 }
 
 const INVALID_PHONE_MESSAGE = "请输入合法的中国大陆手机号。"
+const INVALID_EMAIL_MESSAGE = "请输入合法的邮箱地址。"
 
 function normalizePhone(value: string) {
   const raw = value.trim().replace(/[\s-]/g, "")
@@ -5221,39 +5333,54 @@ function normalizePhone(value: string) {
   return `+86${local}`
 }
 
+function normalizeEmail(value: string) {
+  const raw = String(value || "").trim().toLowerCase()
+  if (!raw) return ""
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return ""
+  return raw
+}
+
 function assertStrongPassword(value: string) {
   if (value.length < 8 || !/[a-z]/.test(value) || !/[A-Z]/.test(value) || !/[^A-Za-z0-9]/.test(value)) {
     throw new Error("密码不少于8位，且必须包含大小写字母和特殊符号。")
   }
 }
 
-function ensureUniqueUser(username: string, phone: string) {
+function ensureUniqueUser(username: string, phone?: string, email?: string) {
   const usernameRow = database()
     .prepare("SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1")
     .get(username) as Row | undefined
   if (usernameRow) throw new Error("用户名已存在，请重新输入。")
-  const phoneRow = database().prepare("SELECT id FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
-  if (phoneRow) throw new Error("该手机号已注册。")
+  if (phone) {
+    const phoneRow = database().prepare("SELECT id FROM users WHERE phone = ? LIMIT 1").get(phone) as Row | undefined
+    if (phoneRow) throw new Error("该手机号已注册。")
+  }
+  if (email) {
+    const emailRow = database().prepare("SELECT id FROM users WHERE lower(email) = lower(?) LIMIT 1").get(email) as Row | undefined
+    if (emailRow) throw new Error("该邮箱已注册。")
+  }
 }
 
-function consumeVerificationCode(input: { phone: string; purpose: string; code: string }) {
+function consumeVerificationCode(input: { phone?: string; email?: string; purpose: string; code: string }) {
   validateVerificationCode({ ...input, consume: true })
 }
 
-function verifyVerificationCode(input: { phone: string; purpose: string; code: string }) {
+function verifyVerificationCode(input: { phone?: string; email?: string; purpose: string; code: string }) {
   validateVerificationCode({ ...input, consume: false })
 }
 
-function validateVerificationCode(input: { phone: string; purpose: string; code: string; consume: boolean }) {
+function validateVerificationCode(input: { phone?: string; email?: string; purpose: string; code: string; consume: boolean }) {
   const purpose = normalizeVerificationPurpose(input.purpose)
+  const phone = input.phone || ""
+  const email = input.email || ""
   const now = nowMs()
   const row = database()
     .prepare(`
       SELECT * FROM verification_codes
-      WHERE phone = ? AND purpose = ? AND consumed_at = 0 AND expires_at > ? AND status IN ('sent', 'mock')
+      WHERE ((phone = ? AND phone <> '') OR (email = ? AND email <> '')) AND purpose = ? AND consumed_at = 0 AND expires_at > ? AND status IN ('sent', 'mock')
       ORDER BY created_at DESC LIMIT 1
     `)
-    .get(input.phone, purpose, now) as Row | undefined
+    .get(phone, email, purpose, now) as Row | undefined
   if (!row) throw new Error("验证码无效或已过期。")
   const attempts = Number(row.attempt_count || 0)
   if (attempts >= 5) {
@@ -5264,7 +5391,7 @@ function validateVerificationCode(input: { phone: string; purpose: string; code:
   const expectedHash = String(row.code_hash || "")
   const legacyCode = String(row.code || "")
   const valid = expectedHash
-    ? safeEqualHex(expectedHash, verificationCodeHash(input.phone, purpose, input.code))
+    ? safeEqualHex(expectedHash, verificationCodeHashFor(phone, email, purpose, input.code))
     : legacyCode === input.code
   if (!valid) {
     const nextAttempts = attempts + 1
@@ -5296,19 +5423,22 @@ function normalizeVerificationPurpose(value: string) {
   return "login"
 }
 
-function assertVerificationRateLimit(phone: string, purpose: string, ip: string) {
+function assertVerificationRateLimit(target: { phone?: string; email?: string }, purpose: string, ip: string) {
   const now = nowMs()
+  const phone = target.phone || ""
+  const email = target.email || ""
   const recent = database()
-    .prepare("SELECT created_at FROM verification_codes WHERE phone = ? AND purpose = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock') ORDER BY created_at DESC LIMIT 1")
-    .get(phone, purpose, now - 60 * 1000) as Row | undefined
+    .prepare("SELECT created_at FROM verification_codes WHERE ((phone = ? AND phone <> '') OR (email = ? AND email <> '')) AND purpose = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock') ORDER BY created_at DESC LIMIT 1")
+    .get(phone, email, purpose, now - 60 * 1000) as Row | undefined
   if (recent) throw new Error("验证码发送过于频繁，请稍后再试。")
 
-  const phoneDaily = scalarWithParams(
-    "SELECT COUNT(*) AS value FROM verification_codes WHERE phone = ? AND created_at > ? AND status IN ('pending', 'sent', 'mock', 'consumed')",
+  const targetDaily = scalarWithParams(
+    "SELECT COUNT(*) AS value FROM verification_codes WHERE ((phone = ? AND phone <> '') OR (email = ? AND email <> '')) AND created_at > ? AND status IN ('pending', 'sent', 'mock', 'consumed')",
     phone,
+    email,
     String(now - 24 * 60 * 60 * 1000),
   )
-  if (phoneDaily >= 10) throw new Error("该手机号今日验证码发送次数已达上限。")
+  if (targetDaily >= 10) throw new Error("该联系方式今日验证码发送次数已达上限。")
 
   if (ip) {
     const ipHash = hashValue(ip)
@@ -5321,8 +5451,13 @@ function assertVerificationRateLimit(phone: string, purpose: string, ip: string)
   }
 }
 
+function verificationCodeHashFor(phone: string, email: string, purpose: string, code: string) {
+  const target = (email || phone).toLowerCase()
+  return hashValue(`${target}:${purpose}:${code}`)
+}
+
 function verificationCodeHash(phone: string, purpose: string, code: string) {
-  return hashValue(`${phone}:${purpose}:${code}`)
+  return verificationCodeHashFor(phone, "", purpose, code)
 }
 
 function safeEqualHex(left: string, right: string) {
@@ -5354,6 +5489,19 @@ function createPhoneOnlyUser(phone: string, source: string) {
   return getUserById(userId) as AuthUser
 }
 
+function createEmailOnlyUser(email: string, source: string) {
+  const now = nowMs()
+  const userId = `user_${crypto.randomUUID().slice(0, 8)}`
+  const username = uniqueEmailUsername(email)
+  database()
+    .prepare("INSERT INTO users (id, username, phone, password_hash, name, email, avatar_id, role, plan, status, last_login_at, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(userId, username, "", "", emailUserDisplayName(email), email, DEFAULT_AVATAR_ID, "user", "free", "active", now, now, now)
+  ensureUserIdentity(userId, "email", email)
+  createWelcomeMessage(userId, source, now)
+  writeAudit(userId, "auth.register.email", { email, source })
+  return getUserById(userId) as AuthUser
+}
+
 function ensureUserIdentity(userId: string, provider: string, providerUserId: string) {
   const cleanProvider = provider.trim()
   const cleanProviderUserId = providerUserId.trim()
@@ -5376,6 +5524,22 @@ function uniquePhoneUsername(phone: string) {
     username = `${base}_${index++}`
   }
   return username
+}
+
+function uniqueEmailUsername(email: string) {
+  const local = (email.split("@")[0] || "user").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 16)
+  const base = `u_${local}_${randomUUID().slice(0, 4)}`
+  let username = base
+  let index = 1
+  while (database().prepare("SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1").get(username)) {
+    username = `${base}_${index++}`
+  }
+  return username
+}
+
+function emailUserDisplayName(email: string) {
+  const local = String(email || "").split("@")[0] || email || ""
+  return local
 }
 
 function authUserDisplayName(row: Row, username: string) {
@@ -5405,7 +5569,7 @@ function createWelcomeMessage(userId: string, source: string, createdAt: number)
     id: `${userId}-welcome-v1`,
     userId,
     kind: "system",
-    title: "欢迎使用 ModCar AI",
+    title: "欢迎使用 OnCar AI",
     body: "这里会收纳站内信、充值状态、订阅成功、订阅失败和到期提醒。",
     metadata: { source },
     createdAt,
