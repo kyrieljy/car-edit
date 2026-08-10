@@ -1,0 +1,6 @@
+在项目根目录执行插入：
+
+sqlite3 data/car_mod_effect.sqlite < data/insert_data.sql
+
+sqlite3 data/car_mod_effect.sqlite < data/delete_data.sql
+所有测试数据 ID 均带 test_ 前缀，与现有系统数据隔离，不会冲突。
