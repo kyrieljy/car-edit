@@ -2,6 +2,20 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-08-10
+
+### 对话模式侧边栏头部精简与折叠按钮重排 (DESIGN-20260810-001)
+
+#### 修改
+- [修改] `components/chat-mode.tsx` `ChatHistorySidebar`：PC 桌面端移除顶部 "* AI 助手" 头部整行（星标 + 文字 + 折叠按钮），折叠按钮下移到搜索框同一行左侧（`.chat-search-row` 包裹按钮 + `.chat-search`），点击仍折叠侧边栏；移动端抽屉头部（含 X 关闭）保持不变 (关联方案ID: DESIGN-20260810-001)
+- [修改] `app/globals.css` 新增 `.chat-search-row` / `.chat-search-toggle` 布局与按钮样式；`.chat-search` 改为 `flex:1` 且 `margin:0`；短视口媒体查询的目标类由 `.chat-search` 改为 `.chat-search-row` (关联方案ID: DESIGN-20260810-001)
+- [修改] `components/chat-mode.tsx` 折叠态（88px）：移除 `collapsed-actions` 中的「新建对话」(`+`) 与「搜索」(放大镜) 两个按钮，改为单个向右箭头 `>` (`ChevronRight`) 展开按钮（`.chat-expand-toggle`，点击 `setCollapsed(false)` 展开）；新增 `expand` 文案键（中/英）；`app/globals.css` 新增 `.collapsed-actions .chat-expand-toggle` 描边样式 (关联方案ID: DESIGN-20260810-001)
+- [修改] 折叠态显示微调：折叠宽度由 88px 收窄为 44px（`.chat-history-sidebar.collapsed` 两处 width 及 `ChatHistorySidebar` 的 `animate` 内联宽度同步改为 44）；`.collapsed-actions button` 由 48×48 缩为 34×34 以适配窄条；移除 `.chat-expand-toggle` 描边（无边框的 `>` 按钮） (关联方案ID: DESIGN-20260810-001)
+
+#### 影响
+- 桌面端侧边栏顶部更紧凑，折叠/展开（320px ↔ 88px）能力与动画保持不变；折叠态经 `collapsed-actions` 搜索按钮再展开。
+- 移动端抽屉 UI 与关闭行为无回归。
+
 ## 2026-08-07
 
 ### 模型 API 画质参数可配置化 (DESIGN-20260807-001)

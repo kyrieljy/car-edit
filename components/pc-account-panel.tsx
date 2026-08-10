@@ -192,10 +192,10 @@ export function PcAccountPanel({
             exit={{ opacity: 0, y: 14, scale: 0.98 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
             onClick={(event) => event.stopPropagation()}
-            aria-label={copy.title}
+            aria-label={language === "zh" ? "账户中心" : "Account"}
           >
             <aside className="pc-account-sidebar">
-              <div className="pc-account-sidebar-title">{copy.title}</div>
+              <div className="pc-account-sidebar-title">{language === "zh" ? "账户中心" : "Account"}</div>
               <nav className="pc-account-menu">
                 {menuItems.map((item) => {
                   const Icon = item.icon

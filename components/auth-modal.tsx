@@ -163,7 +163,7 @@ const authCopy = {
     close: "关闭",
     back: "返回",
     account: "账号",
-    oneTapTitle: "ModCar AI",
+    oneTapTitle: "本机号码一键登录",
     oneTapSubtitle: "运营商将为当前设备提供号码认证服务。",
     oneTapCta: "本机号码一键登录/注册",
     moreMethods: "更多登录方式",

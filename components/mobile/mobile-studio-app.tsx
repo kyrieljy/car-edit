@@ -899,8 +899,7 @@ export function MobileLoadingScreen({ language = "zh" }: { language?: Language }
         <b />
       </div>
       <div className="mobile-loading-copy">
-        <strong>ModCar AI</strong>
-        <span>{language === "zh" ? "正在加载工作室" : "Loading ModCar AI"}</span>
+        <span>{language === "zh" ? "正在加载工作室" : "Loading…"}</span>
       </div>
       <div className="mobile-loading-progress" aria-hidden="true">
         <em />
@@ -2547,9 +2546,6 @@ function MobileMenuDrawer({
             transition={{ type: "spring", stiffness: 260, damping: 30 }}
           >
             <header className="mobile-menu-drawer-head">
-              <div>
-                <span className="mobile-floating-title">ModCar AI</span>
-              </div>
               <button type="button" onClick={onClose} aria-label={isZh ? "关闭" : "Close"}>
                 <X size={18} />
               </button>
@@ -2675,7 +2671,6 @@ function MobileHistoryDrawer({ open, onClose, ...props }: MobileStudioAppProps &
           >
             <header className="mobile-history-drawer-head">
               <div>
-                <span>ModCar AI</span>
                 <strong>{t.history}</strong>
               </div>
               <button type="button" onClick={onClose} aria-label="Close history">
@@ -3611,7 +3606,7 @@ function MobileChatMode({
   return (
     <section className="mobile-screen mobile-chat-screen">
       <MobileScreenHead
-        eyebrow="ModCar AI"
+        eyebrow=""
         title={language === "zh" ? "对话模式" : "Chat mode"}
         language={language}
         onLanguage={toggleLanguage}
@@ -3697,7 +3692,7 @@ function MobileFloatingTopBar({
         <button type="button" className="mobile-floating-menu" onClick={onMenu} aria-label="Open drawer">
           <Menu size={19} />
         </button>
-        <span className="mobile-floating-title">ModCar AI</span>
+        <img src="/logo/logo.svg" alt="OnCar AI" className="mobile-floating-logo" />
       </div>
       <div className="mobile-floating-actions">
         <button type="button" className="mobile-floating-profile" onClick={onProfile} aria-label="Profile">

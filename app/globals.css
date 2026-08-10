@@ -10211,11 +10211,36 @@ a {
   position: relative;
   display: flex;
   align-items: center;
-  margin: 18px 14px 0;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   border: 1px solid #27272a;
   border-radius: 999px;
   background: #09090b;
   color: #a1a1aa;
+}
+
+.chat-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 14px 0;
+}
+
+.chat-search-toggle {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #f4f4f5;
+  display: grid;
+  place-items: center;
+}
+
+.chat-search-toggle:hover {
+  background: #27272a;
 }
 
 .chat-search svg {
@@ -11866,7 +11891,7 @@ a {
 }
 
 .chat-history-sidebar.collapsed {
-  width: 88px;
+  width: 44px;
   align-items: center;
 }
 
@@ -11900,8 +11925,8 @@ a {
 }
 
 .collapsed-actions button {
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
 }
 
 .chat-history-sidebar:not(.collapsed) > :not(.chat-history-head) {
@@ -12036,7 +12061,7 @@ a {
     flex-basis: 42px;
   }
 
-  .chat-active-shell .chat-search,
+  .chat-active-shell .chat-search-row,
   .chat-active-shell .new-chat-button {
     margin-top: 12px;
     margin-bottom: 12px;
@@ -12530,7 +12555,7 @@ a {
 }
 
 .chat-history-sidebar.collapsed {
-  width: 88px;
+  width: 44px;
   flex: 0 0 auto;
   background: #18181b;
 }
@@ -26163,4 +26188,41 @@ a {
 
 .admin-clinical .styled-select__check {
   color: var(--clinical-teal);
+}
+
+/* Brand logo (replaces "ModCar AI" wordmark) — stable path /logo/logo.svg */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.studio-brand {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.studio-brand-logo {
+  display: block;
+  height: 60px;
+  width: auto;
+  filter: invert(1);
+}
+
+.mobile-floating-logo {
+  display: block;
+  height: 52px;
+  width: auto;
+  filter: invert(1);
+}
+
+.mobile-studio-app[data-theme="light"] .mobile-floating-logo {
+  filter: none;
 }

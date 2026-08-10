@@ -8,13 +8,13 @@ import {
   ArrowUp,
   Car,
   ChevronDown,
+  ChevronRight,
   Clock,
   ImageIcon,
   ImageOff,
   Menu,
   Mic,
   PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Search,
   Sparkles,
@@ -89,7 +89,7 @@ const chatCopy = {
     partsOnlyRequest: "Uploaded part references",
     regenerate: "Regenerate",
     download: "Download",
-    assistant: "ModCar AI",
+    assistant: "Assistant",
     workspace: "Remaining quota",
     promptLabel: "Prompt examples",
     promptEmpty: "No prompt examples configured.",
@@ -102,6 +102,7 @@ const chatCopy = {
     exposedCarbon: "Exposed carbon",
     preview: "Preview",
     deleteChat: "Delete chat",
+    expand: "Expand",
   },
   zh: {
     headline: "\u8bf7\u4e0a\u4f20\u4f60\u7684\u8f66\u8f86\u7167\u7247\uff0c\u5e76\u63cf\u8ff0\u60f3\u8981\u7684\u6539\u88c5\u6548\u679c\u3002",
@@ -130,7 +131,7 @@ const chatCopy = {
     partsOnlyRequest: "\u5df2\u4e0a\u4f20\u914d\u4ef6\u53c2\u8003\u56fe",
     regenerate: "\u91cd\u65b0\u751f\u6210",
     download: "\u4e0b\u8f7d",
-    assistant: "ModCar AI",
+    assistant: "AI 助手",
     workspace: "\u5269\u4f59\u989d\u5ea6",
     promptLabel: "\u63a8\u8350\u63d0\u793a\u8bcd",
     promptEmpty: "\u540e\u53f0\u5c1a\u672a\u914d\u7f6e\u63d0\u793a\u8bcd\u3002",
@@ -143,6 +144,7 @@ const chatCopy = {
     exposedCarbon: "\u88f8\u78b3",
     preview: "\u9884\u89c8",
     deleteChat: "\u5220\u9664\u5bf9\u8bdd",
+    expand: "\u5c55\u5f00",
   },
 }
 
@@ -1662,16 +1664,18 @@ function ChatHistorySidebar({
     <motion.aside
       className={effectiveCollapsed ? "chat-history-sidebar collapsed" : "chat-history-sidebar"}
       initial={false}
-      animate={isMobileDrawer ? false : { width: effectiveCollapsed ? 88 : 320 }}
+      animate={isMobileDrawer ? false : { width: effectiveCollapsed ? 44 : 320 }}
       transition={{ type: "spring", stiffness: 260, damping: 32, mass: 0.86 }}
     >
-      <div className={effectiveCollapsed ? "chat-history-head collapsed" : "chat-history-head"}>
-        <div className="assistant-mark">*</div>
-        {!effectiveCollapsed && <strong>{t.assistant}</strong>}
-        <button onClick={handleSidebarToggle} aria-label={isMobileDrawer ? "Close chat history" : "Toggle chat history"}>
-          {isMobileDrawer ? <X size={19} /> : effectiveCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
-        </button>
-      </div>
+      {isMobileDrawer && (
+        <div className="chat-history-head">
+          <div className="assistant-mark">*</div>
+          <strong>{t.assistant}</strong>
+          <button onClick={handleSidebarToggle} aria-label="Close chat history">
+            <X size={19} />
+          </button>
+        </div>
+      )}
 
       <AnimatePresence initial={false} mode="wait">
         {!effectiveCollapsed ? (
@@ -1684,10 +1688,15 @@ function ChatHistorySidebar({
             transition={{ duration: 0.18 }}
           >
             {!isMobileDrawer && (
-              <label className="chat-search">
-                <Search size={18} />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
-              </label>
+              <div className="chat-search-row">
+                <button className="chat-search-toggle" onClick={handleSidebarToggle} aria-label="Toggle chat history">
+                  <PanelLeftClose size={19} />
+                </button>
+                <label className="chat-search">
+                  <Search size={18} />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
+                </label>
+              </div>
             )}
             <button className="new-chat-button" onClick={handleNewChat}>
               <Plus size={18} />
@@ -1714,11 +1723,8 @@ function ChatHistorySidebar({
             exit={{ opacity: 0, x: -8 }}
             transition={{ duration: 0.16 }}
           >
-            <button onClick={handleNewChat} aria-label={t.newChat}>
-              <Plus size={20} />
-            </button>
-            <button aria-label={t.search} onClick={() => setCollapsed(false)}>
-              <Search size={20} />
+            <button className="chat-expand-toggle" onClick={() => setCollapsed(false)} aria-label={t.expand}>
+              <ChevronRight size={22} />
             </button>
           </motion.div>
         )}

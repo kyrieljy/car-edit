@@ -194,7 +194,7 @@ const paintCopy: Record<Language, Record<string, string>> = {
 
 const copy = {
   en: {
-    title: "ModCar AI",
+    title: "Studio",
     configMode: "Config Mode",
     chatMode: "Chat Mode",
     input: "Input",
@@ -248,7 +248,7 @@ const copy = {
     dryRunCompleted: "Dry run completed.",
   },
   zh: {
-    title: "ModCar AI",
+    title: "工作室",
     configMode: "自选配置",
     chatMode: "模型对话",
     input: "输入",
@@ -333,7 +333,7 @@ const studioPaintCopy: typeof paintCopy = {
 const studioCopy: typeof copy = {
   en: copy.en,
   zh: {
-    title: "ModCar AI",
+    title: "工作室",
     configMode: "自选配置",
     chatMode: "模型对话",
     input: "输入",
@@ -571,7 +571,7 @@ const cleanStudioCopy = {
     elapsedUnit: "sec",
   },
   zh: {
-    title: "ModCar AI",
+    title: "工作室",
     configMode: "配置模式",
     chatMode: "对话模式",
     input: "输入",
@@ -650,8 +650,7 @@ function ResponsiveStudioLoading({ language, text }: { language: Language; text:
           <b />
         </div>
         <div className="mobile-loading-copy">
-          <strong>ModCar AI</strong>
-          <span>{language === "zh" ? "正在加载工作室" : "Loading ModCar AI"}</span>
+          <span>{language === "zh" ? "正在加载工作室" : "Loading…"}</span>
         </div>
         <div className="mobile-loading-progress" aria-hidden="true">
           <em />
@@ -1660,7 +1659,10 @@ export function CarModStudio() {
       )}
       <div className={shellMode === "chat" ? "studio-card chat-card" : "studio-card"}>
         <header className="studio-header">
-          <h1>{t.title}</h1>
+          <div className="studio-brand">
+            <img src="/logo/logo.svg" alt="OnCar AI" className="studio-brand-logo" />
+          </div>
+          <h1 className="sr-only">OnCar AI</h1>
           <ModeSwitch mode={appMode} setMode={setAppMode} labels={{ config: t.configMode, chat: t.chatMode }} />
           <div className="studio-header-actions" data-auth={authUser ? "authed" : "guest"} data-role={authUser?.role ?? "guest"}>
             <button className="language-toggle" data-lang={language} onClick={toggleLanguage}>
