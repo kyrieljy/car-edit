@@ -1,4 +1,4 @@
-import type { AccountAvatarPreset, AccountMessage, AuthUser, EntitlementStatus, PaymentOrder } from "@/lib/types"
+import type { AccountAvatarPreset, AccountMessage, AuthUser, EntitlementStatus, GenerationJob, PaymentOrder, UsageDay } from "@/lib/types"
 
 export type AccountPayload = {
   user: AuthUser
@@ -62,6 +62,16 @@ export async function refreshAccountBilling() {
 export async function getAccountOrders() {
   const response = await fetch("/api/billing/orders")
   return readJsonResponse<{ orders: PaymentOrder[] }>(response, "Orders loading failed.")
+}
+
+export async function getAccountGarage() {
+  const response = await fetch("/api/garage")
+  return readJsonResponse<{ generations: GenerationJob[] }>(response, "Garage loading failed.")
+}
+
+export async function getUsageSeries(days = 7) {
+  const response = await fetch(`/api/usage?days=${Math.min(30, Math.max(1, Math.trunc(Number(days)) || 7))}`)
+  return readJsonResponse<{ series: UsageDay[] }>(response, "Usage loading failed.")
 }
 
 export async function listAccountMessages() {

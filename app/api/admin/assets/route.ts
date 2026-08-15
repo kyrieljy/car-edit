@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       id,
       categoryId: String(body.categoryId),
       brandId: typeof body.brandId === "string" ? body.brandId : undefined,
-      brand: String(body.brand || "Custom"),
+      brand: typeof body.brand === "string" ? body.brand : "Custom",
       model: String(body.model || "Asset"),
       variant: String(body.variant || "Default"),
       keywords: String(body.keywords || ""),

@@ -1011,6 +1011,7 @@ export function CarModStudio() {
       if (!response.ok) {
         const message = String(body.error || `Vehicle recognition failed. HTTP ${response.status}`)
         if (response.status === 401) setAuthOpen(true)
+        else if (response.status === 403 && String(body.code || "") === "quota_exhausted") setSubscribeOpen(true)
         setNotice(message)
         setVehicleRecognitionError(message)
         if (!vehicleNoteEditedRef.current) {
@@ -1067,8 +1068,11 @@ export function CarModStudio() {
     setJob(null)
     setViewMode("original")
     setNotice("")
-    void recognizeVehicle(file)
-  }, [recognizeVehicle, t.invalidFile])
+  }, [t.invalidFile])
+
+  const handleRecognizeVehicle = useCallback(() => {
+    if (vehicleFile) void recognizeVehicle(vehicleFile)
+  }, [vehicleFile, recognizeVehicle])
 
   useEffect(() => {
     if (appMode !== "config" || isMobileViewport) return
@@ -1257,6 +1261,7 @@ export function CarModStudio() {
       formData.append("vehicleNote", vehicleNoteEdited ? vehicleNote.trim() : "")
       const displayModel = displayVehicleNote && !isInternalVehicleModel(displayVehicleNote) ? displayVehicleNote : ""
       if (displayModel) formData.append("displayVehicleModel", displayModel)
+      if (detectedVehicleBrand) formData.append("vehicleBrand", detectedVehicleBrand)
       formData.append("paintId", paintId)
       formData.append("paintFinishEffect", paintFinishEffect)
       if (isGradientPaint) {
@@ -1494,6 +1499,9 @@ export function CarModStudio() {
         setVehicleNoteEdited={setVehicleNoteEdited}
         vehicleDisplayName={vehicleDisplayName}
         vehicleRecognitionError={vehicleRecognitionError}
+        onRecognizeVehicle={handleRecognizeVehicle}
+        isRecognizingVehicle={isRecognizingVehicle}
+        recognized={Boolean(vehicleNote)}
         selectedAssets={selectedAssets}
         selections={selections}
         selectAsset={selectAsset}
@@ -1712,26 +1720,42 @@ export function CarModStudio() {
               transition={{ type: "spring", stiffness: 260, damping: 28 }}
             >
               <section className="input-column">
-                <section className="detected-vehicle-card">
-                  <label htmlFor="vehicle-model-input">{t.detected}</label>
-                  <input
-                    id="vehicle-model-input"
-                    className="vehicle-model-input"
-                    value={vehicleNote}
-                    onChange={(event) => {
-                      setVehicleNote(event.target.value)
-                      setVehicleNoteEdited(true)
-                    }}
-                    placeholder={vehicleDisplayName}
-                    disabled={!vehiclePreview && !vehicleNote}
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-label={t.detected}
-                  />
-                  {vehicleRecognitionError ? (
-                    <small className="vehicle-recognition-error">{vehicleRecognitionError}</small>
-                  ) : null}
-                </section>
+                {vehicleNote || isRecognizingVehicle ? (
+                  <section className="detected-vehicle-card">
+                    <label htmlFor="vehicle-model-input">{t.detected}</label>
+                    <input
+                      id="vehicle-model-input"
+                      className="vehicle-model-input"
+                      value={vehicleNote}
+                      onChange={(event) => {
+                        setVehicleNote(event.target.value)
+                        setVehicleNoteEdited(true)
+                      }}
+                      placeholder={vehicleDisplayName}
+                      disabled={!vehiclePreview && !vehicleNote}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-label={t.detected}
+                    />
+                    {isRecognizingVehicle ? (
+                      <small className="vehicle-recognition-hint">
+                        {language === "en" ? "Recognizing vehicle..." : "正在识别车型..."}
+                      </small>
+                    ) : null}
+                    {vehicleRecognitionError ? (
+                      <small className="vehicle-recognition-error">{vehicleRecognitionError}</small>
+                    ) : null}
+                  </section>
+                ) : (
+                  <button
+                    type="button"
+                    className="recognize-vehicle-button recognize-vehicle-button--block"
+                    onClick={handleRecognizeVehicle}
+                  >
+                    <Car size={15} />
+                    <span>{t.detected}</span>
+                  </button>
+                )}
 
                 <section className="images-block">
                   <div className="block-title">
@@ -2500,6 +2524,11 @@ export function CarModStudio() {
             setBilling(nextBilling)
           }}
           onLogout={logout}
+          onOpenJob={(job) => {
+            setProfileOpen(false)
+            setActiveMenu("edit")
+            selectHistoryJob(job)
+          }}
         />
       </div>
       {riskPopup &&

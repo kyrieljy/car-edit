@@ -1088,6 +1088,37 @@ http://127.0.0.1:3000  （开发环境）
 
 ---
 
+### 用量遥测模块（Usage）
+
+#### 获取近 N 日用量序列
+
+- **路径**：`GET /api/usage`
+- **描述**：返回当前用户近 N 日（默认 7，最大 30）按日聚合的用量序列，用于在「个人中心 · 用量」面板绘制近 7 日消耗折线图。配置生成（config）与对话生成（chat）分别统计，缺失日期补零。
+- **鉴权**：需认证（携带有效 Session Cookie）
+- **请求参数**（Query）：
+
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | days | number | 否 | 返回天数，范围 1~30，默认 7 |
+
+- **响应格式**：
+
+  ```json
+  {
+    "series": [
+      { "date": "2026-08-09", "configUsed": 3, "chatUsed": 1 },
+      { "date": "2026-08-10", "configUsed": 0, "chatUsed": 2 }
+    ]
+  }
+  ```
+
+- **数据来源**：`usage_ledger` JOIN `generation_jobs`（按 `strftime('%Y-%m-%d', ul.created_at/1000, 'unixepoch')` 与 `gj.mode` 分组聚合）；`usage_ledger` 本身无 `mode` 列，故需关联 `generation_jobs.mode` 区分 config / chat。
+- **错误码**：401（未认证）；`days` 越界时服务端自动钳制到 1~30，不报错。
+- **关联数据表**：`usage_ledger`、`generation_jobs`
+- **关联方案**：DESIGN-20260815-001
+
+---
+
 ### 生成模块（Generations）
 
 #### 配置模式图片生成
@@ -1105,6 +1136,7 @@ http://127.0.0.1:3000  （开发环境）
   | selectionOptions | string | 否 | 配件选配选项（JSON 字符串），格式：`{"category_id": {"colorPolicy": "body_color"}, ...}` |
   | vehicleNote | string | 否 | 车辆备注信息 |
   | displayVehicleModel | string | 否 | 显示用车型名称 |
+  | vehicleBrand | string | 否 | 模型识别出的车辆品牌，落库至 `generation_jobs.vehicle_brand`，供后台按品牌筛选 (DESIGN-20260815-002 新增) |
   | paintFinishEffect | string | 否 | 车漆表面效果，取值：`gloss`、`metallic`、`matte`、`satin`、`pearl`、`chrome`、`gradient` |
   | gradientPaintJson | string | 否 | 渐变车漆配置（JSON 字符串），格式：`{"fromHex": "#000000", "toHex": "#ffffff", "direction": "front_to_rear"}` |
   | customPaintJson | string | 否 | 自定义车漆配置（JSON 字符串） |
@@ -1250,7 +1282,7 @@ http://127.0.0.1:3000  （开发环境）
 #### 车辆/配件识别
 
 - **路径**：`POST /api/vehicle-recognition`
-- **描述**：上传车辆图片和配件图片，调用 AI 进行识别，返回识别结果及安全检查结果。
+- **描述**：上传车辆图片和配件图片，调用 AI 进行识别，返回识别结果及安全检查结果。**识别车型需用户主动触发**（前端不再自动识别）。额度规则：未订阅用户（`configRemaining !== "unlimited"`）每次识别消耗 1 次 config 生成额度（`checkAndConsumeEntitlement`），识别成功（确认为车辆）才扣减，识别失败或非车辆照片则 `refundEntitlementUsage` 退回额度；已订阅用户（`configRemaining === "unlimited"`）任意使用、不扣额度。额度不足返回 403（响应体 `code: "quota_exhausted"`），前端引导升级订阅。
 - **请求参数**（FormData）：
 
   | 参数名 | 类型 | 必填 | 描述 |
@@ -1263,7 +1295,11 @@ http://127.0.0.1:3000  （开发环境）
   ```json
   {
     "workflowId": "wf_xxxxx",
+    "detectedModel": "Tesla Model 3",
+    "detectedBrand": "Tesla",
     "vehicle": {
+      "isVehicle": true,
+      "brand": "Tesla",
       "model": "Tesla Model 3",
       "view": "front_left",
       "sourceImageUrl": "/uploads/vehicle-xxx.jpg",
@@ -1295,7 +1331,8 @@ http://127.0.0.1:3000  （开发环境）
   }
   ```
 
-- **错误码**：400（缺少车辆图片）、401（未认证）、502（上游服务异常）
+  - 响应字段说明新增：`detectedBrand`（顶层品牌，模型识别结果）、`vehicle.brand`（车辆品牌）。
+- **错误码**：400（缺少车辆图片 / 非车辆照片）、401（未认证）、403（额度不足，`code: "quota_exhausted"`）、502（上游服务异常）
 
 ---
 
@@ -1548,6 +1585,26 @@ http://127.0.0.1:3000  （开发环境）
 | `PATCH` | `/api/admin/assets` | 批量排序配件资产 |
 | `PATCH` | `/api/admin/assets/[id]` | 更新指定配件资产 |
 | `DELETE` | `/api/admin/assets/[id]` | 删除指定配件资产 |
+
+##### 删除指定配件资产
+
+- **路径**：`DELETE /api/admin/assets/[id]`
+- **描述**：删除单个改装配件资源。管理员权限。采用引用保护策略：若配件被组合预设（`prompt_templates` 表 `asset_id` 引用）引用，则拒绝删除并返回 400，提示先解除引用；无实时引用时级联删除该配件的参考图（`part_asset_references`）后硬删 `part_assets` 记录，并写入审计日志。历史生成记录（`generation_jobs` 以 JSON 存储配件选择、无外键）不参与阻止判断。
+- **路径参数**：
+  | 参数名 | 类型 | 必填 | 描述 |
+  |--------|------|------|------|
+  | id | string | 是 | 配件资产 ID |
+- **响应格式**：
+  ```json
+  { "ok": true }
+  ```
+- **错误码**：
+  | 状态码 | 说明 |
+  |--------|------|
+  | 400 | 配件被组合预设引用，拒绝删除；或配件不存在 |
+  | 401 | 未登录 / 非管理员 |
+- **关联数据表**：`part_assets`、`part_asset_references`、`prompt_templates`
+- **关联方案ID**：DESIGN-20260811-001
 
 ---
 
@@ -2057,7 +2114,7 @@ http://127.0.0.1:3000  （开发环境）
 #### 生成记录分页列表
 
 - **路径**：`GET /api/admin/generations`
-- **描述**：分页查询生成记录列表，支持 6 维筛选（时间范围、生成模式、状态、AI 提供商、用户查询、配件分类）、3 维排序（创建时间/成本/耗时），并返回聚合统计信息。
+- **描述**：分页查询生成记录列表，支持 7 维筛选（时间范围、生成模式、状态、AI 提供商、用户查询、配件分类、品牌）、3 维排序（创建时间/成本/耗时），并返回聚合统计信息。
 - **查询参数**：
 
   | 参数名 | 类型 | 必填 | 描述 |
@@ -2071,6 +2128,7 @@ http://127.0.0.1:3000  （开发环境）
   | providerId | string | 否 | AI 提供商 ID |
   | userQuery | string | 否 | 用户名或手机号模糊匹配 |
   | partCategory | string | 否 | 配件分类 ID 筛选 |
+  | brand | string | 否 | 车辆品牌模糊匹配（`generation_jobs.vehicle_brand` LIKE），模型识别结果 (DESIGN-20260815-002 新增) |
   | sortBy | string | 否 | 排序字段（`created_at` / `cost` / `duration`），默认 `created_at` |
   | sortOrder | string | 否 | 排序方向（`asc` / `desc`），默认 `desc` |
 
@@ -2089,6 +2147,7 @@ http://127.0.0.1:3000  （开发环境）
         "provider": "fal-ai",
         "providerLabel": "fal.ai",
         "displayVehicleModel": "Tesla Model 3",
+        "vehicleBrand": "Tesla",
         "resultImageUrl": "/results/provider_xxx-gen_xxxxx.png",
         "promptSummary": "...",
         "costCents": 10,
@@ -2208,6 +2267,7 @@ http://127.0.0.1:3000  （开发环境）
   | providerId | string | 否 | AI 提供商 ID |
   | userQuery | string | 否 | 用户名或手机号模糊匹配 |
   | partCategory | string | 否 | 配件分类 ID 筛选 |
+  | brand | string | 否 | 车辆品牌模糊匹配（与列表接口一致，DESIGN-20260815-002 新增） |
 
 - **响应格式**：
 

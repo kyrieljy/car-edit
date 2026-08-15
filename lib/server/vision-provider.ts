@@ -32,6 +32,7 @@ export type VehicleRecognitionResponse = {
   ok: boolean
   provider: ProviderId
   model: string
+  brand: string
   view: string
   confidence: number
   isVehicle: boolean
@@ -84,6 +85,7 @@ export async function recognizeVehicleWithProvider(input: VehicleRecognitionRequ
       ok: true,
       provider: input.provider.id,
       model: "BMW M4 coupe (F82)",
+      brand: "BMW",
       view: "front three-quarter",
       confidence: 0.88,
       isVehicle: true,
@@ -107,38 +109,53 @@ export async function recognizeVehicleWithProvider(input: VehicleRecognitionRequ
   if (!input.provider.modelName.trim()) return vehicleRecognitionError(input.provider, started, "Vision Provider 未配置模型名称。")
 
   const endpoint = chatCompletionsEndpoint(input.provider.baseUrl)
-  const imageUrl = await fileToDataUrl(input.image)
-  const response = await fetchWithTimeout(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: input.provider.modelName,
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: input.prompt || defaultVehicleRecognitionPrompt(),
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "请识别这张用户上传的车辆照片。只返回 JSON，不要返回 Markdown。",
-            },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl },
-            },
-          ],
-        },
-      ],
-    }),
-  }, VISION_PROVIDER_TIMEOUT_MS)
+  let imageUrl: string
+  try {
+    imageUrl = await fileToDataUrl(input.image)
+  } catch (error) {
+    return vehicleRecognitionError(input.provider, started, error instanceof Error ? error.message : "车辆图片读取失败。")
+  }
+  let response: Response
+  try {
+    response = await fetchWithTimeout(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.provider.modelName,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: input.prompt || defaultVehicleRecognitionPrompt(),
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "请识别这张用户上传的车辆照片。只返回 JSON，不要返回 Markdown。",
+              },
+              {
+                type: "image_url",
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
+        ],
+      }),
+    }, VISION_PROVIDER_TIMEOUT_MS)
+  } catch (error) {
+    return vehicleRecognitionError(
+      input.provider,
+      started,
+      `Vision Provider 调用失败：${error instanceof Error ? error.message : "网络错误"}`,
+      { provider: input.provider.id },
+    )
+  }
   const raw = (await response.json().catch(() => ({}))) as Record<string, unknown>
   if (!response.ok) {
     return vehicleRecognitionError(
@@ -178,38 +195,53 @@ export async function recognizePartWithProvider(input: PartRecognitionRequest): 
   if (!input.provider.modelName.trim()) return partRecognitionError(input.provider, started, "Vision Provider 未配置模型名称。")
 
   const endpoint = chatCompletionsEndpoint(input.provider.baseUrl)
-  const imageUrl = await fileToDataUrl(input.image)
-  const response = await fetchWithTimeout(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: input.provider.modelName,
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: partRecognitionPrompt(input.prompt, input.categories),
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Identify this uploaded car part reference image. File name: ${input.fileName}. Return JSON only.`,
-            },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl },
-            },
-          ],
-        },
-      ],
-    }),
-  }, VISION_PROVIDER_TIMEOUT_MS)
+  let imageUrl: string
+  try {
+    imageUrl = await fileToDataUrl(input.image)
+  } catch (error) {
+    return partRecognitionError(input.provider, started, error instanceof Error ? error.message : "配件图片读取失败。")
+  }
+  let response: Response
+  try {
+    response = await fetchWithTimeout(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.provider.modelName,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: partRecognitionPrompt(input.prompt, input.categories),
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Identify this uploaded car part reference image. File name: ${input.fileName}. Return JSON only.`,
+              },
+              {
+                type: "image_url",
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
+        ],
+      }),
+    }, VISION_PROVIDER_TIMEOUT_MS)
+  } catch (error) {
+    return partRecognitionError(
+      input.provider,
+      started,
+      `Vision Provider 调用失败：${error instanceof Error ? error.message : "网络错误"}`,
+      { provider: input.provider.id },
+    )
+  }
   const raw = (await response.json().catch(() => ({}))) as Record<string, unknown>
   if (!response.ok) {
     return partRecognitionError(
@@ -363,6 +395,7 @@ function vehicleRecognitionError(
     ok: false,
     provider: provider.id,
     model: "",
+    brand: "",
     view: "unknown",
     confidence: 0,
     isVehicle: false,
@@ -531,7 +564,8 @@ function normalizeVehicleRecognition(input: Record<string, unknown>) {
   const qualityFlags = normalizeStringList(firstValue(records, ["qualityFlags", "quality_flags", "flags", "issues"]))
   const vehicleFlag = firstBoolean(records, ["isVehicle", "is_vehicle", "isCar", "is_car", "vehicle", "car"])
   const isVehicle = typeof vehicleFlag === "boolean" ? vehicleFlag : Boolean(model || !rejectReason)
-  return { model, view, confidence, isVehicle, qualityFlags, rejectReason }
+  const brand = firstCleanString(records, ["brand", "make", "manufacturer", "marque"])
+  return { model, brand, view, confidence, isVehicle, qualityFlags, rejectReason }
 }
 
 function normalizePartRecognition(input: Record<string, unknown>, categories?: PartCategoryAliasSource[]) {

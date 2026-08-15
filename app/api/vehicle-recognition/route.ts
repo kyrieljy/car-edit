@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireUser } from "@/lib/server/auth"
-import { getCatalog, getProviderApiKey, getWorkflowConfigByMode } from "@/lib/server/db"
+import {
+  getBillingStatus,
+  getCatalog,
+  getProviderApiKey,
+  getWorkflowConfigByMode,
+  checkAndConsumeEntitlement,
+  refundEntitlementUsage,
+} from "@/lib/server/db"
 import { runMockGuardrail } from "@/lib/server/guardrail"
 import { recognizePartWithProvider, recognizeVehicleWithProvider } from "@/lib/server/vision-provider"
 import { validateImageUpload, validateImageUploadTotal } from "@/lib/upload-limits"
@@ -10,7 +17,7 @@ export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {
-    requireUser()
+    const user = requireUser()
     const formData = await request.formData()
     const file = formData.get("vehicleImage")
     const partImages = formData.getAll("partImages").filter((item): item is File => item instanceof File)
@@ -52,6 +59,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "图片识别 Workflow 未配置可用的车辆识别模型。" }, { status: 400 })
     }
 
+    // 订阅判断：未订阅（额度有限）用户每次识别车型消耗 1 次 config 生成额度；已订阅（unlimited）免费使用
+    const billingStatus = getBillingStatus(user.id)
+    const requiresEntitlement = billingStatus.configRemaining !== "unlimited"
+    let consumedEntitlement = false
+    if (requiresEntitlement) {
+      const entitlement = checkAndConsumeEntitlement(user.id, "config")
+      if (!entitlement.allowed) {
+        return NextResponse.json(
+          { error: entitlement.reason || "识别车型额度不足，请升级会员后使用。", code: "quota_exhausted" },
+          { status: 403 },
+        )
+      }
+      consumedEntitlement = true
+    }
+
     const vehiclePrompt =
       catalog.promptTemplates.find((template) => template.id === vehicleNode?.promptTemplateId && template.active)?.body || ""
     const vehicleRecognition = await recognizeVehicleWithProvider({
@@ -61,6 +83,7 @@ export async function POST(request: Request) {
       prompt: vehiclePrompt,
     })
     if (!vehicleRecognition.ok) {
+      if (consumedEntitlement) refundEntitlementUsage(user.id, "config")
       return NextResponse.json(
         {
           workflowId: workflow.id,
@@ -72,6 +95,7 @@ export async function POST(request: Request) {
       )
     }
     if (!vehicleRecognition.isVehicle) {
+      if (consumedEntitlement) refundEntitlementUsage(user.id, "config")
       return NextResponse.json(
         {
           workflowId: workflow.id,
@@ -113,8 +137,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       workflowId: workflow.id,
       detectedModel: vehicleRecognition.model,
+      detectedBrand: vehicleRecognition.brand,
       vehicle: {
         isVehicle: vehicleRecognition.isVehicle,
+        brand: vehicleRecognition.brand,
         model: vehicleRecognition.model,
         view: vehicleRecognition.view,
         confidence: vehicleRecognition.confidence,

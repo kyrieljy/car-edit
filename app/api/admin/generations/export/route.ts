@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       providerId: url.searchParams.get("providerId") || undefined,
       userQuery: url.searchParams.get("userQuery") || undefined,
       partCategory: url.searchParams.get("partCategory") || undefined,
+      brand: url.searchParams.get("brand") || undefined,
       sortBy,
       sortOrder,
     })
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
         { key: "status", label: "Status" },
         { key: "provider", label: "Provider" },
         { key: "displayVehicleModel", label: "Vehicle" },
+        { key: "vehicleBrand", label: "Brand" },
         { key: "durationMs", label: "Duration (ms)" },
         { key: "createdAt", label: "Created At", format: (row) => new Date(Number(row.createdAt)).toISOString() },
         { key: "failureReason", label: "Failure Reason" },

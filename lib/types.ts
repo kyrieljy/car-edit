@@ -606,6 +606,12 @@ export type EntitlementStatus = {
   chatEnabled: boolean
 }
 
+export type UsageDay = {
+  date: string
+  configUsed: number
+  chatUsed: number
+}
+
 export type PaymentOrder = {
   id: string
   userId: string
@@ -816,6 +822,7 @@ export type GenerationRecordItem = {
   status: string
   provider: string
   displayVehicleModel: string
+  vehicleBrand: string
   durationMs: number | null
   createdAt: number
   completedAt: number | null

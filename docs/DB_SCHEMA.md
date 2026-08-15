@@ -387,6 +387,7 @@
   | result_url | TEXT | 否 | - | 生成结果图片地址 |
   | source_url | TEXT | 否 | - | 原始车辆图片地址 |
   | vehicle_info | TEXT | 否 | - | 车辆识别结果 JSON |
+  | vehicle_brand | TEXT | 是 | `''` | 模型识别出的车辆品牌（`POST /api/vehicle-recognition` 返回的 `detectedBrand` 透传至 `displayVehicleModel` 同级落库），供后台「生成记录」按品牌筛选 (DESIGN-20260815-002 新增) |
   | progress_json | TEXT | 否 | - | 16 步流水线进度 JSON |
   | error_message | TEXT | 否 | - | 错误信息 |
   | provider_id | TEXT | 否 | - | 使用的 Provider ID |

@@ -90,6 +90,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
   const [providerId, setProviderId] = useState('');
   const [userQuery, setUserQuery] = useState('');
   const [partCategory, setPartCategory] = useState('');
+  const [brand, setBrand] = useState('');
 
   // ---- sort state ----
   const [sortBy, setSortBy] = useState<SortColumn>('created_at');
@@ -124,10 +125,11 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
     if (providerId) params.set('providerId', providerId);
     if (userQuery.trim()) params.set('userQuery', userQuery.trim());
     if (partCategory.trim()) params.set('partCategory', partCategory.trim());
+    if (brand.trim()) params.set('brand', brand.trim());
     if (sortBy) params.set('sortBy', sortBy);
     if (sortOrder) params.set('sortOrder', sortOrder);
     return params.toString();
-  }, [page, pageSize, startDate, endDate, mode, status, providerId, userQuery, partCategory, sortBy, sortOrder]);
+  }, [page, pageSize, startDate, endDate, mode, status, providerId, userQuery, partCategory, brand, sortBy, sortOrder]);
 
   // ---- export query string (same filters but no pagination) ----
   const exportParams = useMemo(() => {
@@ -139,10 +141,11 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
     if (providerId) params.set('providerId', providerId);
     if (userQuery.trim()) params.set('userQuery', userQuery.trim());
     if (partCategory.trim()) params.set('partCategory', partCategory.trim());
+    if (brand.trim()) params.set('brand', brand.trim());
     if (sortBy) params.set('sortBy', sortBy);
     if (sortOrder) params.set('sortOrder', sortOrder);
     return params.toString();
-  }, [startDate, endDate, mode, status, providerId, userQuery, partCategory, sortBy, sortOrder]);
+  }, [startDate, endDate, mode, status, providerId, userQuery, partCategory, brand, sortBy, sortOrder]);
 
   // ---- fetch generation list ----
   const fetchList = useCallback(async () => {
@@ -201,7 +204,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
   // ---- reset page when filters change (except page/pageSize) ----
   useEffect(() => {
     setPage(1);
-  }, [startDate, endDate, mode, status, providerId, userQuery, partCategory, sortBy, sortOrder]);
+  }, [startDate, endDate, mode, status, providerId, userQuery, partCategory, brand, sortBy, sortOrder]);
 
   // ---- handlers ----
   const handleSort = useCallback(
@@ -311,6 +314,15 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
               onChange={(e) => setPartCategory(e.target.value)}
             />
           </label>
+          <label>
+            品牌
+            <input
+              type="text"
+              placeholder="品牌（识别结果）"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+            />
+          </label>
           <button className="analytics-export-btn" onClick={handleRefresh} type="button">
             <RefreshCw size={14} />
             刷新
@@ -363,6 +375,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
               <th>状态</th>
               <th>提供商</th>
               <th>车辆</th>
+              <th>品牌</th>
               <th
                 className="analytics-sortable"
                 onClick={() => handleSort('duration')}
@@ -381,16 +394,16 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
           <tbody>
             {loading && !data && (
               <tr>
-                <td colSpan={9} className="analytics-table-empty">
+              <td colSpan={10} className="analytics-table-empty">
                   加载中...
-                </td>
+              </td>
               </tr>
             )}
             {!loading && data && data.items.length === 0 && (
               <tr>
-                <td colSpan={9} className="analytics-table-empty">
+              <td colSpan={10} className="analytics-table-empty">
                   暂无数据
-                </td>
+              </td>
               </tr>
             )}
             {data?.items.map((item) => (
@@ -423,6 +436,7 @@ export default function GenerationRecords({ onOpenDetail }: GenerationRecordsPro
                 </td>
                 <td>{item.provider}</td>
                 <td>{item.displayVehicleModel || '-'}</td>
+                <td>{item.vehicleBrand || '-'}</td>
                 <td>{formatDuration(item.durationMs)}</td>
                 <td>{formatTimestamp(item.createdAt)}</td>
                 <td>

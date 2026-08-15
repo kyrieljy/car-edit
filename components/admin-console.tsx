@@ -237,7 +237,7 @@ type SubcategoryConfigEntry = {
 function SubcategoryConfigEditor({ config, onChange, categoryAssets }: {
   config: SubcategoryConfigEntry[]
   onChange: (config: SubcategoryConfigEntry[]) => void
-  categoryAssets: Array<{ id: string; model?: string; brand?: string }>
+  categoryAssets: Array<{ id: string; model?: string; brand?: string; imageUrl?: string }>
 }) {
   const addGroup = () => {
     onChange([...config, { id: "", labelZh: "", labelEn: "", sortOrder: config.length, assets: [] }])
@@ -276,14 +276,17 @@ function SubcategoryConfigEditor({ config, onChange, categoryAssets }: {
           <div className="subcategory-group-header">
             <input value={group.labelZh} onChange={(event) => updateGroup(groupIndex, { labelZh: event.target.value })} placeholder="组中文名（如：单边单出）" />
             <div className="subcategory-group-actions">
-              <button type="button" onClick={() => moveGroup(groupIndex, -1)} disabled={groupIndex === 0} aria-label="上移">
+              <button type="button" onClick={() => moveGroup(groupIndex, -1)} disabled={groupIndex === 0} aria-label="上移" title="上移">
                 <ArrowUp size={14} />
+                <span>上移</span>
               </button>
-              <button type="button" onClick={() => moveGroup(groupIndex, 1)} disabled={groupIndex === config.length - 1} aria-label="下移">
+              <button type="button" onClick={() => moveGroup(groupIndex, 1)} disabled={groupIndex === config.length - 1} aria-label="下移" title="下移">
                 <ArrowDown size={14} />
+                <span>下移</span>
               </button>
-              <button type="button" className="icon-danger" onClick={() => removeGroup(groupIndex)} aria-label="删除分组">
+              <button type="button" className="icon-danger" onClick={() => removeGroup(groupIndex)} aria-label="删除分组" title="删除分组">
                 <Trash2 size={14} />
+                <span>删除</span>
               </button>
             </div>
           </div>
@@ -296,15 +299,16 @@ function SubcategoryConfigEditor({ config, onChange, categoryAssets }: {
               <div key={assetIndex} className="subcategory-asset-row">
                 <StyledSelect value={asset.assetId} onChange={(event) => updateAsset(groupIndex, assetIndex, { assetId: event.target.value })}>
                   {categoryAssets.map((catAsset) => (
-                    <option key={catAsset.id} value={catAsset.id}>
+                    <option key={catAsset.id} value={catAsset.id} data-image={catAsset.imageUrl}>
                       {catAsset.id}{catAsset.brand || catAsset.model ? ` (${[catAsset.brand, catAsset.model].filter(Boolean).join(" ")})` : ""}
                     </option>
                   ))}
                 </StyledSelect>
                 <input value={asset.childLabelZh} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelZh: event.target.value })} placeholder="子标签中文（如：左）" />
                 <input value={asset.childLabelEn} onChange={(event) => updateAsset(groupIndex, assetIndex, { childLabelEn: event.target.value })} placeholder="子标签英文（如：Left）" />
-                <button type="button" className="icon-danger" onClick={() => removeAsset(groupIndex, assetIndex)} aria-label="删除配件">
+                <button type="button" className="icon-danger" onClick={() => removeAsset(groupIndex, assetIndex)} aria-label="删除配件" title="删除配件">
                   <Trash2 size={14} />
+                  <span>删除</span>
                 </button>
               </div>
             ))}
@@ -1649,9 +1653,21 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
     setBadCaseNotes(asset.badCaseNotes ?? "")
   }
 
+  const deleteAssetItem = async (asset: PartAsset) => {
+    if (!window.confirm("删除后将无法恢复")) return
+    const response = await fetch(`/api/admin/assets/${asset.id}`, { method: "DELETE" })
+    if (response.ok) {
+      notify("success", "配件已删除")
+      onChanged()
+    } else {
+      notify("error", await readError(response, "配件删除失败"))
+    }
+  }
+
   const createAssetItem = async () => {
     const selectedBrand = summary.brands.find((brand) => brand.id === assetBrandId)
-    if (!selectedBrand) {
+    // 仅"品牌-资源"类目需要品牌；"资源"与"资源-细分类"类目没有品牌概念，跳过品牌必填校验。
+    if (selectedCategoryConfigType === "brand_resource" && !selectedBrand) {
       notify("error", "请先选择或创建品牌")
       return
     }
@@ -1664,8 +1680,8 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
     }
     const payload = {
       categoryId,
-      brandId: selectedBrand.id,
-      brand: selectedBrand.label,
+      brandId: selectedBrand?.id ?? "",
+      brand: selectedBrand?.label ?? "",
       model: model || "Custom Part",
       variant: variant || "Default",
       keywords: cleanKeywords,
@@ -1923,6 +1939,7 @@ function AssetManagerV2({ summary, onChanged, notify }: { summary: AdminSummary;
                 qaIssues={assetQaIssues(asset, categoryById.get(asset.categoryId))}
                 onChanged={onChanged}
                 onEdit={() => editAsset(asset)}
+                onDelete={() => deleteAssetItem(asset)}
                 sortKind="asset"
                 dragging={dragState?.kind === "asset" && dragState.id === asset.id}
                 dragDisabled={Boolean(assetQuery)}
@@ -2209,6 +2226,7 @@ function AssetRow({
   qaIssues = [],
   onChanged,
   onEdit,
+  onDelete,
   sortKind,
   dragging = false,
   dragDisabled = false,
@@ -2218,6 +2236,7 @@ function AssetRow({
   qaIssues?: AssetQaIssue[]
   onChanged: () => void
   onEdit?: () => void
+  onDelete?: () => void
   sortKind?: string
   dragging?: boolean
   dragDisabled?: boolean
@@ -2280,6 +2299,7 @@ function AssetRow({
       <div className="admin-asset-actions">
         {onEdit && <button type="button" onClick={onEdit}>编辑</button>}
         <button type="button" onClick={toggle}>{asset.active ? "停用" : "启用"}</button>
+        {onDelete && <button type="button" className="delete-asset" onClick={onDelete}>删除</button>}
       </div>
     </motion.article>
   )
@@ -2892,7 +2912,6 @@ function ProviderManagerV3({
                               title={provider.builtIn ? "系统内置模型不可删除" : "删除该模型 API"}
                               onClick={() => void removeProvider(provider.id, current.label || provider.label)}
                             >
-                              <Trash2 size={16} />
                               删除
                             </button>
                           </div>
@@ -2909,7 +2928,6 @@ function ProviderManagerV3({
                             title={provider.builtIn ? "系统内置模型不可删除" : "删除该模型 API"}
                             onClick={() => void removeProvider(provider.id, current.label || provider.label)}
                           >
-                            <Trash2 size={16} />
                             删除
                           </button>
                         </div>

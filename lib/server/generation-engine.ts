@@ -12,6 +12,7 @@ type RunGenerationWorkflowInput = {
   vehicleUploadId: string
   sourceImageUrl: string
   displayVehicleModel?: string
+  vehicleBrand?: string
   standardJson: GenerationStandardJson
   paintId: string
   stance: number
@@ -139,6 +140,7 @@ export async function runGenerationWorkflow(input: RunGenerationWorkflowInput): 
     vehicleUploadId: input.vehicleUploadId,
     sourceImageUrl: input.sourceImageUrl,
     displayVehicleModel: input.displayVehicleModel,
+    vehicleBrand: input.vehicleBrand,
     resultImageUrl: response.ok ? response.resultImageUrl : "",
     paintId: input.paintId,
     stance: input.stance,

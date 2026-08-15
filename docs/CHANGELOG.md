@@ -2,6 +2,96 @@
 
 所有条目按时间倒序排列，新条目置顶。
 
+## 2026-08-15
+
+### 识别车型按钮化与生成记录品牌筛选 (DESIGN-20260815-002)
+
+#### 新增
+- [新增] `lib/server/db.ts`：`generation_jobs` 新增 `vehicle_brand TEXT` 字段（迁移），`createGeneration` 支持 `vehicleBrand`；`getGenerationList` / `GenerationListFilter` 新增 `brand` 模糊筛选并回传 `vehicleBrand`。
+- [新增] `lib/server/vision-provider.ts`：`VehicleRecognitionResponse` 新增 `brand`；`normalizeVehicleRecognition` 提取品牌；mock/error 返回补充 `brand`。
+- [新增] `components/admin/generation-records.tsx`：后台「生成记录」新增「品牌」文本筛选与表格列（CSV 导出同步含品牌）。
+- [新增] `app/globals.css`：`.recognize-vehicle-button` / `.vehicle-recognition-hint`（桌面）与 `.mobile-recognize-button` / `.mobile-recognition-hint`（移动端）样式。
+
+#### 修改
+- [修改] `components/car-mod-studio.tsx`：取消上传后自动识别，新增「识别车型」按钮（`handleRecognizeVehicle`）；识别成功后展示结果、按钮消失；生成时提交 `vehicleBrand`；识别额度不足（403 `quota_exhausted`）引导订阅弹窗。
+- [修改] `components/mobile/mobile-studio-app.tsx`：镜像识别按钮与结果/识别中状态。
+- [修改] `app/api/vehicle-recognition/route.ts`：未订阅用户点击识别消耗 1 次 config 额度（成功才扣、失败/非车辆退款），响应新增 `brand`/`detectedBrand`。
+- [修改] `app/api/generations/route.ts`：读取并透传 `vehicleBrand` 至生成任务。
+- [修改] `lib/server/generation-engine.ts`：`RunGenerationWorkflowInput` 新增 `vehicleBrand?` 并透传。
+- [修改] `app/api/admin/generations/route.ts` 与 `export/route.ts`：透传 `brand` 筛选参数。
+- [修改] `docs/API_REFERENCE.md` / `DB_SCHEMA.md` / `BUSINESS_DOMAIN.md`：同步接口、表字段与业务规则（BR-021）。
+
+#### 验证
+- `tsc --noEmit` 零错误；`next lint` 零警告零错误。
+
+## 2026-08-15
+
+### 个人中心交互三项优化（头像环 / 固定高度 / 车库联动结果）
+
+#### 修改
+- [修改] `components/pc-account-panel.tsx`：
+  - **需求1**：`IdentityCard` 删去独立的「本月用量」`RingGauge`（右侧独立环）；新增 `AvatarUsageRing` 组件，将用量进度环**环绕圆角方形头像**（58px 外环 + 48px 头像居中，半径27/stroke3，复用 `mounted` 挂载填充过渡，`danger<0.2` 转 amber）；身份卡加 `pc-identity-usage` 11px 小字 + 环 `title` 保留数值可读。
+  - **需求2**：新增隐藏测量层 `.pc-measure-layer`（与内容区同宽同 padding，`aria-hidden`），内同时渲染 6 个 section（传真实 state + `loading=false` + 空回调，不发新请求）；`useLayoutEffect`（依赖 `open/billing/garage/usageSeries/language` + `ResizeObserver`）取各 `[data-measure]` 最大 `offsetHeight` → 写入 `maxContentHeight`，应用到 `.pc-account-content` 的 `min-height`，使弹窗高度固定、切换不跳动。
+  - **需求3**：`PcAccountPanelProps` 加性新增 `onOpenJob?: (job: GenerationJob) => void`（不破坏既有契约）；`GarageSection` 新增 `onOpenJob` 参数，每条生成记录 `<article>` 改为可点击（`role="button"`/`tabIndex`/`onKeyDown` Enter/Space）回调 `onOpenJob`。
+- [修改] `components/car-mod-studio.tsx`：`<PcAccountPanel>` 调用处传 `onOpenJob={(job) => { setProfileOpen(false); setActiveMenu("edit"); selectHistoryJob(job) }}`，复用既有 `selectHistoryJob`（setJob + `viewMode="generated"` + `isRenderableGeneration` 守卫）将记录渲染到主界面「结果」面板。
+- [修改] `app/globals.css`：`.pc-account-panel` 加 `position:relative`；新增 `.pc-measure-layer` / `.pc-identity-avatar-ring` / `.pc-identity-avatar-wrap` / `.pc-identity-usage` 样式；`.pc-identity` 间距与 `.pc-identity-avatar` 改为环内居中包裹。
+
+#### 验证
+- `tsc --noEmit` 零错误；`next lint` 零警告零错误。
+
+## 2026-08-15
+
+### 个人中心 UI 重构（六大区块 · Garage Command Center）(DESIGN-20260815-001)
+
+#### 新增
+- [新增] `lib/types.ts` 新增 `UsageDay` 类型（`{ date, configUsed, chatUsed }`） (关联方案ID: DESIGN-20260815-001)
+- [新增] `lib/server/db.ts` 新增 `getUsageSeries(userId, days=7)`：按 `strftime('%Y-%m-%d', ...)` 与 `generation_jobs.mode` 聚合 `usage_ledger`，config/chat 分别统计，缺失日期补零，`days` 钳制 1~30 (关联方案ID: DESIGN-20260815-001)
+- [新增] `app/api/usage/route.ts` 新增 `GET /api/usage`（`runtime=nodejs`、`force-dynamic`、`requireUser()` + `getUsageSeries`），返回 `{ series }` (关联方案ID: DESIGN-20260815-001)
+- [新增] `lib/account-client.ts` 新增 `getAccountGarage()`（复用 `GET /api/garage`）与 `getUsageSeries(days=7)`（调用 `GET /api/usage`） (关联方案ID: DESIGN-20260815-001)
+
+#### 修改
+- [修改] `components/pc-account-panel.tsx` 重写为六大区块（概览 / 我的车库 / 用量 / 账户 / 会员 / 订单），菜单类型扩展为 `AccountMenu = "overview"|"garage"|"usage"|"account"|"membership"|"orders"`；新增 `IdentityCard`、`RingGauge`(SVG)、`OverviewSection`、`GarageSection`、`UsageSection`、`UsageGauge`、`Sparkline`、`MembershipSection`(原 SubscribeSection)、`LogoutPopup`；账户信息重组为「资料 / 绑定 / 安全」三张分组卡片并补 `htmlFor`/`id` 无障碍关联；侧边栏菜单加 `role="tablist"` + 方向键/Home/End 键盘导航、`aria-live` 消息播报、`aria-labelledby`；`style={{ "--pc-fill": ... } as React.CSSProperties}` 驱动进度条。组件 props 契约（`open/language/authUser/billing/onClose/onAuth/onAccountUpdated/onBillingUpdated/onLogout`）保持不变，`car-mod-studio.tsx` 零改动 (关联方案ID: DESIGN-20260815-001)
+- [修改] `app/globals.css` 新增 HUD 设计令牌 `--teal`/`--teal-soft`/`--teal-line`/`--amber`；新增身份卡、遥测卡、用量仪表/折线、车库网格、订单卡、登出弹窗等区块样式；`.pc-pricing-card.featured` 描边改用 `--teal-line` 保持统一 (关联方案ID: DESIGN-20260815-001)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增「用量遥测模块」`GET /api/usage` 接口详情（Query 参数、响应结构、数据来源、错误码） (关联方案ID: DESIGN-20260815-001)
+
+#### 影响
+- 「个人中心」由三层 Tab 门户重构为六区块侧栏导航 + HUD 风格仪表盘，新增概览（含近 7 日用量环形图与最近作品）、我的车库（复用 `GET /api/garage`）、用量（近 7 日 config/chat 折线 + 配额进度条 + 低额告警）。
+- 后端仅新增一个聚合接口 `GET /api/usage`，无新表、无破坏性变更；`usage_ledger` 无 `mode` 列，已通过 JOIN `generation_jobs` 区分 config/chat。
+- 组件对外契约不变，调用方无需改动；`tsc` 与 `next lint` 均零告警。
+
+### 个人中心 UI 优化（V2 · 尺寸 / 配色 / 动效）(关联 `个人中心UI优化方案.md`)
+
+#### 修改
+- [修改] `app/globals.css` `.pc-*` 样式专项优化（纯展示，零逻辑改动）：
+  - 尺寸：新增 `--pc-content-max:600px` 并统一 account/subscribe/orders 三区块 `max-width`（原 480/640/640 → 600，解决右缘跳动）；侧栏 `248px` 留白、内容区 `padding:32 36`；关闭按钮 `32→36`、图标 `24→18` 并 hover 旋转 90°；身份头像 `52→48`；输入框/菜单项/遥测卡/定价卡间距与字号微调。
+  - 配色：确立 **teal 为唯一交互强调色**——头像选中态、支付选中态由 `blue` 改为 `teal`；激活菜单加 teal 左侧指示条 + teal-soft 底 + 焦点环；输入框 focus 由灰边升级为 teal 边框 + 3px 柔光环；`free` 徽标去灰底（不再像禁用）；`--font-mono` 移除首项 `Courier New`（保留为最后回退），读数质感提升。
+  - 动效：`--font-mono` 之外新增按钮按压 `scale(.97)`、车库/定价卡 hover 抬起 + teal 阴影、section 标题 teal 刻度条、保存成功 `✓` 微动效（`.pc-saved-badge`）、加载态 shimmer 骨架（`.pc-skeleton`）、火花线 `pathLength` 描边绘制；新增 `prefers-reduced-motion` 降级。
+- [修改] `components/pc-account-panel.tsx`（纯展示/动效，props 契约不变）：内容切换改为 `sectionVariants`/`itemVariants` stagger 编排（概览遥测卡二次 stagger）；`RingGauge`/`UsageGauge` 新增 `mounted` 态，环与进度条**挂载即播放**；`Sparkline` 加 `pathLength={1}` 配合描边动画；新增 `Skeleton` 与 `SavedBadge` 组件替换加载文字与纯文字"已保存"；关闭图标 `<X size={24}>` → `18`。
+
+#### 影响
+- 仅改样式与 framer-motion 参数，**未触碰任何 props、调用契约（`car-mod-studio.tsx` 零改动）、数据层、API、路由**；`tsc` 与 `next lint` 均零告警。
+- 字体升级采取"移除 Courier New 首项"的零网络方案（未引入 `next/font` 以避免构建期联网依赖）；如需进一步落地 JetBrains Mono，可后续在 `app/layout.tsx` 经 `next/font/google` 接入。
+
+## 2026-08-11
+
+### 资源库配件删除能力 (DESIGN-20260811-001)
+
+#### 新增
+- [新增] `lib/server/db.ts` 新增 `deleteAsset(id)`：引用保护（被组合预设 `prompt_templates.asset_id` 引用则拒绝删除）+ 级联删参考图 `part_asset_references` + 硬删 `part_assets` + 审计 (关联方案ID: DESIGN-20260811-001)
+- [新增] `app/api/admin/assets/[id]/route.ts` 新增 `DELETE` 处理器 (关联方案ID: DESIGN-20260811-001)
+- [新增] `components/admin-console.tsx` 配件行（`AssetRow`）操作区改为纵向，于"停用"按钮下方新增红色背景"删除"按钮；新增 `deleteAssetItem`（原生 `window.confirm("删除后将无法恢复")` + `DELETE` 调用） (关联方案ID: DESIGN-20260811-001)
+- [新增] `app/globals.css` 新增 `.admin-asset-actions button.delete-asset` 红底样式，并在 `.admin-clinical` 作用域补更高优先级覆盖，保证临床主题下红色不被 `.admin-clinical .admin-asset-row button` 染色 (关联方案ID: DESIGN-20260811-001)
+
+#### 文档
+- [文档] `docs/API_REFERENCE.md` 新增 `DELETE /api/admin/assets/[id]` 接口详情（引用保护说明、错误码、关联表） (关联方案ID: DESIGN-20260811-001)
+- [文档] `docs/BUSINESS_DOMAIN.md` 新增业务规则 BR-020（配件可硬删 + 引用保护） (关联方案ID: DESIGN-20260811-001)
+
+#### 影响
+- 管理员资源库配件管理补齐硬删能力（此前仅可停用）；被组合预设引用的配件将被保护，避免预设悬空。
+- 前台工作室不受影响：删除仅作用于 `part_assets` 与自身参考图，目录由 `getCatalog` 实时过滤。
+
 ## 2026-08-10
 
 ### 对话模式侧边栏头部精简与折叠按钮重排 (DESIGN-20260810-001)

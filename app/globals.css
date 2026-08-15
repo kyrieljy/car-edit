@@ -16,9 +16,13 @@
   --blue: #3a82ff;
   --green: #48d18d;
   --red: #ef6363;
+  --teal: #67ffca;
+  --teal-soft: rgba(103, 255, 202, 0.12);
+  --teal-line: rgba(103, 255, 202, 0.28);
+  --amber: #ffb454;
   --shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
   --shadow-rail: 3px 0 8px rgba(0, 0, 0, 0.3);
-  --font-mono: "Courier New", "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
     monospace;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -66,32 +70,15 @@ a {
   overflow: hidden;
   padding: 58px 24px 38px;
   background:
-    radial-gradient(ellipse at 50% 77%, rgba(97, 75, 0, 0.4) 0%, rgba(97, 75, 0, 0.18) 29%, transparent 63%),
-    #000;
+    radial-gradient(80% 60% at 30% 0%, rgba(58, 130, 255, 0.10) 0%, transparent 55%),
+    radial-gradient(90% 70% at 75% 115%, rgba(255, 180, 84, 0.10) 0%, transparent 60%),
+    linear-gradient(160deg, #0b0e14 0%, #0a0b10 45%, #0d0a08 100%);
 }
 
+/* 侧边金色辉光已移除（方案 C：改用 .app-shell 冷暖分级背景） */
 .app-shell::before,
 .app-shell::after {
-  content: "";
-  position: fixed;
-  z-index: 0;
-  bottom: 0;
-  width: 164px;
-  height: 75vh;
-  pointer-events: none;
-  background:
-    linear-gradient(to bottom, transparent 0%, rgba(97, 75, 0, 0.24) 22%, rgba(97, 75, 0, 0.9) 100%),
-    radial-gradient(circle, rgba(115, 91, 0, 0.96) 1.45px, transparent 1.65px);
-  background-size: 100% 100%, 9px 9px;
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 84%, rgba(0, 0, 0, 0.6) 100%);
-}
-
-.app-shell::before {
-  left: 0;
-}
-
-.app-shell::after {
-  right: 0;
+  content: none;
 }
 
 .studio-card {
@@ -1243,6 +1230,7 @@ a {
 }
 
 .pc-account-panel {
+  position: relative;
   width: min(900px, calc(100vw - 48px));
   max-height: 90vh;
   display: flex;
@@ -1254,6 +1242,7 @@ a {
     radial-gradient(circle at 18% 0%, rgba(103, 255, 202, 0.08), transparent 30%),
     linear-gradient(145deg, rgba(26, 28, 33, 0.98), rgba(8, 9, 11, 0.98));
   box-shadow: var(--shadow);
+  --pc-content-max: 600px;
   color: var(--text);
 }
 
@@ -1284,11 +1273,12 @@ a {
 }
 
 .pc-account-menu-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -1296,17 +1286,34 @@ a {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.15s ease;
 }
 
 .pc-account-menu-item:hover {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
+  transform: translateX(2px);
 }
 
 .pc-account-menu-item.active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--teal-soft);
   color: var(--text);
+}
+
+.pc-account-menu-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--teal);
+}
+
+.pc-account-menu-item:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
 }
 
 .pc-account-logout {
@@ -1316,7 +1323,7 @@ a {
 
 .pc-account-content {
   flex: 1;
-  padding: 32px;
+  padding: 32px 36px;
   overflow-y: auto;
   position: relative;
   min-width: 0;
@@ -1324,25 +1331,26 @@ a {
 
 .pc-account-close {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: 22px;
+  right: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, transform 0.2s ease;
   z-index: 1;
 }
 
 .pc-account-close:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.06);
+  transform: rotate(90deg) scale(1.1);
 }
 
 .pc-account-empty {
@@ -1369,11 +1377,41 @@ a {
   cursor: pointer;
 }
 
+/* 隐藏测量层：与内容区同宽同 padding，运行时测量各 section 最大高度（§需求2） */
+.pc-measure-layer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 240px;
+  padding: 32px 36px;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.pc-measure-layer > [data-measure] {
+  /* 避免 section 间 margin 折叠影响测量；每个 section 单独成块 */
+  display: block;
+}
+
 .pc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 24px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
+}
+
+.pc-section-title::before {
+  content: "";
+  width: 4px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--teal);
+  flex-shrink: 0;
 }
 
 .pc-section-subtitle {
@@ -1384,7 +1422,7 @@ a {
 
 /* Account section */
 .pc-account-section {
-  max-width: 480px;
+  max-width: var(--pc-content-max);
 }
 
 .pc-account-avatar-row {
@@ -1468,7 +1506,9 @@ a {
 }
 
 .pc-account-input:focus {
-  border-color: var(--muted);
+  border-color: var(--teal-line);
+  box-shadow: 0 0 0 3px var(--teal-soft);
+  outline: none;
 }
 
 .pc-account-input:disabled {
@@ -1653,7 +1693,8 @@ a {
 }
 
 .pc-avatar-grid-item.selected {
-  border-color: var(--blue);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-soft);
 }
 
 .pc-avatar-grid-item .account-avatar-image {
@@ -1752,7 +1793,8 @@ a {
 }
 
 .pc-payment-options button.selected {
-  border-color: var(--blue);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-soft);
 }
 
 .pc-payment-options button small {
@@ -1788,7 +1830,7 @@ a {
 
 /* Subscribe section */
 .pc-subscribe-section {
-  max-width: 640px;
+  max-width: var(--pc-content-max);
 }
 
 .pc-quota-grid {
@@ -1835,14 +1877,27 @@ a {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px;
+  padding: 22px;
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pc-pricing-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--teal-line);
+  box-shadow: 0 14px 40px rgba(103, 255, 202, 0.1);
 }
 
 .pc-pricing-card.featured {
-  border-color: rgba(103, 255, 202, 0.3);
+  border-color: var(--teal-line);
+  transform: scale(1.02);
+  box-shadow: 0 0 0 1px var(--teal-line), 0 14px 40px rgba(103, 255, 202, 0.12);
+}
+
+.pc-pricing-card.featured:hover {
+  transform: scale(1.02) translateY(-4px);
 }
 
 .pc-pricing-featured {
@@ -1920,7 +1975,7 @@ a {
 
 /* Orders section */
 .pc-orders-section {
-  max-width: 640px;
+  max-width: var(--pc-content-max);
 }
 
 .pc-orders-table {
@@ -1981,6 +2036,888 @@ a {
   text-align: center;
   color: var(--muted);
   font-size: 14px;
+}
+
+/* Data-rich sections use more of the content width for the HUD feel */
+.pc-account-section.pc-overview,
+.pc-account-section.pc-garage,
+.pc-account-section.pc-usage {
+  max-width: 600px;
+}
+
+/* Identity card (sidebar) */
+.pc-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, var(--teal-soft), transparent 70%),
+    var(--surface-2);
+}
+
+/* 头像外环（本月用量进度环，见交互优化方案 §需求1）
+   环内缘与头像内容边缘对齐，看起来像头像的边框；头像保持圆角方形 */
+.pc-identity-avatar-ring {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.pc-identity-avatar-ring .pc-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 2; /* 环叠在头像之上，作为头像边框 */
+}
+
+.pc-identity-avatar-ring .pc-ring-track,
+.pc-identity-avatar-ring .pc-ring-fill {
+  stroke-width: 3;
+}
+
+.pc-identity-avatar-wrap {
+  position: relative;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+}
+
+.pc-identity-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none; /* 进度环即头像边框，不再保留独立边框 */
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-3);
+  cursor: pointer;
+}
+
+.pc-identity-usage {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.pc-identity-img {
+  width: 100%;
+  height: 100%;
+}
+
+.pc-identity-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pc-identity-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pc-identity-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-identity-badge {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border: 1px solid var(--teal-line);
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pc-identity-badge.free {
+  border-color: var(--line-soft);
+  background: transparent;
+  color: var(--muted);
+}
+
+/* Ring gauge */
+.pc-ring-wrap {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+}
+
+.pc-ring {
+  display: block;
+}
+
+.pc-ring-track {
+  fill: none;
+  stroke: var(--line-soft);
+  stroke-width: 4;
+}
+
+.pc-ring-fill {
+  fill: none;
+  stroke: var(--teal);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.pc-ring-fill.danger {
+  stroke: var(--amber);
+}
+
+.pc-ring-text {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: var(--font-mono);
+}
+
+/* Overview section */
+.pc-overview-hero {
+  margin-bottom: 24px;
+}
+
+.pc-overview-greeting {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.pc-overview-greeting strong {
+  color: var(--teal);
+}
+
+.pc-overview-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pc-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.pc-telemetry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.pc-telemetry-card.plan {
+  border-left: 2px solid var(--teal);
+}
+
+.pc-telemetry-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pc-telemetry-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.pc-telemetry-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pc-overview-recent {
+  margin-bottom: 28px;
+}
+
+.pc-overview-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.pc-overview-recent-more {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pc-recent-row {
+  display: flex;
+  gap: 10px;
+}
+
+.pc-recent-thumb {
+  width: 72px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.pc-recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pc-recent-empty {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pc-cta-row {
+  display: flex;
+  gap: 12px;
+}
+
+.pc-cta-primary,
+.pc-cta-secondary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pc-cta-primary {
+  border: 1px solid var(--teal-line);
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.pc-cta-primary:hover {
+  background: rgba(103, 255, 202, 0.18);
+}
+
+.pc-cta-secondary {
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text);
+}
+
+.pc-cta-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Account section grouped cards */
+.pc-field-card {
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.pc-field-card-title {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Membership current plan card */
+.pc-membership-current {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  margin-bottom: 24px;
+  border: 1px solid var(--teal-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, var(--teal-soft), transparent 70%),
+    var(--surface-2);
+}
+
+.pc-membership-current-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pc-membership-badge {
+  padding: 3px 12px;
+  border: 1px solid var(--teal-line);
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pc-membership-current-head small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pc-membership-current-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.pc-managed-note {
+  margin: -12px 0 0;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+/* Usage section */
+.pc-usage-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.pc-usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.pc-usage-card.danger {
+  border-color: rgba(255, 180, 84, 0.4);
+}
+
+.pc-usage-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pc-usage-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pc-usage-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.pc-usage-bar {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pc-usage-bar-fill {
+  display: block;
+  height: 100%;
+  width: var(--pc-fill, 0%);
+  border-radius: 999px;
+  background: var(--teal);
+  transition: width 0.5s ease;
+}
+
+.pc-usage-bar-fill.danger {
+  background: var(--amber);
+}
+
+.pc-usage-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pc-usage-spark-block {
+  padding: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.pc-usage-spark-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pc-usage-spark-legend {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+}
+
+.dot.config {
+  background: var(--teal);
+}
+
+.dot.chat {
+  background: var(--blue);
+}
+
+.pc-usage-sparks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pc-spark {
+  display: block;
+  width: 100%;
+  height: 28px;
+}
+
+.pc-spark-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.pc-spark.config .pc-spark-line {
+  stroke: var(--teal);
+}
+
+.pc-spark.chat .pc-spark-line {
+  stroke: var(--blue);
+}
+
+.pc-usage-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 180, 84, 0.4);
+  border-radius: 10px;
+  background: rgba(255, 180, 84, 0.1);
+  color: var(--amber);
+  font-size: 13px;
+}
+
+/* Garage section */
+.pc-garage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.pc-garage-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pc-garage-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--teal-line);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+}
+
+.pc-garage-thumb img {
+  transition: transform 0.25s ease;
+}
+
+.pc-garage-card:hover .pc-garage-thumb img {
+  transform: scale(1.06);
+}
+
+.pc-garage-card:hover {
+  border-color: var(--teal-line);
+}
+
+.pc-garage-thumb {
+  width: 84px;
+  height: 64px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.pc-garage-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pc-garage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pc-garage-model {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-garage-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pc-garage-mode {
+  padding: 2px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pc-garage-mode.config {
+  border-color: var(--teal-line);
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.pc-garage-mode.chat {
+  border-color: rgba(58, 130, 255, 0.4);
+  background: rgba(58, 130, 255, 0.12);
+  color: var(--blue);
+}
+
+.pc-garage-time {
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.pc-garage-empty {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pc-garage-empty-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.pc-garage-empty-art {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.pc-garage-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pc-garage-empty-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pc-garage-create {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--teal-line);
+  border-radius: 10px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pc-garage-create:hover {
+  background: rgba(103, 255, 202, 0.18);
+}
+
+/* Orders section (cards) */
+.pc-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pc-order-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.pc-order-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pc-order-plan {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pc-order-status {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pc-order-status.paid {
+  color: var(--green);
+}
+
+.pc-order-status.pending {
+  color: var(--amber);
+}
+
+.pc-order-status.failed {
+  color: var(--red);
+}
+
+.pc-order-status.refunded {
+  color: var(--muted);
+}
+
+.pc-order-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pc-order-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pc-order-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-order-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Logout popup */
+.pc-logout-popup {
+  width: min(360px, calc(100vw - 56px));
+}
+
+.pc-logout-text {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.pc-logout-hint {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pc-logout-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.pc-logout-actions button {
+  flex: 1;
+}
+
+.pc-logout-confirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.pc-logout-confirm:hover {
+  opacity: 0.88;
+}
+
+/* ===== 个人中心 V2 交互增强（尺寸 / 配色 / 动效） ===== */
+
+/* 按钮按压反馈 */
+.pc-account-field-save:enabled,
+.pc-account-field-action,
+.pc-account-password-btn,
+.pc-pricing-btn,
+.pc-payment-submit,
+.pc-password-submit,
+.pc-cta-primary,
+.pc-cta-secondary,
+.pc-account-empty-btn,
+.pc-logout-confirm,
+.pc-garage-create {
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.pc-account-field-save:enabled:active,
+.pc-account-field-action:active,
+.pc-account-password-btn:active,
+.pc-pricing-btn:enabled:active,
+.pc-payment-submit:not(:disabled):active,
+.pc-password-submit:not(:disabled):active,
+.pc-cta-primary:active,
+.pc-cta-secondary:active,
+.pc-account-empty-btn:active,
+.pc-logout-confirm:active,
+.pc-garage-create:active {
+  transform: scale(0.97);
+}
+
+/* 保存成功确认微动效 */
+.pc-saved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  background: rgba(72, 209, 141, 0.12);
+  border: 1px solid rgba(72, 209, 141, 0.28);
+}
+
+/* 骨架屏 shimmer */
+@keyframes pc-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.pc-skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255, 255, 255, 0.06) 37%, var(--surface-2) 63%);
+  background-size: 400px 100%;
+  animation: pc-shimmer 1.2s infinite linear;
+}
+
+.pc-garage-thumb .pc-skeleton { width: 100%; height: 100%; }
+.pc-sk-line { height: 12px; width: 70%; margin-bottom: 8px; }
+.pc-sk-line.short { width: 45%; }
+.pc-order-skel { height: 64px; }
+.pc-spark-skel { height: 28px; width: 100%; }
+
+/* 火花线描边绘制 */
+.pc-spark-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: pc-spark-draw 0.8s ease forwards;
+}
+
+@keyframes pc-spark-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 关闭按钮图标尺寸（提案：36 按钮 / 18 图标） */
+.pc-account-close svg { width: 18px; height: 18px; }
+
+/* 无障碍：尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .pc-account-menu-item,
+  .pc-account-close,
+  .pc-garage-card,
+  .pc-garage-thumb img,
+  .pc-pricing-card,
+  .pc-spark-line,
+  .pc-skeleton,
+  .pc-usage-bar-fill,
+  .pc-ring-fill {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .account-panel-backdrop {
@@ -6756,6 +7693,22 @@ a {
   padding: 0 12px;
 }
 
+.admin-asset-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 86px;
+}
+
+.admin-asset-actions button.delete-asset {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+.admin-asset-actions button.delete-asset:hover {
+  filter: brightness(0.92);
+}
+
 .admin-form {
   display: grid;
   gap: 12px;
@@ -7653,6 +8606,37 @@ a {
   color: #ff9f9f;
   font-size: 11px;
   line-height: 1.35;
+}
+
+.recognize-vehicle-button--block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 58px;
+  box-sizing: border-box;
+  border: 1px solid #27272f;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  padding: 11px 16px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.recognize-vehicle-button--block:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #c8a24a;
+}
+
+.detected-vehicle-card .vehicle-recognition-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .images-block {
@@ -9227,6 +10211,16 @@ a {
   display: grid;
   gap: 8px;
   min-width: 86px;
+}
+
+.admin-clinical .admin-asset-actions button.delete-asset {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+.admin-clinical .admin-asset-actions button.delete-asset:hover {
+  filter: brightness(0.92);
 }
 
 .admin-clinical .asset-form-actions {
@@ -15775,22 +16769,13 @@ a {
     min-height: 100svh;
     overflow-x: hidden;
     background:
-      linear-gradient(180deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.62) 48%, rgba(7, 6, 2, 0.82) 100%),
-      radial-gradient(ellipse at 50% 102%, rgba(115, 91, 0, 0.92) 0%, rgba(97, 75, 0, 0.66) 42%, rgba(97, 75, 0, 0.24) 72%, transparent 100%),
-      repeating-linear-gradient(90deg, rgba(97, 75, 0, 0.32) 0, rgba(97, 75, 0, 0.32) 6px, rgba(115, 91, 0, 0.42) 6px, rgba(115, 91, 0, 0.42) 8px),
-      #050401;
+      radial-gradient(80% 60% at 30% 0%, rgba(58, 130, 255, 0.10) 0%, transparent 55%),
+      radial-gradient(90% 70% at 75% 115%, rgba(255, 180, 84, 0.10) 0%, transparent 60%),
+      linear-gradient(160deg, #0b0e14 0%, #0a0b10 45%, #0d0a08 100%);
   }
 
   .app-shell:not(.admin-shell)::before {
-    inset: auto 0 0;
-    width: 100vw;
-    height: min(72svh, 560px);
-    opacity: 0.58;
-    background:
-      linear-gradient(to bottom, transparent 0%, rgba(97, 75, 0, 0.28) 26%, rgba(97, 75, 0, 0.86) 100%),
-      radial-gradient(circle, rgba(115, 91, 0, 0.96) 1.35px, transparent 1.6px);
-    background-size: 100% 100%, 9px 9px;
-    mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 100%);
+    content: none;
   }
 
   .app-shell:not(.admin-shell)::after {
@@ -16082,17 +17067,25 @@ a {
 }
 
 .admin-clinical .subcategory-group-actions button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  gap: 4px;
+  width: auto;
   height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--clinical-line);
   background: var(--clinical-panel);
-  color: var(--clinical-muted);
+  color: var(--clinical-text);
   border-radius: 6px;
   cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
   transition: background 160ms ease, color 160ms ease;
+}
+
+.admin-clinical .subcategory-group-actions button span {
+  white-space: nowrap;
 }
 
 .admin-clinical .subcategory-group-actions button:hover:not(:disabled) {
@@ -16124,7 +17117,7 @@ a {
 
 .admin-clinical .subcategory-asset-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
@@ -16135,18 +17128,34 @@ a {
   width: 100%;
 }
 
-.admin-clinical .subcategory-asset-row button {
-  display: flex;
+/* 仅作用于直接子元素（删除配件按钮）；不能命中 StyledSelect 内部的 .styled-select__control，
+   否则会覆盖其 width:100%，导致触发器按选中文本长度撑开、溢出网格列遮挡相邻内容。 */
+.admin-clinical .subcategory-asset-row > button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  gap: 4px;
+  width: auto;
   height: 30px;
+  padding: 0 8px;
   border: 1px solid var(--clinical-line);
   background: var(--clinical-panel);
-  color: var(--clinical-muted);
+  color: var(--clinical-text);
   border-radius: 6px;
   cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
   transition: background 160ms ease, color 160ms ease;
+}
+
+/* 展开后的下拉面板按内容宽度自适应（上限 360px），保证选项文字完整展示；
+   收起态的触发器仍受 width:100% 约束、以省略号截断，不溢出网格列。 */
+.admin-clinical .subcategory-asset-row .styled-select__panel {
+  left: 0;
+  right: auto;
+  width: max-content;
+  min-width: 100%;
+  max-width: 360px;
 }
 
 .admin-clinical .subcategory-asset-row button.icon-danger:hover {
@@ -16358,11 +17367,18 @@ a {
 }
 
 .admin-clinical .provider-card .provider-edit-button,
-.admin-clinical .provider-card .provider-secondary-button {
+.admin-clinical .provider-card .provider-secondary-button,
+.admin-clinical .provider-card .provider-delete-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   width: auto;
   min-width: 96px;
   height: 38px;
   min-height: 38px;
+  border: 1px solid transparent;
   justify-self: start;
   padding: 0 16px;
 }
@@ -16374,15 +17390,6 @@ a {
 }
 
 .provider-delete-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-width: 96px;
-  height: 38px;
-  min-height: 38px;
-  justify-self: start;
-  padding: 0 16px;
   border: 1px solid var(--red, #ef4444);
   background: transparent;
   color: var(--red, #ef4444);
@@ -19791,6 +20798,46 @@ a {
     font-size: 14px;
     font-weight: 900;
     outline: none;
+  }
+
+  .mobile-recognize-button,
+  .mobile-recognize-button--block {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 54px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    background: rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(16px);
+    color: var(--m-text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .mobile-studio-app[data-theme="light"] .mobile-recognize-button,
+  .mobile-studio-app[data-theme="light"] .mobile-recognize-button--block {
+    border-color: rgba(21, 23, 27, 0.08);
+    background: rgba(255, 255, 255, 0.76);
+  }
+
+  .mobile-recognize-button:hover,
+  .mobile-recognize-button--block:hover {
+    border-color: #c8a24a;
+  }
+
+  .mobile-recognition-hint {
+    margin-top: 4px;
+    color: var(--m-muted);
+    font-size: 12px;
   }
 
   .mobile-view-tabs {
@@ -26167,6 +27214,34 @@ a {
 
 .styled-select__check {
   flex-shrink: 0;
+}
+
+/* Hover preview of a resource's reference image. position:fixed lets it escape
+   the panel's overflow-y:auto clipping; coordinates come from getBoundingClientRect. */
+.styled-select__preview {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  line-height: 0;
+}
+
+.styled-select__preview img {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.admin-clinical .styled-select__preview {
+  background: var(--clinical-panel-low);
+  border-color: var(--clinical-line);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
 }
 
 /* clinical theme — Scheme A "Teal Hairline":

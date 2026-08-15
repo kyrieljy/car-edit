@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       providerId: url.searchParams.get("providerId") || undefined,
       userQuery: url.searchParams.get("userQuery") || undefined,
       partCategory: url.searchParams.get("partCategory") || undefined,
+      brand: url.searchParams.get("brand") || undefined,
       sortBy,
       sortOrder,
     })

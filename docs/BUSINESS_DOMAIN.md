@@ -237,6 +237,8 @@ flowchart TD
 | BR-017 | 异常告警触发条件：high_frequency = 用户当日生成次数超过 100 次；high_cost = 用户当日总成本超过 5000 分（50 元）。同一用户同一类型同一小时内仅记录一条告警。 | 运营分析平台告警扫描 | 阈值可通过代码常量调整，当前为硬编码 |
 | BR-018 | 画质参数采用 Provider 级配置，参数名与枚举值双可配，平台内置各 Provider 默认模板；保留值 `''` 表示不传该参数、`'__auto__'` 表示跟随原图/自适应推导，二者均不等同于 API 字面量 `auto`。A 类 Provider（OpenAI 兼容 `/images/edits`、`/images/generations`）使用 `quality` 字段，B 类 Provider（Gemini `/generateContent`、Nano Banana）使用 `imageSize`/`resolution` 并嵌套于 `generationConfig.imageConfig`。 | 管理后台配置具备 image_generation 能力的 Provider 时 | 原环境变量画质参数（YUNWU_IMAGE_QUALITY 等）已废弃，仅在缺失内置模板时作为兜底；首次升级由 backfill 从环境变量有效值回填默认值，保证零行为变化 |
 | BR-019 | 画质参数对比测试为真实生图（消耗底层模型额度/费用），但**不扣减任何用户额度、不写入 `generation_jobs`/`usage_ledger`**，与用户生成记录天然隔离，不污染运营分析与成本统计；结果按 (Provider, 参数, 枚举值) 持久化缓存（纯缓存不失效，仅「重新生成」刷新），以「测试配件设置」全局单份配置为固定基准。 | 管理后台对某具备 image_generation 能力的 Provider 执行「对比测试」时 | 「一键测试所有模型」(`test-all`) 为最小连通性测试（不出图），与对比测试职责区分并存；对比测试须先配置「测试配件设置」（原图+至少一项配件选择）否则拒绝执行 |
+| BR-020 | 管理员可删除「资源库 → 配件管理」中的单个配件资源；删除按钮位于该配件行「停用」按钮下方，红色背景，点击后弹窗提示"删除后将无法恢复"，确认后执行。删除采用引用保护：若配件被组合预设（`prompt_templates.asset_id`）引用则拒绝删除并要求先解除引用，无实时引用时级联删除其参考图（`part_asset_references`）后硬删记录（不可恢复）。历史生成记录（`generation_jobs`，以 JSON 存储配件选择、无外键）不阻止删除。 | 管理员在资源库配件管理页删除配件时 | 此前仅支持"停用"软隐藏，本规则为 DESIGN-20260811-001 新增的可硬删能力 |
+| BR-021 | 车型识别须由用户主动触发（点击「识别车型」按钮），不再在上传图片后自动识别；每张已上传图片仅识别一次（识别成功后结果展示、按钮消失，历史记录加载只展示结果）。车型识别与会员额度绑定：未订阅用户（`configRemaining !== "unlimited"`）每次点击消耗 1 次 config 生成额度，仅识别成功（图像确认为车辆）才扣减，识别失败或非车辆照片则退回额度；已订阅用户（`configRemaining === "unlimited"`）任意识别、不消耗额度；额度不足返回 403 引导升级。 | 用户在工作室点击「识别车型」按钮时 | 识别出的品牌（`detectedBrand`）随生成落库至 `generation_jobs.vehicle_brand`，供后台「生成记录」按品牌筛选；本规则为 DESIGN-20260815-002 新增 |
 
 ---
 

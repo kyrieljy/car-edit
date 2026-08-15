@@ -63,6 +63,7 @@ import type {
   SiteConfig,
   Subscription,
   SubcategoryGroup,
+  UsageDay,
   WorkflowConfig,
   WorkflowMode,
   WorkflowNodeConfig,
@@ -803,6 +804,7 @@ function migrateSchema(conn: DatabaseSync) {
     ["bad_case_tags_json", "TEXT NOT NULL DEFAULT '[]'"],
     ["progress_json", "TEXT NOT NULL DEFAULT '[]'"],
     ["vehicle_info", "TEXT NOT NULL DEFAULT '{}'"],
+    ["vehicle_brand", "TEXT NOT NULL DEFAULT ''"],
     ["completed_at", "INTEGER NOT NULL DEFAULT 0"],
   ]
   generationColumnDefaults.forEach(([name, definition]) => {
@@ -2399,6 +2401,47 @@ function syncExpiredSubscriptions(userId: string) {
   }
 }
 
+export function getUsageSeries(userId: string, days = 7): UsageDay[] {
+  const range = Math.min(30, Math.max(1, Math.trunc(Number(days)) || 7))
+  const end = new Date()
+  const dayKeys: string[] = []
+  for (let offset = range - 1; offset >= 0; offset -= 1) {
+    const day = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - offset))
+    dayKeys.push(day.toISOString().slice(0, 10))
+  }
+  const startKey = dayKeys[0]
+  const startMs = Date.parse(`${startKey}T00:00:00.000Z`)
+
+  const rows = database()
+    .prepare(`
+      SELECT
+        strftime('%Y-%m-%d', ul.created_at / 1000, 'unixepoch') AS day_key,
+        gj.mode AS mode,
+        COALESCE(SUM(ul.usage_units), 0) AS units
+      FROM usage_ledger ul
+      JOIN generation_jobs gj ON gj.id = ul.generation_id
+      WHERE ul.user_id = ? AND ul.created_at >= ?
+      GROUP BY day_key, gj.mode
+    `)
+    .all(userId, startMs) as Row[]
+
+  const byDay = new Map<string, { configUsed: number; chatUsed: number }>()
+  for (const key of dayKeys) byDay.set(key, { configUsed: 0, chatUsed: 0 })
+  for (const row of rows) {
+    const key = String(row.day_key)
+    const bucket = byDay.get(key)
+    if (!bucket) continue
+    const units = Number(row.units) || 0
+    if (String(row.mode) === "chat") bucket.chatUsed += units
+    else bucket.configUsed += units
+  }
+
+  return dayKeys.map((key) => {
+    const bucket = byDay.get(key) as { configUsed: number; chatUsed: number }
+    return { date: key, configUsed: bucket.configUsed, chatUsed: bucket.chatUsed }
+  })
+}
+
 export function checkAndConsumeEntitlement(userId: string, mode: "config" | "chat") {
   const status = getBillingStatus(userId)
   if (mode === "chat" && !status.chatEnabled) {
@@ -2664,6 +2707,7 @@ export function createGeneration(input: {
   vehicleUploadId: string
   sourceImageUrl: string
   displayVehicleModel?: string
+  vehicleBrand?: string
   resultImageUrl?: string
   paintId: string
   stance: number
@@ -2690,8 +2734,8 @@ export function createGeneration(input: {
   database()
     .prepare(`
       INSERT INTO generation_jobs
-      (id, user_id, vehicle_upload_id, mode, provider, display_vehicle_model, paint_id, stance, selections_json, selection_options_json, standard_json, workflow_id, prompt_version, prompt_summary, prompt_hidden, result_check_json, retry_count, failure_reason, cost_cents, bad_case_tags_json, status, result_image_url, usage_units, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, vehicle_upload_id, mode, provider, display_vehicle_model, vehicle_brand, paint_id, stance, selections_json, selection_options_json, standard_json, workflow_id, prompt_version, prompt_summary, prompt_hidden, result_check_json, retry_count, failure_reason, cost_cents, bad_case_tags_json, status, result_image_url, usage_units, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       generationId,
@@ -2700,6 +2744,7 @@ export function createGeneration(input: {
       input.mode || "config",
       input.provider,
       normalizeDisplayVehicleModel(input.displayVehicleModel),
+      normalizeVehicleBrand(input.vehicleBrand),
       input.paintId,
       input.stance,
       JSON.stringify(input.selections),
@@ -3176,7 +3221,8 @@ function quotaRemainingValue(status: EntitlementStatus, mode: "config" | "chat")
 type AssetReferenceInput = Partial<Omit<PartAssetReference, "assetId" | "createdAt">> & { url: string }
 
 export function createAsset(input: Omit<PartAsset, "active" | "brandId" | "sortOrder"> & { brandId?: string; active?: boolean; sortOrder?: number; generationReferences?: AssetReferenceInput[] }) {
-  const brandId = input.brandId || ensureBrand(input.categoryId, input.brand)
+  // 仅当提供了真实品牌名时才 ensureBrand；"资源/资源-细分类"等无品牌类目传空 brandId/brand，保持 brandless，避免自动生成 "Custom" 品牌。
+  const brandId = input.brandId && input.brandId.trim() ? input.brandId : input.brand && input.brand.trim() ? ensureBrand(input.categoryId, input.brand) : ""
   const sortOrder = Number.isFinite(Number(input.sortOrder)) ? Number(input.sortOrder) : nextAssetSortOrder(input.categoryId, brandId)
   const promptTestStatus = normalizePromptTestStatus(input.promptTestStatus)
   const recommendedViews = normalizeStringArray(input.recommendedViews)
@@ -3373,7 +3419,8 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
   const current = assets().find((asset) => asset.id === id)
   if (!current) throw new Error(`Asset not found: ${id}`)
   const next = { ...current, ...patch }
-  const brandId = next.brandId || ensureBrand(next.categoryId, next.brand)
+  // 同 createAsset：无真实品牌时保持 brandless，避免为"资源/资源-细分类"类目生成多余品牌。
+  const brandId = next.brandId && next.brandId.trim() ? next.brandId : next.brand && next.brand.trim() ? ensureBrand(next.categoryId, next.brand) : ""
   const promptTestStatus = normalizePromptTestStatus(next.promptTestStatus)
   const recommendedViews = normalizeStringArray(next.recommendedViews)
   const keywords = normalizeAssetKeywords(next.keywords)
@@ -3433,6 +3480,20 @@ export function updateAsset(id: string, patch: Partial<PartAsset>) {
     replaceAssetReferences(id, patch.generationReferences as AssetReferenceInput[])
   }
   return assets().find((asset) => asset.id === id) as PartAsset
+}
+
+export function deleteAsset(id: string) {
+  const referencedRow = database()
+    .prepare("SELECT COUNT(*) AS value FROM prompt_templates WHERE asset_id = ?")
+    .get(id) as { value: number }
+  if (Number(referencedRow?.value || 0) > 0) {
+    throw new Error("该配件被组合预设引用，请先解除后删除")
+  }
+  database().prepare("DELETE FROM part_asset_references WHERE asset_id = ?").run(id)
+  const result = database().prepare("DELETE FROM part_assets WHERE id = ?").run(id)
+  if (!result.changes) throw new Error(`Asset not found: ${id}`)
+  writeAudit("", "admin.asset.delete", { id })
+  return { ok: true }
 }
 
 export function updateProvider(input: { id?: ProviderId; label?: string; baseUrl?: string; modelName?: string; capabilities?: ProviderConfig["capabilities"]; enabled?: boolean; active?: boolean; apiKey?: string; consoleUrl?: string; imageParams?: ProviderImageParam[] }) {
@@ -3949,7 +4010,13 @@ function mapAssetRow(row: Row, references: Map<string, PartAssetReference[]>): P
   const defaultColorPolicy = normalizeColorPolicy(row.default_color_policy) ?? inferAssetDefaultColorPolicy(base)
   return {
     ...base,
-    brandId: String(row.brand_id || ensureBrand(String(row.category_id), String(row.brand))),
+    // 读取时同样保持 brandless：brand_id 与 brand 均为空时不再 ensureBrand，避免每次读取都生成 "Custom" 品牌。
+    brandId:
+      row.brand_id && String(row.brand_id).trim()
+        ? String(row.brand_id)
+        : String(row.brand || "").trim()
+          ? ensureBrand(String(row.category_id), String(row.brand || ""))
+          : "",
     imageUrl: String(row.image_url),
     imageCrop: String(row.image_crop ?? ""),
     active: Boolean(row.active),
@@ -4671,6 +4738,14 @@ function normalizeDisplayVehicleModel(value: unknown) {
   return model
 }
 
+function normalizeVehicleBrand(value: unknown) {
+  const brand = String(value || "").replace(/\s+/g, " ").trim()
+  if (!brand) return ""
+  const normalized = brand.toLowerCase()
+  if (["unknown", "n/a", "na", "none", "null"].includes(normalized)) return ""
+  return brand
+}
+
 function mapAuthUser(row: Row): AuthUser {
   const username = String(row.username || row.id)
   const avatar = authUserAvatar(row)
@@ -4758,7 +4833,7 @@ function applySortOrder(table: "asset_categories" | "asset_brands" | "part_asset
   }
 }
 
-function countWhere(table: "asset_brands" | "part_assets", column: "category_id" | "brand_id", value: string) {
+function countWhere(table: "asset_brands" | "part_assets" | "prompt_templates", column: "category_id" | "brand_id" | "asset_id", value: string) {
   const row = database().prepare(`SELECT COUNT(*) AS value FROM ${table} WHERE ${column} = ?`).get(value) as Row
   return Number(row.value || 0)
 }
@@ -4815,6 +4890,7 @@ export type GenerationListFilter = {
   providerId?: string
   userQuery?: string
   partCategory?: string
+  brand?: string
   sortBy: "created_at" | "duration"
   sortOrder: "asc" | "desc"
 }
@@ -4838,6 +4914,7 @@ export function getGenerationList(filter: GenerationListFilter): {
     status: string
     provider: string
     displayVehicleModel: string
+    vehicleBrand: string
     durationMs: number | null
     createdAt: number
     completedAt: number | null
@@ -4882,6 +4959,10 @@ export function getGenerationList(filter: GenerationListFilter): {
     conditions.push("g.standard_json LIKE ?")
     params.push(`%${filter.partCategory}%`)
   }
+  if (filter.brand && filter.brand.trim()) {
+    conditions.push("g.vehicle_brand LIKE ?")
+    params.push(`%${filter.brand.trim()}%`)
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
 
@@ -4915,6 +4996,7 @@ export function getGenerationList(filter: GenerationListFilter): {
     g.id AS id, g.user_id AS user_id, u.username AS username,
     g.mode AS mode, g.status AS status, g.provider AS provider,
     g.display_vehicle_model AS display_vehicle_model,
+    g.vehicle_brand AS vehicle_brand,
     ${durationExpr} AS duration_ms,
     g.created_at AS created_at, g.failure_reason AS failure_reason
   FROM generation_jobs g
@@ -4932,6 +5014,7 @@ export function getGenerationList(filter: GenerationListFilter): {
     status: String(row.status ?? ""),
     provider: String(row.provider ?? ""),
     displayVehicleModel: String(row.display_vehicle_model ?? ""),
+    vehicleBrand: String(row.vehicle_brand ?? ""),
     durationMs: row.duration_ms !== null && row.duration_ms !== undefined ? Number(row.duration_ms) : null,
     createdAt: Number(row.created_at ?? 0),
     completedAt: null,

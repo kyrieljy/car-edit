@@ -16,7 +16,12 @@ type OptionLike = {
   value: string;
   label: ReactNode;
   disabled?: boolean;
+  /** Optional reference image shown in a hover preview (read from the <option>'s data-image attribute). */
+  previewUrl?: string;
 };
+
+/** Width of the floating hover-preview image (matches CSS .styled-select__preview img). */
+const PREVIEW_SIZE = 168;
 
 export interface StyledSelectProps
   extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange" | "children"> {
@@ -34,11 +39,13 @@ function collectOptions(children: ReactNode): OptionLike[] {
         value?: string | number;
         children?: ReactNode;
         disabled?: boolean;
+        "data-image"?: string;
       };
       return {
         value: props.value === undefined ? "" : String(props.value),
         label: props.children,
         disabled: props.disabled,
+        previewUrl: props["data-image"] ? String(props["data-image"]) : undefined,
       };
     });
 }
@@ -57,6 +64,7 @@ export function StyledSelect({
   const options = useMemo(() => collectOptions(children), [children]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [preview, setPreview] = useState<{ url: string; x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
@@ -79,9 +87,14 @@ export function StyledSelect({
     setActiveIndex(idx >= 0 ? idx : 0);
   }, [open, options, value]);
 
+  useEffect(() => {
+    if (!open) setPreview(null);
+  }, [open]);
+
   function commit(optionValue: string) {
     onChange?.({ target: { value: optionValue } } as React.ChangeEvent<HTMLSelectElement>);
     setOpen(false);
+    setPreview(null);
   }
 
   function onTriggerKeyDown(event: React.KeyboardEvent) {
@@ -157,6 +170,7 @@ export function StyledSelect({
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
             className="styled-select__panel"
+            onMouseLeave={() => setPreview(null)}
           >
             {options.map((opt, index) => {
               const isSelected = opt.value === String(value ?? "");
@@ -167,7 +181,17 @@ export function StyledSelect({
                   role="option"
                   aria-selected={isSelected}
                   aria-disabled={opt.disabled}
-                  onMouseEnter={() => !opt.disabled && setActiveIndex(index)}
+                  onMouseEnter={(event) => {
+                    if (!opt.disabled) setActiveIndex(index);
+                    if (opt.previewUrl) {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const placeLeft = rect.right + 8 + PREVIEW_SIZE > window.innerWidth;
+                      const x = placeLeft ? rect.left - PREVIEW_SIZE - 8 : rect.right + 8;
+                      setPreview({ url: opt.previewUrl, x, y: rect.top });
+                    } else {
+                      setPreview(null);
+                    }
+                  }}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     if (!opt.disabled) commit(opt.value);
@@ -189,6 +213,11 @@ export function StyledSelect({
           </motion.ul>
         )}
       </AnimatePresence>
+      {preview && (
+        <div className="styled-select__preview" style={{ left: preview.x, top: preview.y }}>
+          <img src={preview.url} alt="" />
+        </div>
+      )}
     </div>
   );
 }

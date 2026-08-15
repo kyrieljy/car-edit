@@ -156,6 +156,9 @@ type MobileStudioAppProps = {
   setVehicleNoteEdited: (value: boolean) => void
   vehicleDisplayName: string
   vehicleRecognitionError: string
+  onRecognizeVehicle: () => void
+  isRecognizingVehicle: boolean
+  recognized: boolean
   selectedAssets: PartAsset[]
   selections: SelectionMap
   selectAsset: (asset: PartAsset) => void
@@ -920,6 +923,9 @@ function MobileConfigMode(props: MobileStudioAppProps) {
     setVehicleNoteEdited,
     vehicleDisplayName,
     vehicleRecognitionError,
+    onRecognizeVehicle,
+    isRecognizingVehicle,
+    recognized,
     selectedAssets,
     colorPolicyAssets,
     selectedPaintLabel,
@@ -1087,20 +1093,30 @@ function MobileConfigMode(props: MobileStudioAppProps) {
             </span>
           )}
         </button>
-        <label className="mobile-recognition-badge" htmlFor="mobile-vehicle-note" aria-hidden={canToggleMediaChrome && mediaChromeHidden}>
-          <span>{t.detected}</span>
-          <input
-            id="mobile-vehicle-note"
-            value={vehicleNote}
-            onChange={(event) => {
-              if (isLoginBlocked) return
-              setVehicleNote(event.target.value)
-              setVehicleNoteEdited(true)
-            }}
-            placeholder={vehicleDisplayName}
-            disabled={isLoginBlocked || (!vehiclePreview && !vehicleNote)}
-          />
-        </label>
+        {recognized || isRecognizingVehicle ? (
+          <label className="mobile-recognition-badge" htmlFor="mobile-vehicle-note" aria-hidden={canToggleMediaChrome && mediaChromeHidden}>
+            <span>{t.detected}</span>
+            <input
+              id="mobile-vehicle-note"
+              value={vehicleNote}
+              onChange={(event) => {
+                if (isLoginBlocked) return
+                setVehicleNote(event.target.value)
+                setVehicleNoteEdited(true)
+              }}
+              placeholder={vehicleDisplayName}
+              disabled={isLoginBlocked || (!vehiclePreview && !vehicleNote)}
+            />
+            {isRecognizingVehicle ? (
+              <span className="mobile-recognition-hint">{language === "zh" ? "正在识别车型..." : "Recognizing..."}</span>
+            ) : null}
+          </label>
+        ) : (
+          <button type="button" className="mobile-recognize-button mobile-recognize-button--block" onClick={onRecognizeVehicle}>
+            <Car size={14} />
+            <span>{t.detected}</span>
+          </button>
+        )}
         {completedElapsed !== null && <span className="mobile-elapsed-badge">{`${t.elapsed} ${completedElapsed}${t.elapsedUnit}`}</span>}
         {isGenerating && (
           <div className="mobile-progress-layer">
